@@ -9,13 +9,13 @@ A personal daily Japanese study app for Safari on iPhone. It's a static site wit
 | M1: app shell, data loading | Built |
 | M2: kanji cards, SRS, daily session | Built |
 | M3: tap-to-assemble and particle drills | Built |
-| M4: listen and shadow, export and import | Not started |
-| Full MVP content | Not started |
+| M4: listen and shadow, export and import | Built |
+| Full MVP content | Built |
 | M5: full datasets, KanjiVG tracing | Not started |
 
-The app currently has sample content: 20 kanji, 21 words, 10 sentences, and 12 particle items covering all 9 particles. The MVP target is about 100 kanji, 150 words, and 50 sentences.
+Content is hand-written and hasn't been checked by a native speaker: 100 kanji, 150+ words, 50 sentences, and 12 particle items covering all 9 particles. JLPT tags are approximate, because no official kanji list has been published since 2010.
 
-Progress isn't backed up until export and import arrive in M4.
+Progress stays on the device, so export a backup from Settings regularly.
 
 ## Run locally
 
@@ -39,7 +39,7 @@ npm test
 
 Everything is in `data/`:
 
-- `kanji-n5.json`: each component in `parts` has an `img` field, `null` for now, ready for artwork.
+- `kanji-n5.json`: each component in `parts` can take an optional `img` path for artwork.
 - `sentences.json`: `blocks` holds the main word order. `alts` lists other natural orders as block indexes, so they aren't marked wrong.
 - `particles.json`: every wrong option in `options` needs an explanation in `why`.
-- `glossary.json`: reading, romaji, and meaning for each word in the particle guides and drills. Every word used there needs an entry.
+- `glossary.json`: reading, romaji, and meaning for each word in the sentences, particle guides, and drills. Every word used there needs an entry.

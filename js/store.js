@@ -5,8 +5,44 @@ const defaults = () => ({
   v: 1,
   items: {},
   days: {},
+  shadow: {},
+  lastBackup: null,
   settings: { newPerDay: 4, hints: true, theme: 'system' },
 });
+
+const isObject = (x) => x !== null && typeof x === 'object' && !Array.isArray(x);
+const RECORD_FIELDS = ['ease', 'interval', 'reps', 'lapses', 'due'];
+
+export function backupJson(state, now = Date.now()) {
+  return JSON.stringify({ app: 'jp-trainer', exportedAt: now, ...state });
+}
+
+// Returns clean state from a backup file, or throws with a readable message.
+export function parseBackup(text) {
+  let raw;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    throw new Error('That file isn\'t a JP Trainer backup.');
+  }
+  if (!isObject(raw) || raw.app !== 'jp-trainer') throw new Error('That file isn\'t a JP Trainer backup.');
+  if (raw.v !== 1) throw new Error('That backup comes from a different version of the app.');
+  const valid = isObject(raw.items) && isObject(raw.days)
+    && Object.values(raw.items).every((r) => isObject(r) && RECORD_FIELDS.every((f) => Number.isFinite(r[f])));
+  if (!valid) throw new Error('That backup is damaged, so nothing was changed.');
+  const base = defaults();
+  return {
+    exportedAt: raw.exportedAt,
+    state: {
+      v: 1,
+      items: raw.items,
+      days: raw.days,
+      shadow: isObject(raw.shadow) ? raw.shadow : {},
+      lastBackup: raw.lastBackup ?? null,
+      settings: { ...base.settings, ...(isObject(raw.settings) ? raw.settings : {}) },
+    },
+  };
+}
 
 export function load() {
   const base = defaults();
@@ -29,10 +65,10 @@ export function dayKey(now = Date.now()) {
 
 export function dayStats(state, now = Date.now()) {
   const key = dayKey(now);
-  return (state.days[key] ||= { newK: 0, newW: 0, reviews: 0, sentences: 0, particles: 0 });
+  return (state.days[key] ||= { newK: 0, newW: 0, reviews: 0, sentences: 0, particles: 0, shadow: 0 });
 }
 
-const active = (d) => d && d.newK + d.newW + d.reviews + d.sentences + d.particles > 0;
+const active = (d) => Boolean(d) && d.newK + d.newW + d.reviews + d.sentences + d.particles + (d.shadow || 0) > 0;
 
 export const daysStudied = (state) => Object.values(state.days).filter(active).length;
 

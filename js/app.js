@@ -1,5 +1,7 @@
 // Routing and screens.
-import { load, save, dayStats, daysStudied, lastWeek } from './store.js';
+import { load, save, dayStats, daysStudied, lastWeek, dayKey, backupJson, parseBackup } from './store.js';
+import { renderShadow } from './shadow.js';
+import { speak, cancel, sayBtn } from './tts.js';
 import { GRADES, newRecord, rate, label } from './srs.js';
 import { buildSession, kanjiId, wordId } from './session.js';
 import { renderSentence, renderParticle, particleCardHtml, bindGloss, shuffled } from './drills.js';
@@ -11,6 +13,8 @@ const tabbar = document.getElementById('tabbar');
 const state = load();
 let data = null;
 let run = null;
+let stepCleanup = null;
+let settingsNotice = '';
 
 const WEEKDAYS = '日月火水木金土';
 const TABS = [['today', 'Today'], ['practice', 'Practice'], ['kanji', 'Kanji'], ['settings', 'Settings']];
@@ -36,6 +40,10 @@ function setTop(title, { close = false, count = '', progress = null } = {}) {
 }
 
 /* ---------- Home ---------- */
+
+const BACKUP_DAYS = 14;
+const backupDue = () => Object.keys(state.items).length > 0
+  && (!state.lastBackup || Date.now() - state.lastBackup > BACKUP_DAYS * 864e5);
 
 function screenToday() {
   setTop('JP Trainer');
@@ -63,9 +71,9 @@ function screenToday() {
       ${row(icons.repeat, 'Reviews', counts.reviews, 'About 5 min')}
       ${row(icons.spark, 'New kanji and words', counts.learn, 'About 3 min')}
       ${row(icons.blocks, 'Sentences and particles', counts.sentences + counts.particles, 'About 4 min')}
-      <div class="row plan off"><span class="icbox">${icons.voice}</span>
-        <span class="grow"><span class="label">Listen and shadow</span><br><span class="sub">Coming soon</span></span></div>
+      ${row(icons.voice, 'Listen and shadow', counts.shadow, 'About 3 min')}
     </section>
+    ${backupDue() ? `<a class="nudge" href="#/settings">${icons.download}<span class="grow">Back up your progress. Safari can clear saved data.</span><span class="chev">${icons.chevron}</span></a>` : ''}
     <div class="caps sect"><span>Last 7 days</span></div>
     <section class="card">
       <div class="week" aria-label="Days studied in the last 7 days">${lastWeek(state, now.getTime()).map((d, i) => `<div class="${d.on ? 'on' : ''} ${i === 6 ? 'now' : ''}">${WEEKDAYS[d.weekday]}</div>`).join('')}</div>
@@ -87,7 +95,14 @@ function startRun(steps, title, { useSrs = false, browse = false } = {}) {
   renderStep();
 }
 
+function clearStep() {
+  stepCleanup?.();
+  stepCleanup = null;
+  cancel();
+}
+
 function endRun() {
+  clearStep();
   run = null;
   document.body.classList.remove('in-run');
   route();
@@ -113,6 +128,7 @@ function record(id, grade) {
 }
 
 function renderStep() {
+  clearStep();
   window.scrollTo(0, 0);
   if (run.i >= run.steps.length) {
     // Browsing has nothing to summarize, so it just closes.
@@ -132,7 +148,19 @@ function renderStep() {
   else if (step.type === 'card') renderCard(step);
   else if (step.type === 'sentence') renderSentence(view, step.ref, { hints: state.settings.hints, onDone: finishDrill });
   else if (step.type === 'particle') renderParticle(view, step.ref, step.set, data.particles.cards, { glossary: data.glossary, onDone: finishDrill });
-  else if (step.type === 'particleCard') {
+  else if (step.type === 'shadow') {
+    stepCleanup = renderShadow(view, step.ref, {
+      glossary: data.glossary,
+      onDone: () => {
+        if (run.useSrs) {
+          dayStats(state).shadow = (dayStats(state).shadow || 0) + 1;
+          state.shadow[step.id] = Date.now();
+          save(state);
+        }
+        advance();
+      },
+    });
+  } else if (step.type === 'particleCard') {
     view.innerHTML = `${particleCardHtml(step.ref, data.glossary)}<div class="dock"><button class="btn" id="next">Continue</button></div>`;
     bindGloss(view.querySelector('.gloss-zone'), data.glossary);
     view.querySelector('#next').onclick = advance;
@@ -157,7 +185,7 @@ function kanjiFacts(k) {
       <div class="read"><span class="caps">Kun</span><span class="jp">${list(k.kun)}</span></div>
     </div>
     ${words.length ? `<div class="block-sec"><span class="caps">In words</span>${words.map((w) => `<div class="wrow">
-      <span><b>${w.w}</b><span class="y">${w.y}</span></span><span class="m">${w.m}</span></div>`).join('')}</div>` : ''}
+      <span class="wl"><b>${w.w}</b><span class="y">${w.y}</span></span><span class="m">${w.m}</span>${sayBtn(w.y)}</div>`).join('')}</div>` : ''}
     <div class="block-sec"><span class="caps">Breakdown</span>${k.parts.map((p) => `<div class="part">
       ${p.img ? `<img src="${p.img}" alt="${p.label}">` : `<span class="pg">${p.c}</span>`}
       <div><strong>${p.label}</strong><div class="small">${p.mn}</div></div></div>`).join('')}</div>`;
@@ -166,6 +194,7 @@ function kanjiFacts(k) {
 const wordFacts = (w) => `<div>
     <p class="mean">${w.m}</p>
     <p class="meta jp" style="font-size:18px">${w.y}</p>
+    <div class="center">${sayBtn(w.y)}</div>
   </div>`;
 
 const factsHtml = (step) => (step.kind === 'kanji' ? kanjiFacts(step.ref) : wordFacts(step.ref));
@@ -247,6 +276,7 @@ function screenPractice() {
   view.innerHTML = `
     ${action('sent', icons.blocks, 'Sentence drill', `${data.sentences.length} sentences, shuffled`)}
     ${action('part', icons.practice, 'Particle drill', `${sets.length} nouns, each in several sentences`)}
+    ${action('shad', icons.voice, 'Listen and shadow', 'Hear a sentence, record yourself, compare')}
     <p class="small muted center">Free practice doesn't change your review schedule.</p>
     <div class="caps sect"><span>Particle guides</span></div>
     <section class="pgrid" id="cards">${cards.map((c) => `<button class="ptile" data-p="${c.p}">
@@ -256,6 +286,9 @@ function screenPractice() {
   );
   view.querySelector('#part').onclick = () => startRun(
     sets.flatMap((set) => set.items.map((it) => ({ type: 'particle', id: `p:${it.id}`, ref: it, set }))), 'Particle drill',
+  );
+  view.querySelector('#shad').onclick = () => startRun(
+    shuffled(data.sentences).map((s) => ({ type: 'shadow', id: s.id, ref: s })), 'Listen and shadow',
   );
   view.querySelector('#cards').onclick = (e) => {
     const b = e.target.closest('[data-p]');
@@ -304,15 +337,84 @@ function screenSettings() {
     </section>
     <div class="caps sect"><span>Appearance</span></div>
     <section class="card"><strong>Theme</strong>${seg('theme', [['system', 'System'], ['light', 'Light'], ['dark', 'Dark']])}</section>
+    <div class="caps sect"><span>Backup</span></div>
+    <section class="card">
+      <p class="small muted">Progress lives only on this device, and Safari can clear it. Last backup: <strong>${state.lastBackup ? new Date(state.lastBackup).toLocaleDateString() : 'never'}</strong>.</p>
+      <div class="pair">
+        <button class="btn ghost" id="export">${icons.download}<span>Export</span></button>
+        <button class="btn ghost" id="import">${icons.upload}<span>Import</span></button>
+      </div>
+      <input type="file" id="file" hidden>
+      <div id="confirm"></div>
+      ${settingsNotice ? `<div class="fb ${settingsNotice.startsWith('!') ? 'bad' : 'good'}" role="status">${settingsNotice.replace(/^!/, '')}</div>` : ''}
+    </section>
     <div class="caps sect"><span>About</span></div>
     <section class="card">
-      <p class="small">Sample content, hand-written for this app. Third-party data sources will be credited here when they are added.</p></section>`;
+      <p class="small">Content is hand-written for this app. Audio uses your device's Japanese voice. Third-party data sources will be credited here when they are added.</p></section>`;
+  settingsNotice = '';
+  view.querySelector('#export').onclick = exportBackup;
+  view.querySelector('#import').onclick = () => view.querySelector('#file').click();
+  view.querySelector('#file').onchange = (e) => importBackup(e.target.files[0]);
   view.onclick = (e) => {
     const b = e.target.closest('.seg button');
     if (!b) return;
     s[b.parentElement.dataset.key] = JSON.parse(b.dataset.v);
     save(state);
     applyTheme();
+    screenSettings();
+  };
+}
+
+async function exportBackup() {
+  const now = Date.now();
+  const name = `jp-trainer-backup-${dayKey(now)}.json`;
+  const json = backupJson({ ...state, lastBackup: now }, now);
+  const file = new File([json], name, { type: 'application/json' });
+  let shared = false;
+  if (navigator.canShare?.({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file] });
+      shared = true;
+    } catch (err) {
+      if (err.name === 'AbortError') return; // The user closed the share sheet.
+    }
+  }
+  if (!shared) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(file);
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  }
+  state.lastBackup = now;
+  save(state);
+  settingsNotice = 'Backup exported. Keep the file somewhere safe, such as iCloud Drive.';
+  screenSettings();
+}
+
+async function importBackup(file) {
+  if (!file) return;
+  let parsed;
+  try {
+    parsed = parseBackup(await file.text());
+  } catch (err) {
+    settingsNotice = `!${err.message}`;
+    screenSettings();
+    return;
+  }
+  const when = parsed.exportedAt ? new Date(parsed.exportedAt).toLocaleDateString() : 'an unknown date';
+  const box = view.querySelector('#confirm');
+  box.innerHTML = `<div class="fb info">Replace this device's progress with the backup from ${when}? It has ${Object.keys(parsed.state.items).length} study items. This can't be undone.</div>
+    <div class="pair" style="margin-top:8px">
+      <button class="btn ghost" id="nokeep">Cancel</button>
+      <button class="btn danger" id="yesreplace">Replace</button>
+    </div>`;
+  box.querySelector('#nokeep').onclick = () => { screenSettings(); };
+  box.querySelector('#yesreplace').onclick = () => {
+    Object.assign(state, parsed.state);
+    save(state);
+    applyTheme();
+    settingsNotice = 'Progress restored from the backup.';
     screenSettings();
   };
 }
@@ -337,6 +439,11 @@ function route() {
 
 async function init() {
   applyTheme();
+  // Any listen button, on any screen.
+  document.addEventListener('click', (e) => {
+    const el = e.target.closest('[data-say]');
+    if (el) speak(el.dataset.say);
+  });
   setTop('JP Trainer');
   tabbar.innerHTML = TABS.map(([id, text]) => `<a href="#/${id}" data-tab="${id}">${icons[id]}<span>${text}</span></a>`).join('');
   try {

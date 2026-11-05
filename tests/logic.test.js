@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { newRecord, rate, isDue } from '../js/srs.js';
-import { validNext, explainWrong, orders, tokenize, romajiLine } from '../js/drills.js';
+import { validNext, explainWrong, orders, tokenize, romajiLine, spoken } from '../js/drills.js';
+import { backupJson, parseBackup } from '../js/store.js';
 import { buildSession, kanjiId } from '../js/session.js';
 
 const json = (f) => JSON.parse(readFileSync(new URL(`../data/${f}.json`, import.meta.url)));
@@ -103,6 +104,16 @@ test('glossary covers every word in the particle guides and drills', () => {
   }
 });
 
+test('content meets the MVP targets, with no duplicates', () => {
+  assert.equal(data.kanji.length, 100);
+  assert.ok(data.vocab.length >= 150, `${data.vocab.length} words`);
+  assert.equal(data.sentences.length, 50);
+  assert.equal(new Set(data.kanji.map((k) => k.k)).size, data.kanji.length);
+  assert.equal(new Set(data.vocab.map((w) => w.w)).size, data.vocab.length);
+  assert.equal(new Set(data.sentences.map((s) => s.id)).size, data.sentences.length);
+  for (const k of data.kanji) assert.ok(k.parts.length && k.mean.length && k.strokes > 0 && k.on.length + k.kun.length > 0, k.k);
+});
+
 test('kanji data: example words exist in vocab', () => {
   for (const k of data.kanji) {
     for (const w of k.words) assert.ok(data.vocab.some((v) => v.w === w), `${k.k} ${w}`);
@@ -111,9 +122,9 @@ test('kanji data: example words exist in vocab', () => {
 
 test('new session teaches, tests, then drills, within daily caps', () => {
   const { steps, counts } = buildSession(blank(), data, NOW);
-  assert.deepEqual(counts, { reviews: 0, learn: 6, sentences: 3, particles: 3 });
+  assert.deepEqual(counts, { reviews: 0, learn: 6, sentences: 3, particles: 3, shadow: 1 });
   assert.deepEqual(steps.map((s) => s.type), [
-    ...Array(6).fill('learn'), ...Array(6).fill('card'), ...Array(3).fill('sentence'), ...Array(3).fill('particle'),
+    ...Array(6).fill('learn'), ...Array(6).fill('card'), ...Array(3).fill('sentence'), ...Array(3).fill('particle'), 'shadow',
   ]);
 });
 
@@ -124,6 +135,46 @@ test('due items lead the session; finished daily caps are respected', () => {
   assert.equal(buildSession(state, data, NOW).steps[0].id, kanjiId(key));
   const d = new Date(NOW);
   const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  state.days[today] = { newK: 4, newW: 2, reviews: 1, sentences: 3, particles: 3 };
-  assert.deepEqual(buildSession(state, data, NOW).counts, { reviews: 1, learn: 0, sentences: 0, particles: 0 });
+  state.days[today] = { newK: 4, newW: 2, reviews: 1, sentences: 3, particles: 3, shadow: 1 };
+  assert.deepEqual(buildSession(state, data, NOW).counts, { reviews: 1, learn: 0, sentences: 0, particles: 0, shadow: 0 });
+});
+
+test('shadow clip rotates to the least recently heard sentence already met', () => {
+  const state = blank();
+  const [a, b, c] = data.sentences;
+  state.items[`s:${a.id}`] = newRecord();
+  state.items[`s:${b.id}`] = newRecord();
+  state.shadow = { [a.id]: NOW - DAY };
+  assert.equal(buildSession(state, data, NOW).steps.at(-1).ref.id, b.id);
+  state.shadow[b.id] = NOW;
+  assert.equal(buildSession(state, data, NOW).steps.at(-1).ref.id, a.id);
+  assert.notEqual(buildSession(state, data, NOW).steps.at(-1).ref.id, c.id);
+});
+
+test('backup round-trips and rejects bad files without changing anything', () => {
+  const state = blank();
+  state.v = 1;
+  state.items['k:日'] = rate(newRecord(), 'good', NOW);
+  const { state: restored, exportedAt } = parseBackup(backupJson(state, NOW));
+  assert.equal(exportedAt, NOW);
+  assert.deepEqual(restored.items, state.items);
+  assert.equal(restored.settings.newPerDay, 4);
+  for (const bad of ['nope', '[]', '{"app":"other"}', '{"app":"jp-trainer","v":2}',
+    '{"app":"jp-trainer","v":1,"items":{"k:日":{"ease":"x"}},"days":{}}']) {
+    let threw = false;
+    try { parseBackup(bad); } catch { threw = true; }
+    assert.ok(threw, bad);
+  }
+});
+
+test('particles are respelled for speech when spoken alone', () => {
+  const g = json('glossary');
+  assert.equal(spoken('は', g['は']), 'わ');
+  assert.equal(spoken('を', g['を']), 'お');
+  assert.equal(spoken('学校', g['学校']), 'がっこう');
+});
+
+test('glossary covers every sentence word, so shadow romaji is complete', () => {
+  const g = json('glossary');
+  for (const s of data.sentences) for (const b of s.blocks) assert.ok(g[b.t], `${s.id} ${b.t}`);
 });

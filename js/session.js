@@ -49,15 +49,29 @@ export function buildSession(state, data, now = Date.now()) {
     ? pending.items.map((x) => ({ type: 'particle', id: particleId(x), ref: x, set: pending }))
     : [];
 
+  // One clip per day: the least recently shadowed, favouring sentences already met.
+  const heard = state.shadow || {};
+  const met = data.sentences.filter((x) => items[sentenceId(x)]);
+  const clip = stats.shadow > 0 ? null : [...(met.length ? met : data.sentences)]
+    .sort((a, b) => (heard[a.id] || 0) - (heard[b.id] || 0))[0];
+  const shadow = clip ? [{ type: 'shadow', id: clip.id, ref: clip }] : [];
+
   const steps = [
     ...reviews,
     ...learn.map((s) => ({ ...s, type: 'learn' })),
     ...learn.map((s) => ({ ...s, type: 'card', isNew: true })),
     ...sentences,
     ...particles,
+    ...shadow,
   ];
   return {
     steps,
-    counts: { reviews: reviews.length, learn: learn.length, sentences: sentences.length, particles: particles.length },
+    counts: {
+      reviews: reviews.length,
+      learn: learn.length,
+      sentences: sentences.length,
+      particles: particles.length,
+      shadow: shadow.length,
+    },
   };
 }

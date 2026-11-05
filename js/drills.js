@@ -1,6 +1,11 @@
 // Tap-to-assemble and particle drills. The logic functions are pure; the
 // render functions build UI inside the element they are given.
 import { icons } from './icons.js';
+import { sayBtn } from './tts.js';
+
+// Alone, these particles need respelling or speech reads は as "ha".
+const PARTICLE_SAY = { は: 'わ', へ: 'え', を: 'お' };
+export const spoken = (word, g) => PARTICLE_SAY[word] ?? g?.y ?? word;
 
 const ROLE_NAMES = { topic: 'topic', subject: 'subject', object: 'object', verb: 'verb', particle: 'particle', other: 'other' };
 
@@ -98,6 +103,7 @@ export function renderSentence(root, sentence, { hints, onDone }) {
     fb.className = 'fb';
     if (placed.length === sentence.blocks.length) {
       ans.classList.add('done');
+      ans.insertAdjacentHTML('beforeend', sayBtn(sentence.blocks.map((b) => b.t).join('')));
       fb.className = 'fb good';
       fb.textContent = sentence.note || 'Correct.';
       root.querySelector('#after').innerHTML = '<button class="btn" id="cont">Continue</button>';
@@ -128,12 +134,12 @@ export function romajiLine(words, glossary, end = '.') {
 }
 
 const GLOSS_HINT = '<span class="muted small">Tap a word for its reading and meaning.</span>';
-const glossHtml = () => `<div class="gloss" aria-live="polite">${GLOSS_HINT}</div>`;
+export const glossHtml = () => `<div class="gloss" aria-live="polite">${GLOSS_HINT}</div>`;
 
 export function glossText(word, g) {
   if (!g) return word;
   const reading = g.y === word ? '' : ` <span class="jp">${g.y}</span> ·`;
-  return `<b class="jp">${word}</b>${reading} ${g.ro} · ${g.m}`;
+  return `<span><b class="jp">${word}</b>${reading} ${g.ro} · ${g.m}</span>${sayBtn(spoken(word, g))}`;
 }
 
 // Tapping a [data-word] inside zone fills the zone's .gloss panel.
@@ -185,7 +191,7 @@ export function renderParticle(root, item, set, cards, { glossary, onDone }) {
     el.classList.add('right');
     opts.querySelectorAll('.opt').forEach((b) => { b.disabled = true; });
     root.querySelector('#line').innerHTML = line(choice);
-    root.querySelector('#romaji').textContent = romaji(choice);
+    root.querySelector('#romaji').innerHTML = `${romaji(choice)} ${sayBtn([...before, choice, ...after].join(''))}`;
     const card = cards.find((c) => c.p === choice);
     fb.className = 'fb good';
     fb.textContent = item.note ? `${card.name}. ${item.note}` : `${card.name}: ${card.fn}`;
@@ -202,7 +208,7 @@ export function particleCardHtml(c, glossary) {
     <p>${c.fn}</p>
     <div class="exrow">${c.ex.map((b) => `<button class="block ${b.r}" data-word="${b.t}">${b.t}</button>`).join('')}</div>
     <p class="center small muted">${c.en}</p>
-    <p class="romaji center">${romajiLine(c.ex.map((b) => b.t), glossary, end)}</p>
+    <p class="romaji center">${romajiLine(c.ex.map((b) => b.t), glossary, end)} ${sayBtn(c.ex.map((b) => b.t).join(''))}</p>
     ${glossHtml()}
     <p class="picture">${icons.bulb}<span><b>Picture it:</b> ${c.picture}</span></p>
   </div>`;
