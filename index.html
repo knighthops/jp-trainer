@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>JP Trainer</title>
 <meta name="description" content="Daily Japanese study: kanji, sentences and particles.">
 <meta name="robots" content="noindex">
@@ -20,6 +20,9 @@
 <main id="view"><p class="muted center pad">Loading…</p></main>
 <nav class="tabbar" id="tabbar" aria-label="Main"></nav>
 <script>
+// Safari ignores user-scalable=no, so block its pinch gesture directly.
+document.addEventListener('gesturestart', (e) => e.preventDefault());
+
 // Load every file tagged with the current release, so a browser cache can't
 // mix old and new files. If the check fails, load the plain files instead.
 (async () => {

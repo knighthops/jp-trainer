@@ -21,6 +21,8 @@
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 [hidden]{display:none!important}
+/* Stops double-tap and pinch zoom on every element. Scrolling still works. */
+*{touch-action:pan-x pan-y}
 .tabbar:empty{display:none}
 .login{width:100%;max-width:380px;margin:0 auto;padding-top:24px;display:flex;flex-direction:column;align-items:center;gap:18px}
 .login-mark{width:72px;height:72px;border-radius:20px;background:var(--top-bg);color:#fff;display:grid;place-items:center;font-family:var(--jp);font-weight:700;font-size:40px;position:relative}
@@ -34,7 +36,7 @@
 .login-err{min-height:20px;color:var(--bad);font-size:14px;text-align:center}
 html,body{margin:0;background:var(--paper);color:var(--ink);-webkit-text-size-adjust:100%;overscroll-behavior-y:none}
 body{min-height:100dvh;display:flex;flex-direction:column;line-height:1.45;font-size:16px;-webkit-font-smoothing:antialiased}
-button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;touch-action:manipulation;-webkit-user-select:none;user-select:none;transition:transform .12s,background-color .15s,box-shadow .15s,opacity .15s}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;-webkit-user-select:none;user-select:none;transition:transform .12s,background-color .15s,box-shadow .15s,opacity .15s}
 button:not(:disabled):active{transform:scale(.97)}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 h1,h2,h3,p{margin:0}
