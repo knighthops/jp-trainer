@@ -7,6 +7,7 @@ import { buildSession, kanjiId, wordId } from './session.js';
 import { renderSentence, renderParticle, particleCardHtml, bindGloss, shuffled } from './drills.js';
 import { icons } from './icons.js';
 import { romaji } from './romaji.js';
+import { matchReading } from './readings.js';
 
 const view = document.getElementById('view');
 const top = document.getElementById('top');
@@ -177,18 +178,37 @@ const glyphHtml = (step) => (step.kind === 'kanji'
   ? `<div class="genko">${step.ref.k}</div>`
   : `<div class="wordglyph">${step.ref.w}</div>`);
 
+// One example word, with the part of its kana that this kanji reads marked.
+function wordRow(k, w) {
+  const hit = matchReading(k, w, w.y);
+  const kana = hit
+    ? `${w.y.slice(0, hit.start)}<mark>${w.y.slice(hit.start, hit.start + hit.length)}</mark>${w.y.slice(hit.start + hit.length)}`
+    : w.y;
+  const chip = hit
+    ? `<span class="rt ${hit.type}">${hit.type === 'on' ? 'On' : 'Kun'} · ${romaji(hit.reading)}</span>`
+    : '<span class="rt">Special reading</span>';
+  return `<div class="wrow big">
+      <span class="wl"><span class="wtop"><b>${w.w}</b><span class="y">${kana}</span></span>
+        <span class="ro">${romaji(w.y)} · ${w.m}</span>${chip}</span>
+      ${sayBtn(w.y)}</div>`;
+}
+
 function kanjiFacts(k) {
   const words = k.words.map((w) => data.vocab.find((v) => v.w === w)).filter(Boolean);
   return `<div>
       <p class="mean">${k.mean.join(', ')}</p>
       <p class="meta">${k.strokes} ${k.strokes === 1 ? 'stroke' : 'strokes'}</p>
     </div>
-    <div class="reads">
-      <div class="read"><span class="caps">On</span>${readingLines(k.on)}</div>
-      <div class="read"><span class="caps">Kun</span>${readingLines(k.kun)}</div>
+    ${words.length ? `<div class="block-sec"><span class="caps">In words</span>${words.map((w) => wordRow(k, w)).join('')}</div>` : ''}
+    <div class="block-sec">
+      <div class="sechead"><span class="caps">All readings</span>
+        <button class="info" data-info aria-label="What are On and Kun?" aria-expanded="false">${icons.info}</button></div>
+      <p class="explain small" hidden><b>On</b> comes from Chinese and mostly appears in compounds, like 学生. <b>Kun</b> is native Japanese, mostly used alone or before hiragana, like 山 or 食べる.</p>
+      <div class="reads">
+        <div class="read"><span class="caps">On</span>${readingLines(k.on)}</div>
+        <div class="read"><span class="caps">Kun</span>${readingLines(k.kun)}</div>
+      </div>
     </div>
-    ${words.length ? `<div class="block-sec"><span class="caps">In words</span>${words.map((w) => `<div class="wrow">
-      <span class="wl"><b>${w.w}</b><span class="y">${w.y}</span><span class="ro">${romaji(w.y)}</span></span><span class="m">${w.m}</span>${sayBtn(w.y)}</div>`).join('')}</div>` : ''}
     <div class="block-sec"><span class="caps">Breakdown</span>${k.parts.map((p) => `<div class="part">
       ${p.img ? `<img src="${p.img}" alt="${p.label}">` : `<span class="pg">${p.c}</span>`}
       <div><strong>${p.label}</strong><div class="small">${p.mn}</div></div></div>`).join('')}</div>`;
@@ -447,6 +467,12 @@ async function init() {
   document.addEventListener('click', (e) => {
     const el = e.target.closest('[data-say]');
     if (el) speak(el.dataset.say);
+    const info = e.target.closest('[data-info]');
+    if (info) {
+      const text = info.closest('.block-sec').querySelector('.explain');
+      text.hidden = !text.hidden;
+      info.setAttribute('aria-expanded', String(!text.hidden));
+    }
   });
   setTop('JP Trainer');
   tabbar.innerHTML = TABS.map(([id, text]) => `<a href="#/${id}" data-tab="${id}">${icons[id]}<span>${text}</span></a>`).join('');

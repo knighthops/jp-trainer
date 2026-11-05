@@ -25,7 +25,7 @@ const SMALL = { ゃ: 'a', ゅ: 'u', ょ: 'o' };
 const SPECIAL = { し: 'sh', ち: 'ch', じ: 'j' };
 const MACRON = { a: 'ā', i: 'ī', u: 'ū', e: 'ē', o: 'ō' };
 
-const toHiragana = (s) => s.replace(/[ァ-ヶ]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0x60));
+export const toHiragana = (s) => s.replace(/[ァ-ヶ]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0x60));
 
 export function romaji(kana) {
   const s = toHiragana(kana);

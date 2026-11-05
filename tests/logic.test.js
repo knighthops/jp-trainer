@@ -5,6 +5,7 @@ import { newRecord, rate, isDue } from '../js/srs.js';
 import { validNext, explainWrong, orders, tokenize, romajiLine, spoken } from '../js/drills.js';
 import { backupJson, parseBackup } from '../js/store.js';
 import { romaji } from '../js/romaji.js';
+import { matchReading } from '../js/readings.js';
 import { buildSession, kanjiId } from '../js/session.js';
 
 const json = (f) => JSON.parse(readFileSync(new URL(`../data/${f}.json`, import.meta.url)));
@@ -130,6 +131,26 @@ test('romaji agrees with the hand-written glossary romaji', () => {
   for (const [word, e] of Object.entries(g)) {
     if (!skip.has(word)) assert.equal(romaji(e.y), e.ro.toLowerCase().replace(/ /g, ''), word);
   }
+});
+
+test('words are matched to the reading they use', () => {
+  const k = (c) => data.kanji.find((x) => x.k === c);
+  const v = (w) => data.vocab.find((x) => x.w === w);
+  const hit = (c, w) => matchReading(k(c), v(w), v(w).y);
+  const seen = (c, w) => {
+    const h = hit(c, w);
+    return h && `${h.type}:${v(w).y.slice(h.start, h.start + h.length)}`;
+  };
+  assert.equal(seen('学', '学生'), 'on:がく');
+  assert.equal(seen('校', '学校'), 'on:こう');
+  assert.equal(seen('一', '一つ'), 'kun:ひと');
+  assert.equal(seen('金', 'お金'), 'kun:かね');
+  assert.equal(seen('口', '出口'), 'kun:ぐち');
+  assert.equal(seen('分', '十分'), 'on:ぷん');
+  assert.equal(seen('十', '十分'), 'on:じゅっ');
+  assert.equal(seen('国', '中国'), 'on:ごく');
+  assert.equal(hit('今', '今日'), null);
+  assert.equal(hit('人', '二人'), null);
 });
 
 test('kanji data: example words exist in vocab', () => {

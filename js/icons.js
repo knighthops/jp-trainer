@@ -13,6 +13,7 @@ export const icons = {
   spark: svg('<path d="M12 4v5M12 15v5M4 12h5M15 12h5"/><circle cx="12" cy="12" r="1.2"/>'),
   blocks: svg('<rect x="3" y="4" width="8" height="7" rx="2"/><rect x="13" y="4" width="8" height="7" rx="2"/><rect x="8" y="13" width="8" height="7" rx="2"/>'),
   ear: svg('<path d="M7 10a5 5 0 0 1 10 0c0 3-3 4-3.5 6.5A2.5 2.5 0 0 1 9 16"/>'),
+  info: svg('<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 8h.01"/>'),
   speaker: svg('<path d="M4 10v4h3.5L12 18V6L7.5 10H4ZM15.5 9.5a3.5 3.5 0 0 1 0 5M18 7a7 7 0 0 1 0 10"/>'),
   mic: svg('<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>'),
   stop: svg('<rect x="6" y="6" width="12" height="12" rx="2.5"/>'),
