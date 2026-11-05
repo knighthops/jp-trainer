@@ -8,6 +8,7 @@ import { renderSentence, renderParticle, particleCardHtml, bindGloss, shuffled }
 import { icons } from './icons.js';
 import { romaji } from './romaji.js';
 import { matchReading } from './readings.js';
+import { currentUser, logOut } from './lock.js';
 
 const view = document.getElementById('view');
 const top = document.getElementById('top');
@@ -372,10 +373,16 @@ function screenSettings() {
       <div id="confirm"></div>
       ${settingsNotice ? `<div class="fb ${settingsNotice.startsWith('!') ? 'bad' : 'good'}" role="status">${settingsNotice.replace(/^!/, '')}</div>` : ''}
     </section>
+    <div class="caps sect"><span>Account</span></div>
+    <section class="card">
+      <p class="small muted">Signed in as <strong>${currentUser()}</strong>. Logging out keeps your progress on this device.</p>
+      <button class="btn ghost" id="logout">Log out</button>
+    </section>
     <div class="caps sect"><span>About</span></div>
     <section class="card">
       <p class="small">Content is hand-written for this app. Audio uses your device's Japanese voice. Third-party data sources will be credited here when they are added.</p></section>`;
   settingsNotice = '';
+  view.querySelector('#logout').onclick = logOut;
   view.querySelector('#export').onclick = exportBackup;
   view.querySelector('#import').onclick = () => view.querySelector('#file').click();
   view.querySelector('#file').onchange = (e) => importBackup(e.target.files[0]);

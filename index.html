@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>JP Trainer</title>
 <meta name="description" content="Daily Japanese study: kanji, sentences and particles.">
+<meta name="robots" content="noindex">
 <meta name="theme-color" content="#141414">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -47,6 +48,8 @@
   }
 
   try {
+    const { gate } = await import('./js/lock.js');
+    await gate();
     await import('./js/app.js');
   } catch {
     document.getElementById('view').innerHTML = '<p class="center pad">The app didn\'t load. Close it and open it again.</p>';

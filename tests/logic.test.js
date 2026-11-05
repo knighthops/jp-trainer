@@ -7,6 +7,7 @@ import { backupJson, parseBackup } from '../js/store.js';
 import { romaji } from '../js/romaji.js';
 import { matchReading } from '../js/readings.js';
 import { buildSession, kanjiId } from '../js/session.js';
+import { checkLogin, hashPassword, userId } from '../js/lock.js';
 
 const json = (f) => JSON.parse(readFileSync(new URL(`../data/${f}.json`, import.meta.url)));
 const data = {
@@ -204,6 +205,20 @@ test('backup round-trips and rejects bad files without changing anything', () =>
     try { parseBackup(bad); } catch { threw = true; }
     assert.ok(threw, bad);
   }
+});
+
+test('login needs the right username and password; username case and spaces are ignored', async () => {
+  const salt = 'AAAAAAAAAAAAAAAAAAAAAA==';
+  const accounts = {
+    iter: 1000,
+    users: [{ id: await userId('sample'), salt, hash: await hashPassword('right', salt, 1000) }],
+  };
+  assert.equal(await checkLogin(accounts, 'sample', 'right'), true);
+  assert.equal(await checkLogin(accounts, ' SAMPLE ', 'right'), true);
+  assert.equal(await checkLogin(accounts, 'sample', 'wrong'), false);
+  assert.equal(await checkLogin(accounts, 'sample', 'RIGHT'), false);
+  assert.equal(await checkLogin(accounts, 'other', 'right'), false);
+  assert.equal(await checkLogin(accounts, '', ''), false);
 });
 
 test('particles are respelled for speech when spoken alone', () => {

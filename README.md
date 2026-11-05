@@ -17,6 +17,12 @@ Content is hand-written and hasn't been checked by a native speaker: 100 kanji, 
 
 Progress stays on the device, so export a backup from Settings regularly.
 
+## Login
+
+The app opens on a login screen and remembers the login on that device until you choose **Log out** in Settings. Logging out doesn't remove progress. `js/lock.js` holds only salted hashes (PBKDF2-SHA256), so the repo has no readable username or password.
+
+The login keeps visitors out of the app, but it doesn't encrypt anything. The code and study content are still readable in this public repo, and a short password could be guessed offline from its hash.
+
 ## Run locally
 
 The site needs a local server because it loads JSON files. This one needs only Windows PowerShell:
