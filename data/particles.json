@@ -1,0 +1,35 @@
+{
+"cards":[
+{"p":"は","reads":"wa","name":"Topic marker","fn":"Sets what the sentence is about: “as for this…”","picture":"a spotlight on the word before it.","en":"As for me, I'm a student.","ex":[{"t":"私","r":"topic"},{"t":"は","r":"particle"},{"t":"学生","r":"other"},{"t":"です","r":"verb"}]},
+{"p":"が","reads":"ga","name":"Subject marker","fn":"Points out who or what does something, often as new information.","picture":"a finger pointing: that one!","en":"A friend came.","ex":[{"t":"友達","r":"subject"},{"t":"が","r":"particle"},{"t":"来ました","r":"verb"}]},
+{"p":"を","reads":"o","name":"Object marker","fn":"Marks what the verb acts on.","picture":"an arrow from the verb to its target.","en":"I read a book.","ex":[{"t":"本","r":"object"},{"t":"を","r":"particle"},{"t":"読みます","r":"verb"}]},
+{"p":"に","reads":"ni","name":"Destination and point","fn":"Marks a destination, a point in time, or where something exists.","picture":"a pin dropped on a map.","en":"I go to school.","ex":[{"t":"学校","r":"other"},{"t":"に","r":"particle"},{"t":"行きます","r":"verb"}]},
+{"p":"で","reads":"de","name":"Place of action and means","fn":"Marks where an action happens or what you use to do it.","picture":"a stage with the action on it, or a tool in your hand.","en":"I study at school.","ex":[{"t":"学校","r":"other"},{"t":"で","r":"particle"},{"t":"勉強します","r":"verb"}]},
+{"p":"へ","reads":"e","name":"Direction","fn":"Marks the direction of movement: “toward”.","picture":"a compass needle swinging toward a place.","en":"I go toward Japan.","ex":[{"t":"日本","r":"other"},{"t":"へ","r":"particle"},{"t":"行きます","r":"verb"}]},
+{"p":"の","reads":"no","name":"Linker","fn":"Links two nouns, like “my” or “of”. The first noun describes the second.","picture":"a chain link joining two boxes.","en":"my book","ex":[{"t":"私","r":"other"},{"t":"の","r":"particle"},{"t":"本","r":"other"}]},
+{"p":"も","reads":"mo","name":"Also","fn":"Means “also” or “too”, and takes the place of は, が, or を.","picture":"a plus sign adding one more to the group.","en":"My friend is a student too.","ex":[{"t":"友達","r":"topic"},{"t":"も","r":"particle"},{"t":"学生","r":"other"},{"t":"です","r":"verb"}]},
+{"p":"と","reads":"to","name":"With and and","fn":"Means “with” a partner, or “and” between nouns.","picture":"two people holding hands.","en":"I talk with a friend.","ex":[{"t":"友達","r":"other"},{"t":"と","r":"particle"},{"t":"話します","r":"verb"}]}
+],
+"sets":[
+{"noun":"学校","reading":"がっこう","items":[
+{"id":"gakkou-1","after":"行きます","en":"I go to school.","answer":"に","options":["に","を","と"],"note":"School is the destination. へ also works here.","why":{"を":"を marks what a verb acts on. School is where you're heading, not a target of 行きます.","と":"と means “with” a partner. You aren't going together with the school."}},
+{"id":"gakkou-2","after":"勉強します","en":"I study at school.","answer":"で","options":["で","を","に"],"note":"Studying is an action, and school is where it happens.","why":{"を":"を would make school the subject you're studying.","に":"に marks a destination or where something exists. For the place of an action, use で."}},
+{"id":"gakkou-3","after":"先生です","en":"She is a school teacher.","answer":"の","options":["の","を","で"],"note":"学校 describes which kind of teacher.","why":{"を":"を needs a verb to act on it. Here there are two nouns to link.","で":"で marks the place of an action, and being a teacher here describes the noun 先生."}}
+]},
+{"noun":"友達","reading":"ともだち","items":[
+{"id":"tomodachi-1","after":"話します","en":"I talk with a friend.","answer":"と","options":["と","を","で"],"note":"The friend is your conversation partner.","why":{"を":"を would make the friend the thing being spoken, as if you were saying them aloud.","で":"で marks a place or means. A friend isn't where or how you talk."}},
+{"id":"tomodachi-2","after":"来ました","en":"A friend came.","answer":"が","options":["が","を","で"],"note":"The friend does the coming, and is new information.","why":{"を":"を marks the object, but the friend is the one who comes.","で":"で marks a place or means, not who does the action."}},
+{"id":"tomodachi-3","after":"学生です","en":"My friend is also a student.","answer":"も","options":["も","は","を"],"note":"The English says “also”, so も fits.","why":{"は":"は is grammatical, but it only sets the topic. It loses the “also”.","を":"を marks the object of a verb. です doesn't take an object."}}
+]},
+{"noun":"日本","reading":"にほん","items":[
+{"id":"nihon-1","after":"行きます","en":"I'm heading toward Japan.","answer":"へ","options":["へ","を","が"],"note":"へ stresses the direction. に also works here.","why":{"を":"を marks what a verb acts on. Japan is where you're heading.","が":"が would make Japan the one doing the going."}},
+{"id":"nihon-2","after":"きれいです","en":"As for Japan, it's beautiful.","answer":"は","options":["は","を","で"],"note":"“As for” signals the topic of the sentence.","why":{"を":"を needs an action verb. きれいです describes rather than acts.","で":"で marks the place of an action, and nothing is being done here."}},
+{"id":"nihon-3","after":"山です","en":"It's a Japanese mountain.","answer":"の","options":["の","を","へ"],"note":"日本 describes which mountain.","why":{"を":"を needs a verb to act on it, and 日本 and 山 are both nouns.","へ":"へ marks direction of movement, and nothing is moving here."}}
+]},
+{"noun":"本","reading":"ほん","items":[
+{"id":"hon-1","after":"読みます","en":"I read a book.","answer":"を","options":["を","が","へ"],"note":"The book is what reading acts on.","why":{"が":"が would make the book the one doing the reading.","へ":"へ marks direction of movement, and reading isn't movement."}},
+{"id":"hon-2","after":"好きです","en":"I like books.","answer":"が","options":["が","を","で"],"note":"好き is an adjective in Japanese, so what you like takes が.","why":{"を":"を marks the object of a verb, but 好き is an adjective.","で":"で marks a place or means. Books aren't the means of liking."}},
+{"id":"hon-3","after":"勉強します","en":"I study using a book.","answer":"で","options":["で","へ","と"],"note":"The book is the tool you study with.","why":{"へ":"へ marks direction of movement, and studying isn't movement.","と":"と means “with” a partner. For a tool, use で."}}
+]}
+]
+}
