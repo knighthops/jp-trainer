@@ -203,6 +203,10 @@ body.in-run .tabbar{display:none}
 .picture{display:flex;gap:10px;align-items:flex-start;padding-top:12px;border-top:1px solid var(--line2);font-size:14px;color:var(--ink2)}
 .picture svg.ic{width:18px;height:18px;color:var(--accent);margin-top:1px}
 
+.ro{font-size:13px;color:var(--mute);display:block;line-height:1.3}
+.rline{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 7px;padding-top:2px}
+.rline>*{white-space:nowrap}
+
 /* Audio, shadowing and backup */
 .say{width:44px;height:44px;display:inline-grid;place-items:center;border-radius:50%;color:var(--ink2);vertical-align:middle;flex:none}
 .say svg.ic{width:20px;height:20px}

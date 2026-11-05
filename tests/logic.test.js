@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { newRecord, rate, isDue } from '../js/srs.js';
 import { validNext, explainWrong, orders, tokenize, romajiLine, spoken } from '../js/drills.js';
 import { backupJson, parseBackup } from '../js/store.js';
+import { romaji } from '../js/romaji.js';
 import { buildSession, kanjiId } from '../js/session.js';
 
 const json = (f) => JSON.parse(readFileSync(new URL(`../data/${f}.json`, import.meta.url)));
@@ -112,6 +113,23 @@ test('content meets the MVP targets, with no duplicates', () => {
   assert.equal(new Set(data.vocab.map((w) => w.w)).size, data.vocab.length);
   assert.equal(new Set(data.sentences.map((s) => s.id)).size, data.sentences.length);
   for (const k of data.kanji) assert.ok(k.parts.length && k.mean.length && k.strokes > 0 && k.on.length + k.kun.length > 0, k.k);
+});
+
+test('romaji converts kana, doubled consonants, digraphs and long vowels', () => {
+  const cases = {
+    イチ: 'ichi', 'ひと-つ': 'hito-tsu', キュウ: 'kyū', ショウ: 'shō', がっこう: 'gakkō', やっつ: 'yattsu',
+    じゅっぷん: 'juppun', おおきい: 'ōkii', おかあさん: 'okāsan', きんようび: "kin'yōbi", ひゃく: 'hyaku',
+    でんわ: 'denwa', いっち: 'itchi', せんせい: 'sensei', ちいさい: 'chiisai',
+  };
+  for (const [kana, rom] of Object.entries(cases)) assert.equal(romaji(kana), rom, kana);
+});
+
+test('romaji agrees with the hand-written glossary romaji', () => {
+  const g = json('glossary');
+  const skip = new Set(['は', 'へ', 'を', '何です', 'です', 'ではありません', '勉強します', '行きませんでした']);
+  for (const [word, e] of Object.entries(g)) {
+    if (!skip.has(word)) assert.equal(romaji(e.y), e.ro.toLowerCase().replace(/ /g, ''), word);
+  }
 });
 
 test('kanji data: example words exist in vocab', () => {

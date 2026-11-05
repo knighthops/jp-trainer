@@ -6,6 +6,7 @@ import { GRADES, newRecord, rate, label } from './srs.js';
 import { buildSession, kanjiId, wordId } from './session.js';
 import { renderSentence, renderParticle, particleCardHtml, bindGloss, shuffled } from './drills.js';
 import { icons } from './icons.js';
+import { romaji } from './romaji.js';
 
 const view = document.getElementById('view');
 const top = document.getElementById('top');
@@ -168,7 +169,9 @@ function renderStep() {
   animate();
 }
 
-const list = (a) => (a.length ? a.join('、') : '—');
+const readingLines = (a) => (a.length
+  ? a.map((r) => `<span class="rline"><span class="jp">${r}</span><span class="ro">${romaji(r)}</span></span>`).join('')
+  : '<span class="muted">—</span>');
 
 const glyphHtml = (step) => (step.kind === 'kanji'
   ? `<div class="genko">${step.ref.k}</div>`
@@ -181,11 +184,11 @@ function kanjiFacts(k) {
       <p class="meta">${k.strokes} ${k.strokes === 1 ? 'stroke' : 'strokes'}</p>
     </div>
     <div class="reads">
-      <div class="read"><span class="caps">On</span><span class="jp">${list(k.on)}</span></div>
-      <div class="read"><span class="caps">Kun</span><span class="jp">${list(k.kun)}</span></div>
+      <div class="read"><span class="caps">On</span>${readingLines(k.on)}</div>
+      <div class="read"><span class="caps">Kun</span>${readingLines(k.kun)}</div>
     </div>
     ${words.length ? `<div class="block-sec"><span class="caps">In words</span>${words.map((w) => `<div class="wrow">
-      <span class="wl"><b>${w.w}</b><span class="y">${w.y}</span></span><span class="m">${w.m}</span>${sayBtn(w.y)}</div>`).join('')}</div>` : ''}
+      <span class="wl"><b>${w.w}</b><span class="y">${w.y}</span><span class="ro">${romaji(w.y)}</span></span><span class="m">${w.m}</span>${sayBtn(w.y)}</div>`).join('')}</div>` : ''}
     <div class="block-sec"><span class="caps">Breakdown</span>${k.parts.map((p) => `<div class="part">
       ${p.img ? `<img src="${p.img}" alt="${p.label}">` : `<span class="pg">${p.c}</span>`}
       <div><strong>${p.label}</strong><div class="small">${p.mn}</div></div></div>`).join('')}</div>`;
@@ -194,6 +197,7 @@ function kanjiFacts(k) {
 const wordFacts = (w) => `<div>
     <p class="mean">${w.m}</p>
     <p class="meta jp" style="font-size:18px">${w.y}</p>
+    <p class="meta">${romaji(w.y)}</p>
     <div class="center">${sayBtn(w.y)}</div>
   </div>`;
 
