@@ -477,7 +477,9 @@ async function init() {
   setTop('JP Trainer');
   tabbar.innerHTML = TABS.map(([id, text]) => `<a href="#/${id}" data-tab="${id}">${icons[id]}<span>${text}</span></a>`).join('');
   try {
-    const get = (f) => fetch(`data/${f}.json`).then((r) => {
+    // Data files carry the same release tag that index.html gave this module.
+    const tag = new URL(import.meta.url).search;
+    const get = (f) => fetch(`data/${f}.json${tag}`).then((r) => {
       if (!r.ok) throw new Error(`${f}: ${r.status}`);
       return r.json();
     });

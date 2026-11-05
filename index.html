@@ -12,12 +12,46 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link rel="apple-touch-icon" href="assets/icon-180.png">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="stylesheet" href="css/style.css">
+<meta name="color-scheme" content="light dark">
 </head>
 <body>
 <header class="top" id="top"></header>
 <main id="view"><p class="muted center pad">Loading…</p></main>
 <nav class="tabbar" id="tabbar" aria-label="Main"></nav>
-<script type="module" src="js/app.js"></script>
+<script>
+// Load every file tagged with the current release, so a browser cache can't
+// mix old and new files. If the check fails, load the plain files instead.
+(async () => {
+  let release = null;
+  try {
+    const stop = new AbortController();
+    const timer = setTimeout(() => stop.abort(), 2500);
+    const res = await fetch(`version.json?t=${Date.now()}`, { cache: 'no-store', signal: stop.signal });
+    clearTimeout(timer);
+    if (res.ok) release = await res.json();
+  } catch { /* offline or slow: fall through */ }
+  const tag = release ? `?v=${release.v}` : '';
+
+  const css = document.createElement('link');
+  css.rel = 'stylesheet';
+  css.href = `css/style.css${tag}`;
+  document.head.append(css);
+
+  if (release) {
+    const imports = {};
+    for (const m of release.modules) imports[`./js/${m}`] = `./js/${m}${tag}`;
+    const map = document.createElement('script');
+    map.type = 'importmap';
+    map.textContent = JSON.stringify({ imports });
+    document.head.append(map);
+  }
+
+  try {
+    await import('./js/app.js');
+  } catch {
+    document.getElementById('view').innerHTML = '<p class="center pad">The app didn\'t load. Close it and open it again.</p>';
+  }
+})();
+</script>
 </body>
 </html>

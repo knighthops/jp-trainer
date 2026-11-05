@@ -27,6 +27,14 @@ powershell -ExecutionPolicy Bypass -File tools/serve.ps1
 
 Then open http://localhost:8123/.
 
+## Releases
+
+GitHub Pages lets browsers cache files for 10 minutes. To stop old and new files mixing, `index.html` reads `version.json` first and loads every file tagged with that release. A commit hook updates the file. Enable it once per clone:
+
+```bash
+git config core.hooksPath .githooks
+```
+
 ## Tests
 
 The tests cover scheduling, drill logic, session building, and data integrity. They need Node:
