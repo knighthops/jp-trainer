@@ -42,3 +42,4 @@ Everything is in `data/`:
 - `kanji-n5.json`: each component in `parts` has an `img` field, `null` for now, ready for artwork.
 - `sentences.json`: `blocks` holds the main word order. `alts` lists other natural orders as block indexes, so they aren't marked wrong.
 - `particles.json`: every wrong option in `options` needs an explanation in `why`.
+- `glossary.json`: reading, romaji, and meaning for each word in the particle guides and drills. Every word used there needs an entry.

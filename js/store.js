@@ -41,6 +41,6 @@ export function lastWeek(state, now = Date.now()) {
   return Array.from({ length: 7 }, (_, i) => {
     const d = new Date(now);
     d.setDate(d.getDate() - (6 - i));
-    return active(state.days[dayKey(d.getTime())]);
+    return { on: active(state.days[dayKey(d.getTime())]), weekday: d.getDay() };
   });
 }

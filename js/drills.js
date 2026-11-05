@@ -1,5 +1,6 @@
 // Tap-to-assemble and particle drills. The logic functions are pure; the
 // render functions build UI inside the element they are given.
+import { icons } from './icons.js';
 
 const ROLE_NAMES = { topic: 'topic', subject: 'subject', object: 'object', verb: 'verb', particle: 'particle', other: 'other' };
 
@@ -62,7 +63,7 @@ export function renderSentence(root, sentence, { hints, onDone }) {
     <div class="card">
       <span class="caps">Build the sentence</span>
       <p class="en">${sentence.en}</p>
-      <div class="answer" id="ans" aria-live="polite"></div>
+      <div class="answer" id="ans" aria-live="polite">${'<i class="slot"></i>'.repeat(sentence.blocks.length)}</div>
     </div>
     <div class="pool" id="pool">${pool.map((b) => blockHtml(b)).join('')}</div>
     <div class="fb" id="fb" role="status"></div>
@@ -71,7 +72,7 @@ export function renderSentence(root, sentence, { hints, onDone }) {
       <span class="object"><i></i>object</span><span class="verb"><i></i>verb</span>
       <span class="particle"><i></i>particle</span><span><i></i>other</span>
     </div>
-    <div id="after"></div>`;
+    <div class="dock" id="after"></div>`;
   const fb = root.querySelector('#fb');
 
   root.querySelector('#pool').onclick = (e) => {
@@ -89,10 +90,14 @@ export function renderSentence(root, sentence, { hints, onDone }) {
     }
     placed.push(block.t);
     el.classList.add('used');
-    root.querySelector('#ans').insertAdjacentHTML('beforeend', blockHtml(block, 'placed'));
+    const ans = root.querySelector('#ans');
+    const slot = ans.querySelector('.slot');
+    slot.insertAdjacentHTML('beforebegin', blockHtml(block, 'placed'));
+    slot.remove();
     fb.textContent = '';
     fb.className = 'fb';
     if (placed.length === sentence.blocks.length) {
+      ans.classList.add('done');
       fb.className = 'fb good';
       fb.textContent = sentence.note || 'Correct.';
       root.querySelector('#after').innerHTML = '<button class="btn" id="cont">Continue</button>';
@@ -101,18 +106,68 @@ export function renderSentence(root, sentence, { hints, onDone }) {
   };
 }
 
-export function renderParticle(root, item, set, cards, { onDone }) {
+// Splits text into glossary words, longest match first. Unknown characters
+// come through one at a time so nothing is lost.
+export function tokenize(text, glossary) {
+  const words = [];
+  for (let i = 0; i < text.length;) {
+    let len = 1;
+    for (let n = text.length - i; n > 1; n--) {
+      if (glossary[text.slice(i, i + n)]) { len = n; break; }
+    }
+    words.push(text.slice(i, i + len));
+    i += len;
+  }
+  return words;
+}
+
+// "Watashi wa gakusei desu." A null word renders as a blank.
+export function romajiLine(words, glossary, end = '.') {
+  const line = words.map((w) => (w === null ? '___' : glossary[w]?.ro ?? w)).join(' ');
+  return line[0].toUpperCase() + line.slice(1) + end;
+}
+
+const GLOSS_HINT = '<span class="muted small">Tap a word for its reading and meaning.</span>';
+const glossHtml = () => `<div class="gloss" aria-live="polite">${GLOSS_HINT}</div>`;
+
+export function glossText(word, g) {
+  if (!g) return word;
+  const reading = g.y === word ? '' : ` <span class="jp">${g.y}</span> ·`;
+  return `<b class="jp">${word}</b>${reading} ${g.ro} · ${g.m}`;
+}
+
+// Tapping a [data-word] inside zone fills the zone's .gloss panel.
+export function bindGloss(zone, glossary) {
+  zone.addEventListener('click', (e) => {
+    const el = e.target.closest('[data-word]');
+    if (!el) return;
+    zone.querySelectorAll('.sel').forEach((x) => x.classList.remove('sel'));
+    el.classList.add('sel');
+    zone.querySelector('.gloss').innerHTML = glossText(el.dataset.word, glossary[el.dataset.word]);
+  });
+}
+
+export function renderParticle(root, item, set, cards, { glossary, onDone }) {
   let clean = true;
-  const line = (fill) => `${item.before ?? set.noun}<span class="blank">${fill}</span>${item.after}`;
+  const before = tokenize(item.before ?? set.noun, glossary);
+  const after = tokenize(item.after, glossary);
+  const wordBtn = (w) => `<button class="word" data-word="${w}">${w}</button>`;
+  const line = (fill) => `${before.map(wordBtn).join('')}${
+    fill ? `<button class="word blank" data-word="${fill}">${fill}</button>` : '<span class="blank">&nbsp;</span>'
+  }${after.map(wordBtn).join('')}`;
+  const romaji = (fill) => romajiLine([...before, fill, ...after], glossary);
   root.innerHTML = `
-    <div class="card">
+    <div class="card gloss-zone">
       <span class="caps">Particle · ${set.noun} (${set.reading})</span>
       <p class="en">${item.en}</p>
-      <p class="pline" id="line">${line('&nbsp;')}</p>
+      <div class="pline" id="line">${line(null)}</div>
+      <p class="romaji center" id="romaji">${romaji(null)}</p>
+      ${glossHtml()}
     </div>
     <div class="opts" id="opts">${item.options.map((o) => `<button class="opt" data-o="${o}">${o}</button>`).join('')}</div>
     <div class="fb" id="fb" role="status"></div>
-    <div id="after"></div>`;
+    <div class="dock" id="after"></div>`;
+  bindGloss(root.querySelector('.gloss-zone'), glossary);
   const fb = root.querySelector('#fb');
   const opts = root.querySelector('#opts');
   opts.onclick = (e) => {
@@ -130,6 +185,7 @@ export function renderParticle(root, item, set, cards, { onDone }) {
     el.classList.add('right');
     opts.querySelectorAll('.opt').forEach((b) => { b.disabled = true; });
     root.querySelector('#line').innerHTML = line(choice);
+    root.querySelector('#romaji').textContent = romaji(choice);
     const card = cards.find((c) => c.p === choice);
     fb.className = 'fb good';
     fb.textContent = item.note ? `${card.name}. ${item.note}` : `${card.name}: ${card.fn}`;
@@ -138,13 +194,16 @@ export function renderParticle(root, item, set, cards, { onDone }) {
   };
 }
 
-export function particleCardHtml(c) {
-  return `<div class="card">
-    <div class="row"><span class="pbig">${c.p}</span>
-      <div class="grow"><h3>${c.name}</h3><span class="muted small">Read as “${c.reads}”</span></div></div>
+export function particleCardHtml(c, glossary) {
+  const end = c.en.endsWith('.') ? '.' : '';
+  return `<div class="card gloss-zone">
+    <div class="pcard-head"><span class="pbig">${c.p}</span>
+      <div><h3>${c.name}</h3><span class="muted small">Read as “${c.reads}”</span></div></div>
     <p>${c.fn}</p>
-    <div class="exrow">${c.ex.map((b) => `<span class="block ${b.r}">${b.t}</span>`).join('')}</div>
+    <div class="exrow">${c.ex.map((b) => `<button class="block ${b.r}" data-word="${b.t}">${b.t}</button>`).join('')}</div>
     <p class="center small muted">${c.en}</p>
-    <p class="small"><b>Picture it:</b> ${c.picture}</p>
+    <p class="romaji center">${romajiLine(c.ex.map((b) => b.t), glossary, end)}</p>
+    ${glossHtml()}
+    <p class="picture">${icons.bulb}<span><b>Picture it:</b> ${c.picture}</span></p>
   </div>`;
 }

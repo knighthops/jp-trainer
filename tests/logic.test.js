@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { newRecord, rate, isDue } from '../js/srs.js';
-import { validNext, explainWrong, orders } from '../js/drills.js';
+import { validNext, explainWrong, orders, tokenize, romajiLine } from '../js/drills.js';
 import { buildSession, kanjiId } from '../js/session.js';
 
 const json = (f) => JSON.parse(readFileSync(new URL(`../data/${f}.json`, import.meta.url)));
@@ -81,6 +81,26 @@ test('particle data: answer offered, every wrong option explained, all 9 covered
     for (const o of it.options) if (o !== it.answer) assert.ok(it.why[o], `${it.id} ${o}`);
   }
   assert.equal(answers.size, 9);
+});
+
+test('romaji line reads as a sentence, with a blank before answering', () => {
+  const g = json('glossary');
+  const card = data.particles.cards.find((c) => c.p === 'は');
+  assert.equal(romajiLine(card.ex.map((b) => b.t), g), 'Watashi wa gakusei desu.');
+  assert.deepEqual(tokenize('先生です', g), ['先生', 'です']);
+  assert.equal(romajiLine(['学校', null, '行きます'], g), 'Gakkō ___ ikimasu.');
+});
+
+test('glossary covers every word in the particle guides and drills', () => {
+  const g = json('glossary');
+  const { cards, sets } = data.particles;
+  for (const c of cards) for (const b of c.ex) assert.ok(g[b.t], `${c.p} ${b.t}`);
+  for (const c of cards) assert.ok(g[c.p], c.p);
+  for (const set of sets) {
+    for (const it of set.items) {
+      for (const w of [...tokenize(set.noun, g), ...tokenize(it.after, g)]) assert.ok(g[w], `${it.id} ${w}`);
+    }
+  }
 });
 
 test('kanji data: example words exist in vocab', () => {
