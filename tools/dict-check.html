@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dictionary check</title>
+<style>
+  body { font: 15px/1.5 system-ui, sans-serif; margin: 16px; color: #111; background: #fff; }
+  h2 { font-size: 16px; margin: 20px 0 6px; }
+  li { margin: 2px 0; }
+  .muted { color: #666; }
+</style>
+</head>
+<body>
+<h1>Dictionary check</h1>
+<p class="muted">Compares the app's words and kanji with JMdict and KANJIDIC2. Put the
+<a href="https://github.com/scriptin/jmdict-simplified/releases">jmdict-simplified</a> files
+<code>jmdict-eng-*.json</code> and <code>kanjidic2-en-*.json</code> in <code>.dict/</code>, then open this page from the local server.
+It also builds <code>data/dict-check.json</code>, which the tests use.</p>
+<div id="out">Loading. The dictionary is large, so this takes a few seconds.</div>
+<script type="module">
+import { mergeCourse, UNIT_FILES } from '../js/course.js';
+
+const out = document.getElementById('out');
+const DICT = '../.dict/';
+const get = (p) => fetch(p, { cache: 'no-store' }).then((r) => { if (!r.ok) throw new Error(`${p}: ${r.status}`); return r.json(); });
+
+// The dictionary file names carry a version, so read them from the folder listing if possible.
+async function dictFile(prefix) {
+  for (const name of [`${prefix}-3.6.2.json`]) {
+    const r = await fetch(DICT + name, { method: 'HEAD' });
+    if (r.ok) return DICT + name;
+  }
+  throw new Error(`Put ${prefix}-*.json in .dict/ (rename it to ${prefix}-3.6.2.json if the version differs).`);
+}
+
+const hira = (s) => s.replace(/[ァ-ヶ]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0x60));
+const isKana = (c) => /[ぁ-ゖァ-ーー]/.test(c);
+const VOICE = { か: 'が', き: 'ぎ', く: 'ぐ', け: 'げ', こ: 'ご', さ: 'ざ', し: 'じ', す: 'ず', せ: 'ぜ', そ: 'ぞ', た: 'だ', ち: 'ぢ', つ: 'づ', て: 'で', と: 'ど', は: 'ば', ひ: 'び', ふ: 'ぶ', へ: 'べ', ほ: 'ぼ' };
+const SEMI = { は: 'ぱ', ひ: 'ぴ', ふ: 'ぷ', へ: 'ぺ', ほ: 'ぽ' };
+// Sound changes when words join: 日 + 本 (ぽん), 学 + 校 (がっ).
+function variants(r) {
+  const set = new Set([r]);
+  const first = r[0];
+  if (VOICE[first]) set.add(VOICE[first] + r.slice(1));
+  if (SEMI[first]) set.add(SEMI[first] + r.slice(1));
+  if (first === 'ぢ') set.add('じ' + r.slice(1));
+  if (first === 'づ') set.add('ず' + r.slice(1));
+  for (const v of [...set]) if (/[つくちき]$/.test(v) && v.length > 1) set.add(v.slice(0, -1) + 'っ');
+  return [...set];
+}
+
+const STOP = new Set('a an the to of be is are am in on at for and or with one (something) someone something my your someones form plain thing things person do does by as it its from that this up out off into kind type'.split(' '));
+const stem = (w) => w.replace(/'s$/, '').replace(/(ies)$/, 'y').replace(/(ing|ed|es|s)$/, '');
+const terms = (text) => new Set(text.toLowerCase().replace(/\([^)]*\)/g, ' ').split(/[^a-z']+/).filter((w) => w && !STOP.has(w)).map(stem).filter(Boolean));
+const overlaps = (mine, theirs) => {
+  const a = terms(mine);
+  if (!a.size) return true;
+  const b = terms(theirs.join(' '));
+  return [...a].some((t) => b.has(t));
+};
+
+try {
+  const [jm, kd] = await Promise.all([dictFile('jmdict-eng').then(get), dictFile('kanjidic2-en').then(get)]);
+  const [kanji, vocab, glossary, bank, talk, ...unitFiles] = await Promise.all([
+    get('../data/kanji-n5.json'), get('../data/vocab-n5.json'), get('../data/glossary.json'), get('../data/particle-bank.json'), get('../data/talk.json'),
+    ...UNIT_FILES.map((f) => get(`../data/course/${f}.json`)),
+  ]);
+
+  // Dictionary text (kanji or kana spelling) → readings and glosses.
+  const dict = new Map();
+  const add = (text, reading, gloss) => {
+    if (!dict.has(text)) dict.set(text, []);
+    dict.get(text).push({ r: hira(reading), gloss });
+  };
+  for (const e of jm.words) {
+    const gloss = e.sense.flatMap((s) => s.gloss.map((g) => g.text));
+    for (const k of e.kanji) {
+      for (const kana of e.kana) {
+        if (kana.appliesToKanji.includes('*') || kana.appliesToKanji.includes(k.text)) add(k.text, kana.text, gloss);
+      }
+    }
+    for (const kana of e.kana) add(kana.text, kana.text, gloss);
+  }
+  // Kanji → readings, from KANJIDIC2.
+  const kanjiDict = new Map();
+  for (const c of kd.characters) {
+    const groups = c.readingMeaning?.groups ?? [];
+    const readings = groups.flatMap((g) => g.readings);
+    kanjiDict.set(c.literal, {
+      on: readings.filter((r) => r.type === 'ja_on').map((r) => r.value),
+      kun: readings.filter((r) => r.type === 'ja_kun').map((r) => r.value),
+      nanori: c.readingMeaning?.nanori ?? [],
+      mean: groups.flatMap((g) => g.meanings.filter((m) => m.lang === 'en').map((m) => m.value)),
+      strokes: c.misc.strokeCounts[0],
+    });
+  }
+  const kanjiReadings = (k) => {
+    const d = kanjiDict.get(k);
+    if (!d) return [];
+    const list = [...d.on.map(hira), ...d.kun.map((r) => r.replace(/-/g, '')).flatMap((r) => [r.split('.')[0], r.replace('.', '')]), ...d.nanori];
+    return [...new Set(list.flatMap(variants))];
+  };
+
+  // Can this spelling be read this way, piece by piece? Inflected forms like 食べました pass
+  // because 食べ + ました is spelled out from 食べる's stem and plain kana.
+  function readable(w, y) {
+    const memo = new Map();
+    const go = (i, j, prev) => {
+      if (i === w.length) return j === y.length;
+      const key = `${i},${j}`;
+      if (memo.has(key)) return memo.get(key);
+      memo.set(key, false);
+      let ok = false;
+      for (let n = Math.min(8, w.length - i); n >= 2 && !ok; n--) {
+        const part = w.slice(i, i + n);
+        for (const { r } of dict.get(part) ?? []) {
+          const forms = i > 0 ? variants(r) : [r];
+          // Verb and adjective stems: 食べる → 食べ, 高い → 高.
+          if (/[るうくぐすつぬぶむい]$/.test(r)) forms.push(r.slice(0, -1));
+          if (forms.some((f) => f && y.startsWith(f, j) && go(i + n, j + f.length, part))) { ok = true; break; }
+        }
+      }
+      const c = w[i];
+      if (!ok && isKana(c)) ok = hira(c) === y[j] && go(i + 1, j + 1, c);
+      if (!ok && c === '々' && prev) ok = kanjiReadings(prev.slice(-1)).some((f) => y.startsWith(f, j) && go(i + 1, j + f.length, prev));
+      if (!ok && !isKana(c)) ok = kanjiReadings(c).some((f) => y.startsWith(f, j) && go(i + 1, j + f.length, c));
+      memo.set(key, ok);
+      return ok;
+    };
+    return go(0, 0, '');
+  }
+
+  // Every word the app shows, with where it came from.
+  const words = new Map();
+  const note = (w, y, m, from) => {
+    if (!w || /[\sA-Za-z]/.test(w) || !/[぀-ヿ一-龯]/.test(w)) return;
+    if (!words.has(w)) words.set(w, []);
+    words.get(w).push({ y, m, from });
+  };
+  for (const [w, g] of Object.entries(glossary)) note(w, g.y, g.m, 'glossary');
+  for (const v of vocab) note(v.w, v.y, v.m, 'vocab');
+  for (const [w, [y, m]] of Object.entries(bank.lex || {})) note(w, y, m, 'particle bank');
+  for (const u of unitFiles.flat()) for (const [w, [y, m]] of Object.entries(u.lex || {})) note(w, y, m, u.id);
+  for (const [w, [y, m]] of Object.entries(talk.lex)) note(w, y, m, 'talk');
+
+  const report = { readingMismatch: [], unreadable: [], meaning: [], conflicts: [], kanji: [], notInDictionary: 0, checked: 0 };
+  const subset = { source: 'JMdict and KANJIDIC2 (EDRDG, CC BY-SA 4.0), via jmdict-simplified', words: {}, built: {}, kanji: {} };
+  for (const [w, uses] of words) {
+    const ys = [...new Set(uses.map((u) => hira(u.y)))];
+    if (ys.length > 1) report.conflicts.push(`${w}: ${uses.map((u) => `${u.y} (${u.from})`).join(', ')}`);
+    const entries = dict.get(w);
+    for (const y of ys) {
+      report.checked++;
+      const from = uses.filter((u) => hira(u.y) === y).map((u) => u.from).join(', ');
+      const m = uses.find((u) => hira(u.y) === y).m;
+      if (entries) {
+        const readings = [...new Set(entries.map((e) => e.r))];
+        subset.words[w] = readings;
+        if (!readings.includes(y)) report.readingMismatch.push(`${w}: app says ${y}, dictionary has ${readings.slice(0, 5).join('/')} [${from}]`);
+        else {
+          const gloss = entries.filter((e) => e.r === y).flatMap((e) => e.gloss);
+          // Kana-only words often share a spelling with unrelated words, so only kanji words are compared.
+          if (/[一-龯々]/.test(w) && !overlaps(m, gloss)) report.meaning.push(`${w} (${y}): app says “${m}”; dictionary: ${gloss.slice(0, 6).join('; ')} [${from}]`);
+        }
+      } else {
+        report.notInDictionary++;
+        if (readable(w, y)) subset.built[w] = y;
+        else report.unreadable.push(`${w}: app says ${y}, and the kanji readings don't build it [${from}]`);
+      }
+    }
+  }
+
+  for (const k of kanji) {
+    const d = kanjiDict.get(k.k);
+    if (!d) { report.kanji.push(`${k.k}: not in KANJIDIC2`); continue; }
+    subset.kanji[k.k] = { on: d.on, kun: d.kun, strokes: d.strokes };
+    if (d.strokes !== k.strokes) report.kanji.push(`${k.k}: app says ${k.strokes} strokes, dictionary says ${d.strokes}`);
+    for (const on of k.on) if (!d.on.includes(on)) report.kanji.push(`${k.k}: on reading ${on} isn't listed (${d.on.join(', ')})`);
+    for (const kun of k.kun) {
+      const mine = kun.replace(/-/g, '.');
+      const plain = kun.replace(/-/g, '');
+      const theirs = d.kun.map((r) => r.replace(/^-|-$/g, ''));
+      if (!theirs.includes(mine) && !theirs.some((r) => r.replace('.', '') === plain)) {
+        report.kanji.push(`${k.k}: kun reading ${kun} isn't listed (${d.kun.join(', ')})`);
+      }
+    }
+    if (!overlaps(k.mean.join(', '), d.mean)) report.kanji.push(`${k.k}: app meaning “${k.mean.join(', ')}”; dictionary: ${d.mean.join(', ')}`);
+  }
+
+  window.__readable = readable;
+  window.__report = report;
+  const lines = (o) => Object.entries(o).sort(([a], [b]) => (a < b ? -1 : 1)).map(([k, v]) => `${JSON.stringify(k)}:${JSON.stringify(v)}`).join(',\n');
+  const saved = {
+    words: Object.fromEntries(Object.entries(subset.words).map(([w, r]) => [w, r.join('|')])),
+    kanji: Object.fromEntries(Object.entries(subset.kanji).map(([k, d]) => [k, [d.on.join(' '), d.kun.join(' '), d.strokes]])),
+  };
+  const text = `{"source":"Built by tools/dict-check.html from JMdict and KANJIDIC2 (EDRDG, CC BY-SA 4.0) via jmdict-simplified ${jm.version}",\n`
+    + `"words":{\n${lines(saved.words)}},\n"built":{\n${lines(subset.built)}},\n"kanji":{\n${lines(saved.kanji)}}}\n`;
+  // The local server writes this to data/dict-check.json for the tests.
+  const save = await fetch('save-dict-check', { method: 'POST', body: text }).catch(() => null);
+  report.saved = save?.status === 204;
+  window.__subset = subset;
+  const list = (title, items) => `<h2>${title} (${items.length})</h2><ul>${items.map((i) => `<li>${i}</li>`).join('')}</ul>`;
+  out.innerHTML = `<p>${report.saved ? "Saved data/dict-check.json." : "Couldn't save data/dict-check.json: run tools/serve.ps1."} ${report.checked} word readings checked. ${report.notInDictionary} are inflected forms or phrases, so they were checked piece by piece.</p>`
+    + list('Reading not in the dictionary', report.readingMismatch)
+    + list('Reading that the kanji can\'t build', report.unreadable)
+    + list('Same word, different readings in the app', report.conflicts)
+    + list('Kanji details that differ', report.kanji)
+    + list('Meaning to look at (no shared words with the dictionary)', report.meaning);
+} catch (e) {
+  out.textContent = e.message;
+  window.__report = { error: e.message };
+}
+</script>
+</body>
+</html>

@@ -4,9 +4,9 @@ import { readFileSync } from 'node:fs';
 import { newRecord, rate, isDue } from '../js/srs.js';
 import { validNext, explainWrong, orders, tokenize, romajiLine, spoken } from '../js/drills.js';
 import { backupJson, parseBackup } from '../js/store.js';
-import { romaji } from '../js/romaji.js';
+import { romaji, toHiragana } from '../js/romaji.js';
 import { matchReading } from '../js/readings.js';
-import { buildSession, kanjiId } from '../js/session.js';
+import { buildSession, kanjiId, talkId } from '../js/session.js';
 import {
   UNIT_FILES, mergeCourse, nextUp, isUnlocked, examUnlocked, lessonSteps, LEVELS, levelUnlocked, toBlocks, autoAlts, words, particleItem,
 } from '../js/course.js';
@@ -452,4 +452,68 @@ test('particles are respelled for speech when spoken alone', () => {
 test('glossary covers every sentence word, so shadow romaji is complete', () => {
   const g = json('glossary');
   for (const s of data.sentences) for (const b of s.blocks) assert.ok(g[b.t], `${s.id} ${b.t}`);
+});
+
+test('every word and kanji matches JMdict and KANJIDIC2', () => {
+  // data/dict-check.json is built by tools/dict-check.html. If a new word fails here,
+  // run that page to check it against the dictionary and refresh the file.
+  const dict = json('dict-check');
+  const c = course();
+  const entries = [
+    ...Object.entries(c.glossary).map(([w, g]) => [w, g.y]),
+    ...c.vocab.map((v) => [v.w, v.y]),
+    ...c.units.flatMap((u) => Object.entries(u.lex || {}).map(([w, [y]]) => [w, y])),
+    ...Object.entries(json('talk').lex).map(([w, [y]]) => [w, y]),
+  ].filter(([w]) => !/[\sA-Za-z]/.test(w) && /[぀-ヿ一-龯]/.test(w));
+  const wrong = [];
+  const unchecked = [];
+  for (const [w, y] of entries) {
+    const reading = toHiragana(y);
+    if (dict.words[w]) {
+      if (!dict.words[w].split('|').includes(reading)) wrong.push(`${w} ${y} (dictionary: ${dict.words[w]})`);
+    } else if (dict.built[w] !== reading) unchecked.push(`${w} ${y}`);
+  }
+  assert.deepEqual(wrong, [], 'readings that differ from JMdict');
+  assert.deepEqual([...new Set(unchecked)], [], 'words not yet checked: run tools/dict-check.html');
+
+  const kanjiIssues = [];
+  for (const k of c.kanji) {
+    const d = dict.kanji[k.k];
+    if (!d) { kanjiIssues.push(`${k.k} missing`); continue; }
+    const [on, kun, strokes] = [d[0].split(' '), d[1].split(' ').map((r) => r.replace(/^-|-$/g, '')), d[2]];
+    if (k.strokes !== strokes) kanjiIssues.push(`${k.k} strokes ${k.strokes}, dictionary ${strokes}`);
+    for (const r of k.on) if (!on.includes(r)) kanjiIssues.push(`${k.k} on ${r}`);
+    for (const r of k.kun) {
+      if (!kun.includes(r.replace(/-/g, '.')) && !kun.some((x) => x.replace('.', '') === r.replace(/-/g, ''))) kanjiIssues.push(`${k.k} kun ${r}`);
+    }
+  }
+  assert.deepEqual(kanjiIssues, []);
+});
+
+test('Talk phrases are sourced, categorised, and every word can be tapped', () => {
+  const talk = json('talk');
+  const g = { ...course().glossary };
+  for (const [w, [y, m]] of Object.entries(talk.lex)) g[w] ||= { y, m };
+  const phrases = talk.categories.flatMap((c) => c.items);
+  assert.ok(talk.categories.length >= 8);
+  for (const c of talk.categories) assert.ok(c.id && c.title && c.jp && c.items.length >= 8, c.id);
+  assert.equal(new Set(phrases.map((p) => p.id)).size, phrases.length, 'duplicate Tatoeba ids');
+  const unknown = [];
+  for (const p of phrases) {
+    assert.ok(/^\d+$/.test(p.id) && p.en && p.t, p.id);
+    for (const w of p.t.split(' ')) if (!/^[。、！？…]+$/.test(w) && !g[w]) unknown.push(`${p.id}:${w}`);
+  }
+  assert.deepEqual(unknown, []);
+});
+
+test('starred Talk phrases join the daily session until they are reviewed', () => {
+  const c = course();
+  c.talkPhrases = json('talk').categories.flatMap((cat) => cat.items);
+  const state = { ...blank(), talk: { saved: { [c.talkPhrases[0].id]: NOW } } };
+  const first = buildSession(state, c, NOW);
+  const step = first.steps.find((s) => s.type === 'talk');
+  assert.equal(step.id, talkId(c.talkPhrases[0]));
+  state.items[step.id] = rate(newRecord(), 'good', NOW);
+  assert.ok(!buildSession(state, c, NOW).steps.some((s) => s.type === 'talk'));
+  assert.ok(buildSession(state, c, NOW + 2 * DAY).steps.some((s) => s.type === 'talk'));
 });
