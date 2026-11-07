@@ -8,7 +8,11 @@
 {"p":"へ","reads":"e","name":"Direction","fn":"Marks the direction of movement: “toward”.","picture":"a compass needle swinging toward a place.","en":"I go toward Japan.","ex":[{"t":"日本","r":"other"},{"t":"へ","r":"particle"},{"t":"行きます","r":"verb"}]},
 {"p":"の","reads":"no","name":"Linker","fn":"Links two nouns, like “my” or “of”. The first noun describes the second.","picture":"a chain link joining two boxes.","en":"my book","ex":[{"t":"私","r":"other"},{"t":"の","r":"particle"},{"t":"本","r":"other"}]},
 {"p":"も","reads":"mo","name":"Also","fn":"Means “also” or “too”, and takes the place of は, が, or を.","picture":"a plus sign adding one more to the group.","en":"My friend is a student too.","ex":[{"t":"友達","r":"topic"},{"t":"も","r":"particle"},{"t":"学生","r":"other"},{"t":"です","r":"verb"}]},
-{"p":"と","reads":"to","name":"“With” or “and”","fn":"Means “with” a partner, or “and” between nouns.","picture":"two people holding hands.","en":"I talk with a friend.","ex":[{"t":"友達","r":"other"},{"t":"と","r":"particle"},{"t":"話します","r":"verb"}]}
+{"p":"と","reads":"to","name":"“With” or “and”","fn":"Means “with” a partner, or “and” between nouns.","picture":"two people holding hands.","en":"I talk with a friend.","ex":[{"t":"友達","r":"other"},{"t":"と","r":"particle"},{"t":"話します","r":"verb"}]},
+{"p":"か","reads":"ka","name":"Question marker","fn":"At the end of a sentence it makes a question. Between nouns it means “or”.","picture":"a raised eyebrow at the end of the sentence.","en":"Is it a book?","ex":[{"t":"本","r":"other"},{"t":"です","r":"verb"},{"t":"か","r":"particle"}]},
+{"p":"から","reads":"kara","name":"From","fn":"Marks a starting point in time or place.","picture":"the starting line of a race.","en":"I came from Japan.","ex":[{"t":"日本","r":"other"},{"t":"から","r":"particle"},{"t":"来ました","r":"verb"}]},
+{"p":"まで","reads":"made","name":"Until, as far as","fn":"Marks an end point in time or place.","picture":"the finish line of a race.","en":"I go as far as school.","ex":[{"t":"学校","r":"other"},{"t":"まで","r":"particle"},{"t":"行きます","r":"verb"}]},
+{"p":"や","reads":"ya","name":"And others","fn":"Lists a few examples from a longer list.","picture":"a few items picked out of a full basket.","en":"Books and friends, among others.","ex":[{"t":"本","r":"other"},{"t":"や","r":"particle"},{"t":"友達","r":"other"}]}
 ],
 "sets":[
 {"noun":"学校","reading":"がっこう","items":[

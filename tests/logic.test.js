@@ -7,6 +7,10 @@ import { backupJson, parseBackup } from '../js/store.js';
 import { romaji } from '../js/romaji.js';
 import { matchReading } from '../js/readings.js';
 import { buildSession, kanjiId } from '../js/session.js';
+import {
+  UNIT_FILES, mergeCourse, nextUp, isUnlocked, examUnlocked, lessonSteps, LEVELS, levelUnlocked, toBlocks, autoAlts, words, particleItem,
+} from '../js/course.js';
+import { unitTest, mockExam, grade } from '../js/exam.js';
 import { checkLogin, hashPassword, userId } from '../js/lock.js';
 
 const json = (f) => JSON.parse(readFileSync(new URL(`../data/${f}.json`, import.meta.url)));
@@ -15,7 +19,22 @@ const data = {
 };
 const NOW = new Date(2026, 10, 5, 22, 0).getTime();
 const DAY = 864e5;
-const blank = () => ({ items: {}, days: {}, settings: { newPerDay: 4, hints: true, theme: 'system' } });
+const blankOld = () => ({ v: 1, items: {}, days: {}, settings: { newPerDay: 4, hints: true, theme: 'system' } });
+const blank = () => ({ ...blankOld(), course: { done: {}, passed: {}, missed: {} }, practice: { sent: {}, part: {} }, exams: { current: null, history: [] } });
+const optional = (f) => {
+  try { return json(f); } catch { return null; }
+};
+// A fresh copy of all data with the course merged in, as the app builds it.
+function course() {
+  const fresh = {
+    kanji: json('kanji-n5'), vocab: json('vocab-n5'), sentences: json('sentences'), particles: json('particles'),
+    glossary: json('glossary'), bank: json('particle-bank'),
+    papers: ['exam-n5-1', 'exam-n5-2'].map((f) => optional(`course/${f}`)).filter(Boolean),
+  };
+  mergeCourse(fresh, UNIT_FILES.map((f) => optional(`course/${f}`) || []));
+  for (const [w, [y, m]] of Object.entries(fresh.bank.lex)) if (!fresh.glossary[w]) fresh.glossary[w] = { y, m, ro: romaji(y) };
+  return fresh;
+}
 
 test('good grows intervals: 1, 3, then by ease', () => {
   let r = rate(newRecord(), 'good', NOW);
@@ -76,7 +95,7 @@ test('sentence data: alts are full permutations; roles are known', () => {
 
 test('particle data: answer offered, every wrong option explained, all 9 covered', () => {
   const { cards, sets } = data.particles;
-  assert.equal(cards.length, 9);
+  assert.equal(cards.length, 13);
   const answers = new Set();
   for (const it of sets.flatMap((s) => s.items)) {
     answers.add(it.answer);
@@ -96,7 +115,7 @@ test('romaji line reads as a sentence, with a blank before answering', () => {
 });
 
 test('glossary covers every word in the particle guides and drills', () => {
-  const g = json('glossary');
+  const g = course().glossary;
   const { cards, sets } = data.particles;
   for (const c of cards) for (const b of c.ex) assert.ok(g[b.t], `${c.p} ${b.t}`);
   for (const c of cards) assert.ok(g[c.p], c.p);
@@ -160,26 +179,228 @@ test('kanji data: example words exist in vocab', () => {
   }
 });
 
-test('new session teaches, tests, then drills, within daily caps', () => {
-  const { steps, counts } = buildSession(blank(), data, NOW);
-  assert.deepEqual(counts, { reviews: 0, learn: 6, sentences: 3, particles: 3, shadow: 1 });
-  assert.deepEqual(steps.map((s) => s.type), [
-    ...Array(6).fill('learn'), ...Array(6).fill('card'), ...Array(3).fill('sentence'), ...Array(3).fill('particle'), 'shadow',
-  ]);
+test('a new learner gets the first lesson and one listening clip', () => {
+  const merged = course();
+  const { steps, counts, next } = buildSession(blank(), merged, NOW);
+  assert.deepEqual(counts, { reviews: 0, lesson: 1, listen: 1 });
+  assert.equal(next.lesson.id, 'u01a');
+  assert.equal(steps[0].type, 'lesson');
+  assert.equal(steps.at(-1).type, 'listen');
+  assert.equal(steps.at(-2).type, 'lessonEnd');
+  assert.equal(steps.filter((s) => s.type === 'learn').length, steps.filter((s) => s.type === 'card').length);
 });
 
-test('due items lead the session; finished daily caps are respected', () => {
+test('due items lead the session, and only one lesson a day is added', () => {
+  const merged = course();
   const state = blank();
-  const key = data.kanji[0];
+  const key = merged.kanji[0];
   state.items[kanjiId(key)] = { ...newRecord(), due: NOW - DAY, reps: 2, interval: 3 };
-  assert.equal(buildSession(state, data, NOW).steps[0].id, kanjiId(key));
+  assert.equal(buildSession(state, merged, NOW).steps[0].id, kanjiId(key));
   const d = new Date(NOW);
   const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  state.days[today] = { newK: 4, newW: 2, reviews: 1, sentences: 3, particles: 3, shadow: 1 };
-  assert.deepEqual(buildSession(state, data, NOW).counts, { reviews: 1, learn: 0, sentences: 0, particles: 0, shadow: 0 });
+  state.days[today] = { newK: 0, newW: 0, reviews: 1, sentences: 0, particles: 0, shadow: 1, lessons: 1 };
+  assert.deepEqual(buildSession(state, merged, NOW).counts, { reviews: 1, lesson: 0, listen: 0 });
 });
 
-test('shadow clip rotates to the least recently heard sentence already met', () => {
+test('words already known are not taught again', () => {
+  const merged = course();
+  const state = blank();
+  const [unit] = merged.units;
+  const first = lessonSteps(unit, unit.lessons[0], state, merged).filter((s) => s.type === 'learn');
+  state.items[first[0].id] = newRecord();
+  const after = lessonSteps(unit, unit.lessons[0], state, merged).filter((s) => s.type === 'learn');
+  assert.equal(after.length, first.length - 1);
+});
+
+test('the course moves lesson, lesson, test, then the next unit', () => {
+  const { units } = course();
+  const state = blank();
+  const [u1, u2] = units;
+  assert.equal(nextUp(state, units).lesson.id, u1.lessons[0].id);
+  u1.lessons.forEach((l) => { state.course.done[l.id] = 1; });
+  assert.equal(nextUp(state, units).type, 'test');
+  assert.equal(isUnlocked(state, units, u2), false);
+  state.course.passed[u1.id] = 1;
+  assert.equal(nextUp(state, units).unit.id, u2.id);
+  assert.equal(isUnlocked(state, units, u2), true);
+});
+
+test('passing a later test skips ahead and keeps earlier units open', () => {
+  const { units } = course();
+  const state = blank();
+  const late = units[2];
+  state.course.passed[late.id] = 1;
+  assert.equal(nextUp(state, units).unit.n, late.n + 1);
+  assert.equal(isUnlocked(state, units, units[0]), true);
+  assert.equal(isUnlocked(state, units, units[late.n]), true);
+  assert.equal(examUnlocked(state, units), false);
+  state.course.passed[units.at(-1).id] = 1;
+  assert.equal(examUnlocked(state, units), true);
+  assert.equal(nextUp(state, units).type, 'exam');
+});
+
+test('sentence levels open at 80% cleared', () => {
+  const merged = course();
+  const state = blank();
+  const [one, two] = LEVELS;
+  assert.equal(levelUnlocked(one, state, merged), true);
+  assert.equal(levelUnlocked(two, state, merged), false);
+  one.ids.slice(0, Math.ceil(one.ids.length * 0.8)).forEach((id) => { state.practice.sent[id] = 1; });
+  assert.equal(levelUnlocked(two, state, merged), true);
+  const covered = LEVELS.flatMap((l) => l.ids || []);
+  assert.equal(new Set(covered).size, 50);
+  for (const id of covered) assert.ok(merged.sentences.find((s) => s.id === id), id);
+});
+
+test('course sentences get word roles and accept swapped phrases', () => {
+  const g = course().glossary;
+  const blocks = toBlocks('私 は 図書館 で 本 を 読みます', g);
+  assert.deepEqual(blocks.map((b) => b.r), ['topic', 'particle', 'other', 'particle', 'object', 'particle', 'verb']);
+  assert.deepEqual(autoAlts(blocks), [[0, 1, 4, 5, 2, 3, 6]]);
+  assert.deepEqual(toBlocks('今 何時 です か', g).map((b) => b.r), ['other', 'other', 'verb', 'particle']);
+  assert.deepEqual(autoAlts(toBlocks('私 は 学生 です', g)), []);
+  assert.deepEqual(autoAlts(toBlocks('九時 から 五時 まで です', g)), []);
+});
+
+test('course content: every word is defined, and answers and orders are valid', () => {
+  const merged = course();
+  const g = merged.glossary;
+  const unknown = new Set();
+  const known = (text, where) => {
+    for (const w of words(text.replace(/___/g, ' ').replace(/[[\]]/g, ''))) {
+      if (!/^[。、？！]$/.test(w) && !g[w]) unknown.add(`${where}:${w}`);
+    }
+  };
+  const ids = new Set();
+  for (const u of merged.units) {
+    assert.ok(u.title && u.goal && u.dialogue && u.quiz.length >= 3, u.id);
+    for (const l of u.lessons) {
+      assert.ok(!ids.has(l.id), l.id);
+      ids.add(l.id);
+      assert.ok(l.note.length && l.examples.length && l.drills.length >= 3, l.id);
+      for (const e of l.examples) known(e.t, l.id);
+      for (const d of l.drills) {
+        if (d.b) known(d.b, l.id);
+        else {
+          known(d.c, l.id);
+          assert.ok(d.c.includes('___'), l.id);
+          assert.ok(!d.w[d.a], `${l.id} ${d.a}`);
+          assert.ok(Object.keys(d.w).length >= 2, `${l.id} ${d.c}`);
+        }
+      }
+    }
+    for (const line of u.dialogue.lines) known(line.t, `${u.id} dialogue`);
+    for (const q of [...u.dialogue.check, ...u.quiz]) {
+      assert.equal(new Set(q.o).size, q.o.length, `${u.id} ${q.q}`);
+      assert.ok(q.o.length >= 3 && q.w, `${u.id} ${q.q}`);
+    }
+  }
+  assert.deepEqual([...unknown], []);
+  for (const s of merged.sentences) {
+    const size = s.blocks.length;
+    for (const alt of s.alts || []) assert.deepEqual([...alt].sort((a, b) => a - b), [...Array(size).keys()], s.id);
+  }
+});
+
+test('the course covers all 100 kanji once and every vocabulary word', () => {
+  const merged = course();
+  const taught = merged.units.flatMap((u) => u.lessons.flatMap((l) => l.kanji || []));
+  assert.equal(new Set(taught).size, taught.length, 'a kanji is taught twice');
+  assert.deepEqual(merged.kanji.map((k) => k.k).filter((k) => !taught.includes(k)), []);
+  assert.deepEqual(taught.filter((k) => !merged.kanji.some((x) => x.k === k)), []);
+  const words2 = new Set(merged.units.flatMap((u) => u.lessons.flatMap((l) => l.words || [])));
+  assert.deepEqual(merged.vocab.map((v) => v.w).filter((w) => !words2.has(w)), []);
+  assert.deepEqual(merged.vocab.filter((v) => !v.m).map((v) => v.w), []);
+});
+
+test('unlimited particles: frames are valid and every particle is covered', () => {
+  const merged = course();
+  const { bank, glossary: g } = merged;
+  for (const c of merged.particles.cards) assert.ok(bank.frames.some((f) => f.a === c.p), c.p);
+  assert.ok(bank.frames.length >= 50);
+  for (const f of bank.frames) {
+    assert.ok(!f.w[f.a] && Object.keys(f.w).length >= 2 && f.t.includes('___'), f.id);
+    for (const key of [...f.t.matchAll(/\{(\w+)\}/g)].map((m) => m[1])) assert.ok(bank.slots[key], `${f.id} ${key}`);
+    for (const w of words(f.t.replace(/___/g, ' ').replace(/\{\w+\}/g, ' '))) {
+      if (!/^[。、？！]$/.test(w)) assert.ok(g[w], `${f.id} ${w}`);
+    }
+  }
+  for (const list of Object.values(bank.slots)) for (const [t] of list) assert.ok(g[t], t);
+  for (let i = 0; i < 300; i++) {
+    const it = particleItem(bank, { stats: {} });
+    assert.ok(it.options.includes(it.answer) && !/[{}]/.test(it.en + it.before + it.after), it.id);
+    for (const o of it.options) if (o !== it.answer) assert.ok(it.why[o], `${it.id} ${o}`);
+  }
+});
+
+test('particle practice can focus, compare two, and favours what was missed', () => {
+  const { bank } = course();
+  for (let i = 0; i < 50; i++) assert.equal(particleItem(bank, { focus: 'で' }).answer, 'で');
+  for (let i = 0; i < 50; i++) {
+    const it = particleItem(bank, { pair: ['は', 'が'] });
+    assert.deepEqual([...it.options].sort(), ['が', 'は'].sort());
+  }
+  const stats = Object.fromEntries(bank.frames.map((f) => [f.id, { seen: 1, miss: f.id === 'o1' ? 50 : 0 }]));
+  let hits = 0;
+  for (let i = 0; i < 200; i++) if (particleItem(bank, { stats }).id === 'o1') hits++;
+  assert.ok(hits > 60, String(hits));
+});
+
+test('unit tests mix written and word questions, and options keep their answers', () => {
+  const merged = course();
+  const exam = unitTest(merged.units[0], merged);
+  const list = exam.sections[0].questions;
+  assert.ok(list.length >= 7);
+  for (const q of list) assert.ok(q.a >= 0 && q.o[q.a] !== undefined, q.id);
+  const all = Object.fromEntries(list.map((q) => [q.id, q.a]));
+  assert.equal(grade(exam, all).pass, true);
+  assert.equal(grade(exam, {}).pass, false);
+});
+
+test('mock exam scoring follows the JLPT N5 rules', () => {
+  const q = (id) => ({ id, a: 0 });
+  const paper = (l, t) => ({ scoring: 'jlpt', sections: [
+    { score: 'language', questions: Array.from({ length: t }, (_, i) => q(`a${i}`)) },
+    { score: 'listening', questions: Array.from({ length: l }, (_, i) => q(`b${i}`)) },
+  ] });
+  const answers = (lang, listen) => ({
+    ...Object.fromEntries(Array.from({ length: lang }, (_, i) => [`a${i}`, 0])),
+    ...Object.fromEntries(Array.from({ length: listen }, (_, i) => [`b${i}`, 0])),
+  });
+  const exam = paper(10, 10);
+  assert.deepEqual((({ language, listening, total, pass }) => ({ language, listening, total, pass }))(grade(exam, answers(5, 5))), { language: 60, listening: 30, total: 90, pass: true });
+  assert.equal(grade(exam, answers(10, 0)).pass, false); // Listening below 19.
+  assert.equal(grade(exam, answers(3, 5)).pass, false); // Language below 38.
+  assert.equal(grade(exam, answers(4, 3)).pass, false); // Total below 80.
+});
+
+test('mock exam papers match the JLPT N5 layout', () => {
+  const { papers } = course();
+  for (const paper of papers) {
+    const exam = mockExam(paper);
+    assert.deepEqual(exam.sections.map((s) => s.minutes), [20, 40, 30], paper.id);
+    assert.deepEqual(exam.sections.map((s) => s.score), ['language', 'language', 'listening'], paper.id);
+    assert.deepEqual(paper.sections.map((s) => s.parts.map((p) => p.questions.length)), [[7, 5, 6, 3], [9, 4, 4, 2, 2, 1], [7, 6, 5, 6]], paper.id);
+    for (const q of exam.sections.flatMap((s) => s.questions)) {
+      assert.ok(q.o[q.a] !== undefined && q.w, q.id);
+      assert.equal(new Set(q.o).size, q.o.length, q.id);
+    }
+    for (const q of exam.sections[2].questions) assert.ok(q.play?.length, q.id);
+  }
+  assert.ok(papers.length >= 1);
+});
+
+test('backup keeps course, practice and exam progress', () => {
+  const state = { ...blank(), v: 1, course: { done: { u01a: 1 }, passed: { u01: 1 }, missed: {} }, practice: { sent: { s01: 1 }, part: {} }, exams: { current: null, history: [{ total: 100 }] } };
+  const { state: restored } = parseBackup(backupJson(state, NOW));
+  assert.deepEqual(restored.course, state.course);
+  assert.deepEqual(restored.practice, state.practice);
+  assert.deepEqual(restored.exams, state.exams);
+  const old = parseBackup(backupJson(blankOld(), NOW)).state;
+  assert.deepEqual(old.course, { done: {}, passed: {}, missed: {} });
+});
+
+test('listening clip rotates to the least recently heard sentence already met', () => {
   const state = blank();
   const [a, b, c] = data.sentences;
   state.items[`s:${a.id}`] = newRecord();

@@ -1,0 +1,88 @@
+{"id":"exam-n5-1","title":"N5 mock exam 1","sections":[
+{"title":"Vocabulary","minutes":20,"score":"language","parts":[
+{"id":"v1","title":"Kanji reading","instr":"Choose the reading of the underlined word.","questions":[
+{"q":"毎朝 [七時] に 起きます 。","o":["しちじ","なのじ","ななじ","ひちじ"],"w":"七時 is しちじ.","en":"I get up at 7:00 every morning."},
+{"q":"来月 [北] の 国 へ 行きます 。","o":["きた","みなみ","にし","ひがし"],"w":"北 is きた, north.","en":"Next month I'm going to a country in the north."},
+{"q":"この 川 は [長い] です 。","o":["ながい","たかい","ひろい","ふるい"],"w":"長い is ながい, long.","en":"This river is long."},
+{"q":"山田 さん の [お母さん] は 先生 です 。","o":["おかあさん","おとうさん","おねえさん","おにいさん"],"w":"お母さん is おかあさん.","en":"Ms Yamada's mother is a teacher."},
+{"q":"[来週] 友達 に 会います 。","o":["らいしゅう","らいしゅ","こんしゅう","らいげつ"],"w":"来週 is らいしゅう, with a long しゅう.","en":"I'll meet a friend next week."},
+{"q":"駅 の [前] で 待っています 。","o":["まえ","うしろ","よこ","そと"],"w":"前 is まえ, in front.","en":"I'm waiting in front of the station."},
+{"q":"みかん が [九つ] あります 。","o":["ここのつ","きゅうつ","くつ","ここつ"],"w":"九つ is ここのつ.","en":"There are nine oranges."}]},
+{"id":"v2","title":"Orthography","instr":"Choose how the underlined word is written.","questions":[
+{"q":"あそこ を [みぎ] に 行って ください 。","o":["右","左","石","名"],"w":"みぎ is 右. 左 is ひだり.","en":"Please go right over there."},
+{"q":"[でんしゃ] で 会社 へ 行きます 。","o":["電車","電東","雷車","電事"],"w":"でんしゃ is 電車.","en":"I go to the office by train."},
+{"q":"朝 、 [コーヒー] を 飲みました 。","o":["コーヒー","コーヒ","ユーヒー","コーピー"],"w":"コーヒー has two long vowels.","en":"I drank coffee this morning."},
+{"q":"昨日 は [あめ] でした 。","o":["雨","雪","雲","電"],"w":"あめ is 雨.","en":"It rained yesterday."},
+{"q":"あの [たかい] 山 を 見て ください 。","o":["高い","安い","長い","古い"],"w":"たかい is 高い.","en":"Please look at that high mountain."}]},
+{"id":"v3","title":"Word in context","instr":"Choose the word that fits best.","questions":[
+{"q":"暑い です から 、 窓 を ___ ください 。","o":["あけて","しめて","かいて","のんで"],"w":"When it's hot, you open a window.","en":"It's hot, so please open the window."},
+{"q":"田中 さん は 歌 が とても ___ です 。","o":["じょうず","たかい","おもい","わかい"],"w":"じょうず means skilled.","en":"Mr Tanaka is very good at singing."},
+{"q":"友達 に 手紙 を ___ 。","o":["書きました","聞きました","飲みました","着ました"],"w":"You write a letter: 書きました.","en":"I wrote a letter to a friend."},
+{"q":"この りんご は 五十円 です 。 とても ___ です 。","o":["やすい","たかい","ひろい","おもい"],"w":"50 yen is cheap: やすい.","en":"This apple is 50 yen. It's very cheap."},
+{"q":"図書館 で 本 を 二冊 ___ 。","o":["かりました","おしえました","のりました","はきました"],"w":"You borrow books from a library.","en":"I borrowed two books from the library."},
+{"q":"寒い です から 、 コート を ___ 。","o":["きます","はきます","かぶります","のみます"],"w":"着ます is for coats. はきます is for shoes and trousers.","en":"It's cold, so I'll wear a coat."}]},
+{"id":"v4","title":"Same meaning","instr":"Choose the sentence that means about the same.","questions":[
+{"q":"おととい 映画 を 見ました 。","o":["二日 前 に 映画 を 見ました 。","二日 後 に 映画 を 見ます 。","昨日 映画 を 見ました 。","明日 映画 を 見ます 。"],"w":"おととい is two days ago.","en":"I saw a movie the day before yesterday."},
+{"q":"ここ は 食堂 です 。","o":["ここ で ご飯 を 食べます 。","ここ で 本 を 読みます 。","ここ で 寝ます 。","ここ で 服 を 買います 。"],"w":"A 食堂 is a place to eat.","en":"This is a cafeteria."},
+{"q":"父 の 母 は 七十歳 です 。","o":["おばあさん は 七十歳 です 。","おじいさん は 七十歳 です 。","おばさん は 七十歳 です 。","おじさん は 七十歳 です 。"],"w":"Your father's mother is your grandmother, おばあさん.","en":"My father's mother is 70."}]}]},
+
+{"title":"Grammar and reading","minutes":40,"score":"language","parts":[
+{"id":"g1","title":"Sentence grammar","instr":"Choose what fits the blank.","questions":[
+{"q":"私 は 毎朝 パン ___ 食べます 。","o":["を","が","で","から"],"w":"を marks what you eat.","en":"I eat bread every morning."},
+{"q":"学校 ___ バス で 行きます 。","o":["へ","を","の","と"],"w":"へ marks where you're going.","en":"I go to school by bus."},
+{"q":"昨日 は 天気 が ___ 。","o":["よかったです","いいでした","よいでした","いかったです"],"w":"The past of いい is よかった.","en":"The weather was good yesterday."},
+{"q":"この 部屋 は ___ です 。","o":["静か","静かな","静かに","静かで"],"w":"な adjectives drop な before です.","en":"This room is quiet."},
+{"q":"ご飯 を ___ から 、 歯 を 磨きます 。","o":["食べて","食べる","食べた","食べ"],"w":"てから means after doing.","en":"After eating, I brush my teeth."},
+{"q":"A 「 コーヒー を 飲みません か 。」 B 「 ___ 」","o":["ええ 、 飲みましょう 。","はい 、 飲みません 。","いいえ 、 飲みます 。","ええ 、 飲みました 。"],"w":"Accept an invitation with ましょう.","en":"A: Would you like some coffee? B: Yes, let's."},
+{"q":"美術館 で 写真 を ___ 。","o":["撮ってはいけません","撮らないでいけません","撮ってはありません","撮るはいけません"],"w":"て form plus はいけません means must not.","en":"You must not take photos in the art museum."},
+{"q":"東京 は 大阪 ___ 大きい です 。","o":["より","ほう","から","まで"],"w":"より means than.","en":"Tokyo is bigger than Osaka."},
+{"q":"机 の 上 に 本 が 三冊 ___ 。","o":["あります","います","です","します"],"w":"Things that don't move use あります.","en":"There are three books on the desk."}]},
+{"id":"g2","title":"Sentence order","instr":"Put the words in order. Choose the one that goes in the ★ slot.","questions":[
+{"q":"あの ＿ ＿ ★ ＿ です 。","o":["私","かばん","は","の"],"w":"あの かばん は 私 の です。","en":"That bag is mine."},
+{"q":"昨日 ＿ ＿ ★ ＿ 行きました 。","o":["映画を","友達","と","見に"],"w":"昨日 友達 と 映画を 見に 行きました。","en":"Yesterday I went to see a movie with a friend."},
+{"q":"私 は ＿ ★ ＿ ＿ 好き です 。","o":["聞く","音楽を","の","が"],"w":"私は 音楽を 聞く の が 好きです。","en":"I like listening to music."},
+{"q":"この ＿ ＿ ★ ＿ です か 。","o":["いくら","本","は","ぐらい"],"w":"この 本 は いくら ぐらい ですか。","en":"About how much is this book?"}]},
+{"id":"g3","title":"Passage grammar","instr":"Read the passage and choose what fits each numbered blank.","p":"私 は 先週 、 友達 と 山 へ 行きました 。 朝 早く 家 を （１） 、 電車 で 行きました 。 山 は とても きれい （２） 。 昼 に 山 の 上 で お弁当 を （３） 。 たくさん 歩きました 。 （４） 、 夜 は とても 疲れました 。","questions":[
+{"q":"（１）","o":["出て","出る","出た","出ない"],"w":"て links this to the next action.","en":"I left home early in the morning and went by train."},
+{"q":"（２）","o":["でした","です か","ません","ました"],"w":"The trip is in the past, so use でした.","en":"The mountain was very beautiful."},
+{"q":"（３）","o":["食べました","食べません","食べましょう","食べたい"],"w":"This tells what happened: 食べました.","en":"We ate our boxed lunches at the top at noon."},
+{"q":"（４）","o":["だから","でも","まだ","もう"],"w":"Walking a lot is the reason for being tired, so だから.","en":"So, I was very tired in the evening."}]},
+{"id":"r1","title":"Short passages","instr":"Read and choose the best answer.","questions":[
+{"p":"田中 さん 、 今日 の 会議 は ありません 。 明日 の 十時 に 来て ください 。\n山田","q":"田中 さん は いつ 来ます か 。","o":["明日 の 十時","今日 の 十時","明日 の 一時","今日 の 午後"],"w":"The note says 明日の十時.","en":"Mr Tanaka, there's no meeting today. Please come at 10:00 tomorrow."},
+{"p":"私 の 部屋 です 。 机 の 上 に パソコン が あります 。 窓 の 下 に ベッド が あります 。 テレビ は ありません 。","q":"ベッド は どこ に あります か 。","o":["窓 の 下","机 の 上","ドア の 横","窓 の 上"],"w":"The passage says 窓の下にベッドがあります.","en":"This is my room. There's a computer on the desk and a bed under the window. There's no TV."}]},
+{"id":"r2","title":"Longer passage","instr":"Read and choose the best answer.","p":"私 は 去年 の 四月 に 日本 へ 来ました 。 今 大阪 の 大学 で 日本語 を 勉強しています 。 週末 は 駅 の 前 の 店 で 働いています 。 店 の 人 は みんな 親切 です 。 来月 、 母 が 日本 へ 来ます 。 いっしょ に 京都 へ 行きたい です 。","questions":[
+{"q":"この 人 は 週末 に 何 を します か 。","o":["店 で 働きます","大学 で 勉強します","京都 へ 行きます","母 に 会います"],"w":"The passage says 週末は…店で働いています.","en":"I came to Japan last April and study at a university in Osaka. On weekends I work at a shop."},
+{"q":"この 人 は 来月 何 を したい です か 。","o":["母 と 京都 へ 行きたい","一人 で 京都 へ 行きたい","母 の 国 へ 帰りたい","大阪 の 店 で 働きたい"],"w":"The passage says 母が来ます, and いっしょに京都へ行きたいです.","en":"My mother is coming next month. I want to go to Kyoto with her."}]},
+{"id":"r3","title":"Finding information","instr":"Look at the notice and choose the best answer.","p":"さくら 図書館 の お知らせ\n月曜日 ： 休み\n火曜日 から 金曜日 ： 九時 から 七時 まで\n土曜日 と 日曜日 ： 十時 から 五時 まで\n本 は 二週間 借りる こと が できます 。","questions":[
+{"q":"土曜日 は 何時 まで です か 。","o":["五時","七時","九時","十時"],"w":"The notice says 土曜日と日曜日：十時から五時まで.","en":"Sakura Library is closed on Mondays. It's open 9 to 7 on weekdays, and 10 to 5 on weekends."}]}]},
+
+{"title":"Listening","minutes":30,"score":"listening","parts":[
+{"id":"l1","title":"Task-based comprehension","instr":"Listen, then choose the best answer.","questions":[
+{"play":[["F","男の人 と 店 の 人 が 話しています 。 男の人 は 何 を 買います か 。"],["M","すみません 、 りんご を 三つ ください 。"],["F","みかん も いかが です か 。"],["M","いいえ 、 りんご だけ で いい です 。"],["F","男の人 は 何 を 買います か 。"]],"o":["りんご 三つ","みかん 三つ","りんご 二つ","りんご と みかん"],"w":"He says りんごを三つ, and りんごだけ.","en":"He buys three apples only."},
+{"play":[["F","先生 と 学生 が 話しています 。 学生 は 明日 何時 に 学校 へ 来ます か 。"],["F","先生 、 明日 の テスト は 何時 から です か 。"],["M","九時 から です 。 八時 半 に 来て ください 。"],["F","はい 、 分かりました 。"],["F","学生 は 明日 何時 に 学校 へ 来ます か 。"]],"o":["八時 半","九時","八時","九時 半"],"w":"The test starts at 9:00, but the teacher says to come at 8:30.","en":"The student comes at 8:30."},
+{"play":[["M","男の人 と 女の人 が 話しています 。 女の人 は 本 を どこ に 置きます か 。"],["M","この 本 を いす の 上 に 置いて ください 。"],["F","いす の 上 です か 。"],["M","あ 、 すみません 。 机 の 上 に お願いします 。"],["M","女の人 は 本 を どこ に 置きます か 。"]],"o":["机 の 上","いす の 上","かばん の 中","窓 の 下"],"w":"He corrects himself: 机の上に.","en":"She puts it on the desk."},
+{"play":[["F","女の人 が 話しています 。 女の人 は 駅 まで 何 で 行きます か 。"],["F","今日 は 雨 です から 、 駅 まで バス で 行きます 。 駅 から 会社 まで 電車 で 行きます 。"],["F","女の人 は 駅 まで 何 で 行きます か 。"]],"o":["バス","電車","タクシー","自転車"],"w":"She takes the bus to the station, then the train.","en":"She goes to the station by bus."},
+{"play":[["M","二人 が 話しています 。 二人 は 昼ご飯 に 何 を 食べます か 。"],["M","昼ご飯 は ラーメン に しましょう か 。"],["F","ラーメン は 昨日 食べました 。 今日 は すし が いい です 。"],["M","いい です ね 。 じゃあ 、 そう しましょう 。"],["M","二人 は 昼ご飯 に 何 を 食べます か 。"]],"o":["すし","ラーメン","カレー","パン"],"w":"She had ramen yesterday and suggests sushi, and he agrees.","en":"They'll have sushi."},
+{"play":[["F","先生 が 話しています 。 学生 は 今日 どの ページ を 勉強します か 。"],["F","今日 の 宿題 は 十ページ と 十一ページ です 。 十二ページ は 来週 です 。"],["F","学生 は 今日 どの ページ を 勉強します か 。"]],"o":["十ページ と 十一ページ","十一ページ と 十二ページ","十ページ だけ","十二ページ だけ"],"w":"Page 12 is for next week.","en":"Pages 10 and 11."},
+{"play":[["F","女の人 と 男の人 が 話しています 。 男の人 は 何 を 持って行きます か 。"],["F","今日 は 雨 が 降ります よ 。 かさ を 持って行って ください 。"],["M","そう です か 。 ありがとうございます 。"],["F","男の人 は 何 を 持って行きます か 。"]],"o":["かさ","帽子","コート","かばん"],"w":"She says かさを持って行ってください.","en":"He takes an umbrella."}]},
+{"id":"l2","title":"Key points","instr":"Listen, then choose the best answer.","questions":[
+{"play":[["M","女の人 は 昨日 どこ へ 行きました か 。"],["M","昨日 デパート へ 行きました か 。"],["F","いいえ 、 デパート は 行きませんでした 。 友達 と 映画館 へ 行きました 。"],["M","女の人 は 昨日 どこ へ 行きました か 。"]],"o":["映画館","デパート","友達 の 家","学校"],"w":"She didn't go to the department store. She went to the cinema.","en":"She went to the cinema."},
+{"play":[["F","男の人 の 誕生日 は いつ です か 。"],["F","誕生日 は いつ です か 。"],["M","七月 八日 です 。"],["F","あ 、 来週 です ね 。"],["F","男の人 の 誕生日 は いつ です か 。"]],"o":["七月 八日","七月 四日","八月 七日","四月 八日"],"w":"He says 七月八日.","en":"July 8."},
+{"play":[["M","大きい かばん は いくら です か 。"],["M","すみません 、 この かばん は いくら です か 。"],["F","三千円 です 。"],["M","あの 大きい かばん は 。"],["F","あれ は 五千円 です 。"],["M","大きい かばん は いくら です か 。"]],"o":["五千円","三千円","五百円","八千円"],"w":"The small one is 3,000 yen and the big one is 5,000 yen.","en":"5,000 yen."},
+{"play":[["M","女の人 の 家族 は 何人 です か 。"],["M","ご家族 は 何人 です か 。"],["F","父 と 母 と 兄 が 二人 、 それから 私 です 。"],["M","女の人 の 家族 は 何人 です か 。"]],"o":["五人","四人","三人","六人"],"w":"Father, mother, two brothers and herself make five.","en":"Five people."},
+{"play":[["F","男の人 は どうして 昨日 学校 を 休みました か 。"],["F","昨日 は どうして 休みました か 。"],["M","頭 が 痛かった です から 。"],["F","今日 は 大丈夫 です か 。"],["M","はい 、 元気 です 。"],["F","男の人 は どうして 昨日 学校 を 休みました か 。"]],"o":["頭 が 痛かった から","忙しかった から","雨 が 降った から","電車 が なかった から"],"w":"He says 頭が痛かったですから.","en":"His head hurt."},
+{"play":[["F","男の人 は 昨日 何時 に 寝ました か 。"],["F","昨日 は 何時 に 寝ました か 。"],["M","いつも は 十一時 です 。 でも 宿題 が たくさん ありました から 、 一時 に 寝ました 。"],["F","男の人 は 昨日 何時 に 寝ました か 。"]],"o":["一時","十一時","十時","十二時"],"w":"He usually sleeps at 11:00, but yesterday it was 1:00.","en":"1:00."}]},
+{"id":"l3","title":"Verbal expressions","instr":"Listen to the situation. Choose what the person would say.","questions":[
+{"ao":true,"play":[["F","友達 の 家 に 入ります 。 何 と 言います か 。"]],"o":["おじゃまします","いただきます","ごちそうさまでした","おやすみなさい"],"w":"おじゃまします is what you say entering someone's home.","en":"You're entering a friend's home."},
+{"ao":true,"play":[["F","朝 、 学校 で 先生 に 会いました 。 何 と 言います か 。"]],"o":["おはようございます","こんばんは","おやすみなさい","さようなら"],"w":"In the morning, say おはようございます.","en":"You meet your teacher in the morning."},
+{"ao":true,"play":[["F","これ から ご飯 を 食べます 。 何 と 言います か 。"]],"o":["いただきます","ごちそうさまでした","いってきます","ただいま"],"w":"いただきます comes before eating.","en":"You're about to eat."},
+{"ao":true,"play":[["F","友達 に プレゼント を もらいました 。 何 と 言います か 。"]],"o":["ありがとうございます","どういたしまして","いらっしゃいませ","お願いします"],"w":"You thank the person who gave you a present.","en":"A friend gave you a present."},
+{"ao":true,"play":[["F","店 で 水 が ほしい です 。 何 と 言います か 。"]],"o":["水 を ください 。","水 は いかが です か 。","水 を 飲みません か 。","水 が あります 。"],"w":"ください asks for something.","en":"You want water at a shop."}]},
+{"id":"l4","title":"Quick response","instr":"Listen and choose the best reply.","questions":[
+{"ao":true,"play":[["M","お名前 は 。"]],"o":["田中 です 。","二十歳 です 。","元気 です 。","東京 です 。"],"w":"The question asks your name.","en":"What's your name?"},
+{"ao":true,"play":[["F","お元気 です か 。"]],"o":["はい 、 元気 です 。","はい 、 お願いします 。","いいえ 、 どういたしまして 。","はい 、 そう しましょう 。"],"w":"Answer with 元気です.","en":"How are you?"},
+{"ao":true,"play":[["M","どうも ありがとうございました 。"]],"o":["どういたしまして 。","いただきます 。","お願いします 。","こんにちは 。"],"w":"どういたしまして answers a thank you.","en":"Thank you very much."},
+{"ao":true,"play":[["F","いつ 日本 へ 来ました か 。"]],"o":["去年 来ました 。","電車 で 来ました 。","友達 と 来ました 。","東京 へ 来ました 。"],"w":"いつ asks when.","en":"When did you come to Japan?"},
+{"ao":true,"play":[["M","コーヒー は いかが です か 。"]],"o":["はい 、 いただきます 。","はい 、 いかが です 。","いいえ 、 飲みました 。","はい 、 どうぞ 。"],"w":"Accept an offer with いただきます.","en":"Would you like some coffee?"},
+{"ao":true,"play":[["F","この かさ は だれ の です か 。"]],"o":["私 の です 。","かさ です 。","二本 です 。","安い です 。"],"w":"だれの asks whose.","en":"Whose umbrella is this?"}]}]}
+]}

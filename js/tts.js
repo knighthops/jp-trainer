@@ -20,21 +20,47 @@ export function hasJapaneseVoice() {
   });
 }
 
-export function speak(text, { rate = NORMAL, onend } = {}) {
-  if (!supported()) return false;
+// Any new playback ends a running dialogue.
+let playback = 0;
+
+function utter(text, { rate = NORMAL, pitch = 1, onend } = {}) {
   const synth = window.speechSynthesis;
   synth.cancel();
   const u = new SpeechSynthesisUtterance(text);
   u.lang = 'ja-JP';
   u.rate = rate;
+  u.pitch = pitch;
   const voice = japaneseVoice();
   if (voice) u.voice = voice;
   if (onend) { u.onend = onend; u.onerror = onend; }
   synth.speak(u);
+}
+
+export function speak(text, options) {
+  if (!supported()) return false;
+  playback++;
+  utter(text, options);
+  return true;
+}
+
+// Plays lines in turn: [{ s: 'A' | 'B' | 'F' | 'M', t }]. There is only one device
+// voice, so a lower pitch tells the second speaker apart.
+export function speakLines(lines, { rate = NORMAL, onend } = {}) {
+  if (!supported()) return false;
+  const id = ++playback;
+  let i = 0;
+  const next = () => {
+    if (id !== playback) return;
+    if (i >= lines.length) { onend?.(); return; }
+    const line = lines[i++];
+    utter(line.t.replace(/\s+/g, ''), { rate, pitch: ['B', 'M'].includes(line.s) ? 0.8 : 1.15, onend: next });
+  };
+  next();
   return true;
 }
 
 export function cancel() {
+  playback++;
   if (supported()) window.speechSynthesis.cancel();
 }
 

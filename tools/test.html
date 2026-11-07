@@ -1,0 +1,45 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Tests</title>
+<!-- Runs tests/logic.test.js in a browser, for PCs without Node. Serve the project, then open /tools/test.html. -->
+<pre id="out">Running…</pre>
+<script type="module">
+const tests = [];
+window.__test = (name, fn) => tests.push([name, fn]);
+const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+window.__assert = {
+  equal(a, b, m) { if (a !== b) throw new Error(`${m || ''} ${a} !== ${b}`); },
+  notEqual(a, b, m) { if (a === b) throw new Error(`${m || ''} both ${a}`); },
+  deepEqual(a, b, m) { if (!same(a, b)) throw new Error(`${m || ''} ${JSON.stringify(a)} vs ${JSON.stringify(b)}`); },
+  ok(v, m) { if (!v) throw new Error(m || 'not ok'); },
+  match(s, r) { if (!r.test(s)) throw new Error(`${s} !~ ${r}`); },
+};
+const stamp = Date.now();
+const base = `${location.origin}/`;
+const names = ['kanji-n5', 'vocab-n5', 'sentences', 'particles', 'glossary', 'particle-bank', 'course/exam-n5-1', 'course/exam-n5-2',
+  'course/units-01-04', 'course/units-05-08', 'course/units-09-12', 'course/units-13-16', 'course/units-17-20', 'course/units-21-24'];
+const files = {};
+await Promise.all(names.map(async (f) => {
+  const r = await fetch(`${base}data/${f}.json?${stamp}`);
+  if (r.ok) files[f] = await r.text();
+}));
+window.__read = (u) => {
+  const key = String(u).match(/data\/(.+)\.json/)[1];
+  if (!(key in files)) throw new Error(`missing ${key}`);
+  return files[key];
+};
+let src = await (await fetch(`${base}tests/logic.test.js?${stamp}`)).text();
+src = src.replace("import test from 'node:test';", 'const test = window.__test;')
+  .replace("import assert from 'node:assert/strict';", 'const assert = window.__assert;')
+  .replace("import { readFileSync } from 'node:fs';", 'const readFileSync = window.__read;')
+  .replace(/from '\.\.\/js\//g, `from '${base}js/`)
+  .replace(/import\.meta\.url/g, `'${base}tests/x.js'`);
+await import(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
+const fail = [];
+let pass = 0;
+for (const [name, fn] of tests) {
+  try { await fn(); pass++; } catch (e) { fail.push(`${name}: ${e.message}`); }
+}
+window.__results = { total: tests.length, pass, fail };
+document.getElementById('out').textContent = JSON.stringify(window.__results, null, 1);
+</script>

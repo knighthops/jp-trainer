@@ -2,6 +2,7 @@
 // render functions build UI inside the element they are given.
 import { icons } from './icons.js';
 import { sayBtn } from './tts.js';
+import { romaji as kanaToRomaji } from './romaji.js';
 
 // Alone, these particles need respelling or speech reads は as "ha".
 const PARTICLE_SAY = { は: 'わ', へ: 'え', を: 'お' };
@@ -53,7 +54,7 @@ export function explainWrong(sentence, placed, tapped) {
   return lead + (NEXT_HINT[expected?.r] || 'Try another block.');
 }
 
-export function renderSentence(root, sentence, { hints, onDone }) {
+export function renderSentence(root, sentence, { hints, review = false, onDone }) {
   // Keep shuffling until the pool is not already a correct answer.
   const accepted = orders(sentence).map((o) => o.join('|'));
   let pool = shuffled(sentence.blocks.map((b, i) => ({ ...b, i })));
@@ -110,6 +111,14 @@ export function renderSentence(root, sentence, { hints, onDone }) {
       root.querySelector('#cont').onclick = () => onDone(clean);
     }
   };
+  // Coming back with Previous shows the finished sentence.
+  if (review) {
+    for (const t of orders(sentence)[0]) {
+      const taken = new Set([...root.querySelectorAll('.block.used')].map((x) => x.dataset.i));
+      const b = pool.find((x) => x.t === t && !taken.has(String(x.i)));
+      root.querySelector(`#pool .block[data-i="${b.i}"]`).click();
+    }
+  }
 }
 
 // Splits text into glossary words, longest match first. Unknown characters
@@ -119,7 +128,10 @@ export function tokenize(text, glossary) {
   for (let i = 0; i < text.length;) {
     let len = 1;
     for (let n = text.length - i; n > 1; n--) {
-      if (glossary[text.slice(i, i + n)]) { len = n; break; }
+      const word = text.slice(i, i + n);
+      // 先生で + す is never right: stop short so です stays whole.
+      if (word.endsWith('で') && text[i + n] === 'す') continue;
+      if (glossary[word]) { len = n; break; }
     }
     words.push(text.slice(i, i + len));
     i += len;
@@ -129,8 +141,12 @@ export function tokenize(text, glossary) {
 
 // "Watashi wa gakusei desu." A null word renders as a blank.
 export function romajiLine(words, glossary, end = '.') {
-  const line = words.map((w) => (w === null ? '___' : glossary[w]?.ro ?? w)).join(' ');
-  return line[0].toUpperCase() + line.slice(1) + end;
+  const line = words.map((w) => (w === null ? '___' : glossary[w]?.ro ?? kanaToRomaji(w))).join(' ')
+    .replace(/ ?。/g, '.').replace(/ ?、/g, ',').replace(/ ?？/g, '?').replace(/ ?！/g, '!')
+    .replace(/\bnani desu/g, 'nan desu') // 何 is read なん before です.
+    .replace(/([.?!] )(\p{Ll})/gu, (_, gap, c) => gap + c.toUpperCase());
+  const closed = /[.?!]$/.test(line) ? '' : end;
+  return line[0].toUpperCase() + line.slice(1) + closed;
 }
 
 const GLOSS_HINT = '<span class="muted small">Tap a word for its reading and meaning.</span>';
@@ -153,7 +169,7 @@ export function bindGloss(zone, glossary) {
   });
 }
 
-export function renderParticle(root, item, set, cards, { glossary, onDone }) {
+export function renderParticle(root, item, set, cards, { glossary, review = false, onDone }) {
   let clean = true;
   const before = tokenize(item.before ?? set.noun, glossary);
   const after = tokenize(item.after, glossary);
@@ -164,13 +180,13 @@ export function renderParticle(root, item, set, cards, { glossary, onDone }) {
   const romaji = (fill) => romajiLine([...before, fill, ...after], glossary);
   root.innerHTML = `
     <div class="card gloss-zone">
-      <span class="caps">Particle · ${set.noun} (${set.reading})</span>
+      <span class="caps">${item.label || `Particle · ${set.noun} (${set.reading})`}</span>
       <p class="en">${item.en}</p>
       <div class="pline" id="line">${line(null)}</div>
       <p class="romaji center" id="romaji">${romaji(null)}</p>
       ${glossHtml()}
     </div>
-    <div class="opts" id="opts">${item.options.map((o) => `<button class="opt" data-o="${o}">${o}</button>`).join('')}</div>
+    <div class="opts ${item.options.some((o) => o.length > 3) ? 'long' : ''}" id="opts">${item.options.map((o) => `<button class="opt" data-o="${o}">${o}</button>`).join('')}</div>
     <div class="fb" id="fb" role="status"></div>
     <div class="dock" id="after"></div>`;
   bindGloss(root.querySelector('.gloss-zone'), glossary);
@@ -194,10 +210,53 @@ export function renderParticle(root, item, set, cards, { glossary, onDone }) {
     root.querySelector('#romaji').innerHTML = `${romaji(choice)} ${sayBtn([...before, choice, ...after].join(''))}`;
     const card = cards.find((c) => c.p === choice);
     fb.className = 'fb good';
-    fb.textContent = item.note ? `${card.name}. ${item.note}` : `${card.name}: ${card.fn}`;
+    if (card) fb.textContent = item.note ? `${card.name}. ${item.note}` : `${card.name}: ${card.fn}`;
+    else fb.textContent = item.note || 'Correct.';
     root.querySelector('#after').innerHTML = '<button class="btn" id="cont">Continue</button>';
     root.querySelector('#cont').onclick = () => onDone(clean);
   };
+  if (review) opts.querySelector(`[data-o="${item.answer}"]`).click();
+}
+
+// A multiple-choice question with instant feedback. `q` is "word word" text, and the
+// first option in `o` is the right one.
+export function renderCheck(root, q, { glossary, review = false, onDone }) {
+  let clean = true;
+  const list = q.q.replace(/[[\]]/g, '').replace(/([。、？！])/g, ' $1 ').trim().split(/\s+/);
+  const options = shuffled(q.o);
+  const english = /[A-Za-z]/.test(q.q);
+  const show = (o) => (/[A-Za-z]/.test(o) ? o : o.replace(/ +/g, ''));
+  root.innerHTML = `
+    <div class="card gloss-zone">
+      <span class="caps">Check</span>
+      ${english ? `<p class="en">${q.q}</p>` : `<div class="pline small-line">${list.map((w) => (glossary[w] ? `<button class="word" data-word="${w}">${w}</button>` : `<span>${w}</span>`)).join('')}</div>
+      <p class="romaji center">${romajiLine(list, glossary, '')} ${sayBtn(list.join(''))}</p>
+      ${glossHtml()}`}
+    </div>
+    <div class="choices" id="opts">${options.map((o) => `<button class="choice" data-o="${o}">${show(o)}</button>`).join('')}</div>
+    <div class="fb" id="fb" role="status"></div>
+    <div class="dock" id="after"></div>`;
+  bindGloss(root.querySelector('.gloss-zone'), glossary);
+  const fb = root.querySelector('#fb');
+  root.querySelector('#opts').onclick = (e) => {
+    const b = e.target.closest('.choice');
+    if (!b || b.disabled) return;
+    if (b.dataset.o !== q.o[0]) {
+      clean = false;
+      b.classList.add('wrong');
+      b.disabled = true;
+      fb.className = 'fb bad';
+      fb.textContent = q.w || 'Not quite. Try another answer.';
+      return;
+    }
+    b.classList.add('right');
+    root.querySelectorAll('.choice').forEach((x) => { x.disabled = true; });
+    fb.className = 'fb good';
+    fb.textContent = q.w || 'Correct.';
+    root.querySelector('#after').innerHTML = '<button class="btn" id="cont">Continue</button>';
+    root.querySelector('#cont').onclick = () => onDone(clean);
+  };
+  if (review) root.querySelector(`.choice[data-o="${q.o[0]}"]`).click();
 }
 
 export function particleCardHtml(c, glossary) {

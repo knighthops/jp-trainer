@@ -7,6 +7,9 @@ const defaults = () => ({
   days: {},
   shadow: {},
   lastBackup: null,
+  course: { done: {}, passed: {}, missed: {} },
+  practice: { sent: {}, part: {} },
+  exams: { current: null, history: [] },
   settings: { newPerDay: 4, hints: true, theme: 'system' },
 });
 
@@ -39,6 +42,9 @@ export function parseBackup(text) {
       days: raw.days,
       shadow: isObject(raw.shadow) ? raw.shadow : {},
       lastBackup: raw.lastBackup ?? null,
+      course: { ...base.course, ...(isObject(raw.course) ? raw.course : {}) },
+      practice: { ...base.practice, ...(isObject(raw.practice) ? raw.practice : {}) },
+      exams: { ...base.exams, ...(isObject(raw.exams) ? raw.exams : {}) },
       settings: { ...base.settings, ...(isObject(raw.settings) ? raw.settings : {}) },
     },
   };
@@ -65,10 +71,10 @@ export function dayKey(now = Date.now()) {
 
 export function dayStats(state, now = Date.now()) {
   const key = dayKey(now);
-  return (state.days[key] ||= { newK: 0, newW: 0, reviews: 0, sentences: 0, particles: 0, shadow: 0 });
+  return (state.days[key] ||= { newK: 0, newW: 0, reviews: 0, sentences: 0, particles: 0, shadow: 0, lessons: 0 });
 }
 
-const active = (d) => Boolean(d) && d.newK + d.newW + d.reviews + d.sentences + d.particles + (d.shadow || 0) > 0;
+const active = (d) => Boolean(d) && d.newK + d.newW + d.reviews + d.sentences + d.particles + (d.shadow || 0) + (d.lessons || 0) > 0;
 
 export const daysStudied = (state) => Object.values(state.days).filter(active).length;
 
