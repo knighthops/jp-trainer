@@ -7,11 +7,13 @@ import { nextUp, lessonSteps } from './course.js';
 const MAX_REVIEWS = 40;
 const MAX_SENTENCES = 5;
 const MAX_CHOICES = 5;
+const MAX_TALK = 5;
 
 export const kanjiId = (k) => `k:${k.k}`;
 export const wordId = (w) => `w:${w.w}`;
 export const sentenceId = (s) => `s:${s.id}`;
 export const particleId = (item) => `p:${item.id}`;
+export const talkId = (phrase) => `t:${phrase.id}`;
 
 export function buildSession(state, data, now = Date.now()) {
   const { items } = state;
@@ -31,6 +33,13 @@ export function buildSession(state, data, now = Date.now()) {
     ...(data.courseChoices || []).map((x) => ({ type: 'particle', id: particleId(x), ref: x, set: {} })),
   ].filter((s) => isDue(items[s.id], now)).sort(oldestFirst).slice(0, MAX_CHOICES);
 
+  // Starred Talk phrases, heard and matched to their meaning. A new star is due at once.
+  const saved = state.talk?.saved || {};
+  const talk = (data.talkPhrases || []).filter((x) => saved[x.id])
+    .map((x) => ({ type: 'talk', id: talkId(x), ref: x }))
+    .filter((s) => !items[s.id] || isDue(items[s.id], now))
+    .sort((a, b) => (items[a.id]?.due ?? 0) - (items[b.id]?.due ?? 0)).slice(0, MAX_TALK);
+
   // Questions missed on a unit test come back until they are answered.
   const missed = Object.values(state.course?.missed || {}).map((q) => ({ type: 'check', id: q.id, ref: q, missed: true }));
 
@@ -45,10 +54,10 @@ export function buildSession(state, data, now = Date.now()) {
   const listen = clip ? [{ type: 'listen', id: clip.id, ref: clip }] : [];
 
   return {
-    steps: [...reviews, ...sentences, ...choices, ...missed, ...lesson, ...listen],
+    steps: [...reviews, ...sentences, ...choices, ...talk, ...missed, ...lesson, ...listen],
     next,
     counts: {
-      reviews: reviews.length + sentences.length + choices.length + missed.length,
+      reviews: reviews.length + sentences.length + choices.length + talk.length + missed.length,
       lesson: lesson.length ? 1 : 0,
       listen: listen.length,
     },

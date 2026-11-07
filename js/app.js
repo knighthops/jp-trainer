@@ -25,7 +25,7 @@ let stepCleanup = null;
 let settingsNotice = '';
 
 const WEEKDAYS = '日月火水木金土';
-const TABS = [['today', 'Today'], ['course', 'Course'], ['practice', 'Practice'], ['kanji', 'Kanji'], ['settings', 'Settings']];
+const TABS = [['today', 'Today'], ['course', 'Course'], ['practice', 'Practice'], ['talk', 'Talk'], ['settings', 'Settings']];
 
 const applyTheme = () => {
   const t = state.settings.theme;
@@ -55,47 +55,241 @@ const BACKUP_DAYS = 14;
 const backupDue = () => Object.keys(state.items).length > 0
   && (!state.lastBackup || Date.now() - state.lastBackup > BACKUP_DAYS * 864e5);
 
+/* ---------- Today: a dashboard ---------- */
+
+const DAY_MS = 864e5;
+const localDay = (t = Date.now()) => Math.floor((t - new Date(t).getTimezoneOffset() * 6e4) / DAY_MS);
+const activity = (d) => (d ? Object.values(d).reduce((n, v) => n + (Number.isFinite(v) ? v : 0), 0) : 0);
+
+// The day's kanji comes from the unit you're on, or the nearest earlier unit that teaches some.
+function featuredKanji() {
+  const units = data.units || [];
+  const next = nextUp(state, units);
+  let i = next?.unit ? units.indexOf(next.unit) : units.length - 1;
+  let pool = [];
+  for (; i >= 0 && !pool.length; i--) pool = units[i].lessons.flatMap((l) => l.kanji || []);
+  const list = pool.map((c) => data.kanji.find((k) => k.k === c)).filter(Boolean);
+  const from = list.length ? list : data.kanji;
+  return from[localDay() % from.length];
+}
+
+// Consecutive days with any study, counting back from today (or yesterday, if today is still open).
+function streak(now = Date.now()) {
+  let n = 0;
+  let t = now;
+  if (!activity(state.days[dayKey(t)])) t -= DAY_MS;
+  while (activity(state.days[dayKey(t)])) { n++; t -= DAY_MS; }
+  return n;
+}
+
+function ringSvg(share) {
+  const pct = Math.round(Math.max(0, Math.min(1, share)) * 100);
+  return `<svg class="ring" viewBox="0 0 120 120" aria-hidden="true">
+    <circle cx="60" cy="60" r="50" class="track"/>
+    <circle cx="60" cy="60" r="50" class="fill" pathLength="100" stroke-dasharray="${pct} 100" transform="rotate(-90 60 60)"/></svg>`;
+}
+
+function kanjiOfTheDay() {
+  const k = featuredKanji();
+  const i = data.kanji.indexOf(k);
+  const word = (w) => data.vocab.find((v) => v.w === w) || (data.glossary[w] && { w, y: data.glossary[w].y, m: data.glossary[w].m });
+  const words = (k.words || []).map(word).filter(Boolean).slice(0, 3);
+  const reads = (list) => list.map((r) => `<span class="jp">${r.replace(/-/g, '')}</span>`).join('、');
+  return `<section class="card kod" id="kod" data-i="${i}">
+    <div class="kod-head"><span class="caps">Kanji of the day</span><span class="tag">${k.strokes} strokes</span></div>
+    <div class="kod-main">
+      <button class="kod-glyph jp" id="kodopen" aria-label="Study ${k.k}">${k.k}</button>
+      <div class="kod-info">
+        <h3>${k.mean.join(', ')}</h3>
+        ${k.on.length ? `<p class="small"><span class="caps">On</span> ${reads(k.on)}</p>` : ''}
+        ${k.kun.length ? `<p class="small"><span class="caps">Kun</span> ${reads(k.kun)}</p>` : ''}
+      </div>
+    </div>
+    ${k.parts?.length > 1 || k.parts?.[0]?.c !== k.k ? `<div class="kod-parts">${k.parts.map((p, n) => `${n ? '<span class="plus">+</span>' : ''}<span class="part"><b class="jp">${p.c}</b><small>${p.label}</small></span>`).join('')}</div>` : ''}
+    ${words.length ? `<div class="kod-words">${words.map((w) => `<div class="kword">
+      <span class="jp kw">${w.w}</span><span class="grow"><span class="jp small">${w.y}</span><br><span class="small muted">${w.m}</span></span>${sayBtn(w.w)}</div>`).join('')}</div>` : ''}
+  </section>`;
+}
+
+function courseCard(next) {
+  const units = data.units || [];
+  const passed = units.filter((u) => state.course.passed[u.id]).length;
+  const lessons = units.flatMap((u) => u.lessons);
+  const done = lessons.filter((l) => state.course.done[l.id]).length;
+  const label = next?.type === 'lesson' ? next.lesson.title
+    : next?.type === 'test' ? 'Unit test' : next?.type === 'exam' ? 'Mock exam' : 'Course complete';
+  const seg = (u) => (state.course.passed[u.id] ? 'on' : u === next?.unit ? 'now' : '');
+  return `<section class="card course-card">
+    <div class="cc-top">
+      <div class="ringbox">${ringSvg(units.length ? passed / units.length : 0)}
+        <span class="ringtext"><b>${passed}</b><small>of ${units.length}</small></span></div>
+      <div class="grow">
+        <span class="caps">Course${next?.unit ? ` · Unit ${next.unit.n}` : ''}</span>
+        <h3>${label}</h3>
+        <p class="small muted">${done} of ${lessons.length} lessons done</p>
+      </div>
+    </div>
+    <div class="segs" aria-label="${passed} of ${units.length} units passed">${units.map((u) => `<i class="${seg(u)}"></i>`).join('')}</div>
+    ${next ? '<button class="btn ghost" id="cont">Continue the course</button>' : ''}
+  </section>`;
+}
+
+function heatmap(now = Date.now()) {
+  // Five weeks, Monday first, ending this week.
+  const today = new Date(now);
+  const back = (today.getDay() + 6) % 7;
+  const start = now - (back + 28) * DAY_MS;
+  const cells = Array.from({ length: 35 }, (_, i) => {
+    const t = start + i * DAY_MS;
+    if (t > now) return '<i class="future"></i>';
+    const n = activity(state.days[dayKey(t)]);
+    const level = n === 0 ? 0 : n < 5 ? 1 : n < 15 ? 2 : n < 30 ? 3 : 4;
+    return `<i class="l${level} ${i === back + 28 ? 'now' : ''}"></i>`;
+  });
+  const s = streak(now);
+  return `<section class="card">
+    <div class="kod-head"><span class="caps">Last 5 weeks</span>
+      <span class="small"><b class="num">${s}</b> ${s === 1 ? 'day' : 'days'} in a row</span></div>
+    <div class="heat-days">${'月火水木金土日'.split('').map((d) => `<span class="jp">${d}</span>`).join('')}</div>
+    <div class="heat">${cells.join('')}</div>
+    <p class="small muted center">Greener squares mean more study. A missed day never resets your progress.</p>
+  </section>`;
+}
+
+function statTiles() {
+  const kanjiStarted = data.kanji.filter((k) => state.items[kanjiId(k)]).length;
+  const wordsStarted = data.vocab.filter((w) => state.items[wordId(w)]).length;
+  const starred = Object.keys(state.talk.saved).length;
+  const best = state.exams.history.filter((h) => h.mode === 'exam').reduce((m, h) => Math.max(m, h.total), -1);
+  const tile = (value, total, name, href) => `<a class="stat" href="${href}">
+    <b>${value}${total ? `<small> / ${total}</small>` : ''}</b><span>${name}</span>
+    ${total ? `<i style="width:${(Number(value) / total) * 100}%"></i>` : ''}</a>`;
+  return `<section class="stats">
+    ${tile(kanjiStarted, data.kanji.length, 'Kanji started', '#/practice/kanji')}
+    ${tile(wordsStarted, data.vocab.length, 'Words started', '#/course')}
+    ${tile(starred, 0, starred === 1 ? 'Phrase starred' : 'Phrases starred', '#/talk')}
+    ${tile(best < 0 ? '–' : best, best < 0 ? 0 : 180, 'Best mock exam', '#/course/exam')}
+  </section>`;
+}
+
 function screenToday() {
   setTop('JP Trainer');
   const { steps, counts, next } = buildSession(state, data);
+  const stats = dayStats(state);
   const now = new Date();
-  const kanjiStarted = data.kanji.filter((k) => state.items[kanjiId(k)]).length;
-  const wordsStarted = data.vocab.filter((w) => state.items[wordId(w)]).length;
-  const dayName = now.toLocaleDateString('en', { weekday: 'long' });
   const glyph = WEEKDAYS[now.getDay()];
-
-  const row = (icon, name, n, mins) => `<div class="row plan"><span class="icbox">${icon}</span>
-    <span class="grow"><span class="label">${name}</span><br><span class="sub">${mins}</span></span>
-    <span class="pill ${n ? 'live' : ''}">${n}</span></div>`;
+  const reviewed = stats.reviews + stats.newK + stats.newW + stats.sentences + stats.particles;
+  const goal = (icon, name, left, done) => `<div class="goal ${left ? '' : done ? 'done' : 'none'}">
+    <span class="gic">${left || !done ? icon : icons.check}</span>
+    <b>${left || (done ? '' : '–')}</b><span>${name}</span></div>`;
 
   view.innerHTML = `
     <section class="card hero">
       <span class="water" aria-hidden="true">${glyph}</span>
-      <span class="caps">${dayName} · <span class="jp">${now.getMonth() + 1}月${now.getDate()}日 ${glyph}曜日</span></span>
-      ${steps.length
-        ? `<h2>Your session<br>is ready</h2><p class="sub">${steps.length} steps. Progress saves as you go.</p>
-           <button class="btn" id="start">Start session</button>`
-        : '<h2>All caught up</h2><p class="sub">Nothing is due. Practice if you want more.</p>'}
-    </section>
-    <section class="card list">
-      ${row(icons.repeat, 'Reviews', counts.reviews, 'Words, kanji and sentences that are due')}
-      ${row(icons.course, 'Next lesson', counts.lesson, next?.type === 'lesson' ? `Unit ${next.unit.n}: ${next.lesson.title}` : 'One a day here. Take more from Course.')}
-      ${row(icons.ear, 'Listen', counts.listen, 'Hear a sentence and choose its meaning')}
+      <span class="caps">${now.toLocaleDateString('en', { weekday: 'long' })} · <span class="jp">${now.getMonth() + 1}月${now.getDate()}日 ${glyph}曜日</span></span>
+      <h2>${steps.length ? 'Your session<br>is ready' : 'All caught up'}</h2>
+      <div class="goals">
+        ${goal(icons.repeat, 'Reviews', counts.reviews, reviewed > 0)}
+        ${goal(icons.course, 'Lesson', counts.lesson, stats.lessons > 0)}
+        ${goal(icons.ear, 'Listen', counts.listen, (stats.shadow || 0) > 0)}
+      </div>
+      ${steps.length ? `<button class="btn" id="start">Start · ${steps.length} steps</button>` : '<p class="sub">Nothing is due. Practise if you want more.</p>'}
     </section>
     ${next?.type === 'test' ? `<a class="nudge" href="#/course/${next.unit.id}">${icons.exam}<span class="grow">Your Unit ${next.unit.n} test is ready.</span><span class="chev">${icons.chevron}</span></a>` : ''}
     ${next?.type === 'exam' ? `<a class="nudge" href="#/course/exam">${icons.exam}<span class="grow">You've finished the units. The mock exam is open.</span><span class="chev">${icons.chevron}</span></a>` : ''}
     ${backupDue() ? `<a class="nudge" href="#/settings">${icons.download}<span class="grow">Back up your progress. Safari can clear saved data.</span><span class="chev">${icons.chevron}</span></a>` : ''}
-    <div class="caps sect"><span>Last 7 days</span></div>
-    <section class="card">
-      <div class="week" aria-label="Days studied in the last 7 days">${lastWeek(state, now.getTime()).map((d, i) => `<div class="${d.on ? 'on' : ''} ${i === 6 ? 'now' : ''}">${WEEKDAYS[d.weekday]}</div>`).join('')}</div>
-      <p class="small muted center">A missed day never resets your progress.</p>
-    </section>
-    <section class="card strip">
-      <div><b>${daysStudied(state)}</b><span>${daysStudied(state) === 1 ? 'day' : 'days'} studied</span></div>
-      <div><b>${kanjiStarted}<small> / ${data.kanji.length}</small></b><span>kanji</span></div>
-      <div><b>${wordsStarted}<small> / ${data.vocab.length}</small></b><span>words</span></div>
-    </section>`;
+    ${kanjiOfTheDay()}
+    ${courseCard(next)}
+    ${heatmap(now.getTime())}
+    ${statTiles()}`;
   view.querySelector('#start')?.addEventListener('click', () => startRun(steps, 'Daily session', { useSrs: true }));
+  view.querySelector('#kodopen').onclick = () => {
+    const steps2 = data.kanji.map((x) => ({ type: 'learn', kind: 'kanji', id: kanjiId(x), ref: x }));
+    startRun(steps2, 'Kanji', { browse: true, start: Number(view.querySelector('#kod').dataset.i) });
+  };
+  view.querySelector('#cont')?.addEventListener('click', () => {
+    if (next.type === 'lesson') startLesson(next.unit, next.lesson);
+    else if (next.type === 'test') runUnitTest(next.unit);
+    else location.hash = '#/course/exam';
+  });
+}
+
+/* ---------- Talk ---------- */
+
+const PUNCT = /^[。、！？…]+$/;
+// A Talk phrase in the shape the listening step expects.
+const talkSentence = (p) => ({ id: p.id, en: p.en, blocks: p.t.split(' ').filter((w) => !PUNCT.test(w)).map((t) => ({ t })) });
+
+function screenTalk() {
+  setTop('Talk');
+  const saved = state.talk.saved;
+  const starred = data.talkPhrases.filter((p) => saved[p.id]).length;
+  view.innerHTML = `
+    <section class="card hero">
+      <span class="water" aria-hidden="true">話</span>
+      <span class="caps">Everyday Japanese</span>
+      <h2>Phrases people<br>actually say</h2>
+      <p class="sub">${data.talkPhrases.length} phrases written or approved by native speakers. Star one to practise it by ear in your daily session.</p>
+    </section>
+    ${starred ? `<a class="action" href="#/talk/saved"><span class="icbox">${icons.star}</span>
+      <span class="grow"><strong>Starred</strong><span class="small">${starred} ${starred === 1 ? 'phrase' : 'phrases'} in your reviews</span></span>
+      <span class="chev">${icons.chevron}</span></a>` : ''}
+    <div class="caps sect"><span>Situations</span></div>
+    <section class="cgrid">${data.talk.map((c) => {
+    const n = c.items.filter((p) => saved[p.id]).length;
+    return `<a class="ctile" href="#/talk/${c.id}"><span class="cjp jp">${c.jp}</span><strong>${c.title}</strong>
+        <span class="small muted">${c.items.length} phrases${n ? ` · ${n} starred` : ''}</span></a>`;
+  }).join('')}</section>
+    <p class="small muted center">From Tatoeba, a free collection of sentences. Casual phrases are marked: use them with friends.</p>`;
+}
+
+function screenTalkList(catId) {
+  const cat = data.talk.find((c) => c.id === catId);
+  const saved = state.talk.saved;
+  const list = catId === 'saved' ? data.talkPhrases.filter((p) => saved[p.id]) : cat?.items;
+  if (!list) { location.hash = '#/talk'; return; }
+  setTop(cat ? cat.title : 'Starred', backTo('#/talk'));
+  let rate = NORMAL;
+  const card = (p) => {
+    const tokens = p.t.split(' ');
+    return `<article class="card phrase gloss-zone" data-id="${p.id}">
+      <div class="pline jp">${tokens.map((w) => (data.glossary[w] ? `<button class="word" data-word="${w}">${w}</button>` : `<span>${w}</span>`)).join('')}</div>
+      <p class="romaji">${romajiLine(tokens, data.glossary)}</p>
+      <p class="pen">${p.en}</p>
+      <div class="prow"><span class="tag ${p.c ? 'casual' : ''}">${p.c ? 'Casual' : 'Polite'}</span><span class="grow"></span>
+        <button class="say" data-play aria-label="Play">${icons.speaker}</button>
+        <button class="say star ${saved[p.id] ? 'on' : ''}" data-star aria-pressed="${Boolean(saved[p.id])}" aria-label="Star for review">${icons.star}</button></div>
+      ${glossHtml()}
+    </article>`;
+  };
+  view.innerHTML = `
+    <div class="talkbar">${cat ? `<span class="cjp jp">${cat.jp}</span>` : '<span></span>'}
+      <div class="seg mini" id="speed"><button class="on" data-r="${NORMAL}">Normal</button><button data-r="${SLOW}">Slow</button></div></div>
+    ${list.length ? list.map(card).join('') : '<p class="small muted center">No starred phrases yet. Tap the star on any phrase.</p>'}
+    <p class="small muted center">Tap a word for its meaning. Starred phrases come back in your daily session.</p>`;
+  view.querySelectorAll('.phrase').forEach((el) => bindGloss(el, data.glossary));
+  view.onclick = (e) => {
+    const sp = e.target.closest('#speed [data-r]');
+    if (sp) {
+      rate = Number(sp.dataset.r);
+      view.querySelectorAll('#speed button').forEach((x) => x.classList.toggle('on', x === sp));
+      return;
+    }
+    const art = e.target.closest('.phrase');
+    if (!art) return;
+    const p = list.find((x) => x.id === art.dataset.id);
+    if (e.target.closest('[data-play]')) speak(p.t.replace(/ /g, ''), { rate });
+    const star = e.target.closest('[data-star]');
+    if (star) {
+      if (saved[p.id]) {
+        delete saved[p.id];
+        delete state.items[`t:${p.id}`];
+      } else saved[p.id] = Date.now();
+      save(state);
+      star.classList.toggle('on', Boolean(saved[p.id]));
+      star.setAttribute('aria-pressed', String(Boolean(saved[p.id])));
+    }
+  };
 }
 
 /* ---------- Step runner ---------- */
@@ -148,6 +342,7 @@ function record(id, grade) {
   const kind = id[0];
   if (kind === 's') stats.sentences++;
   else if (kind === 'p') stats.particles++;
+  else if (kind === 't') stats.reviews++;
   else if (prev) stats.reviews++;
   else if (kind === 'k') stats.newK++;
   else stats.newW++;
@@ -214,6 +409,17 @@ function renderStep() {
             save(state);
           }
         }
+        advance();
+      },
+    });
+  } else if (step.type === 'talk') {
+    renderListen(view, talkSentence(step.ref), {
+      glossary: data.glossary,
+      others: data.talkPhrases.map((p) => p.en),
+      review,
+      onDone: (right) => {
+        if (!step.done) record(step.id, right ? 'good' : 'again');
+        step.done = true;
         advance();
       },
     });
@@ -435,12 +641,14 @@ function screenPractice() {
     ${action('sent', icons.blocks, 'Sentence drill', `${LEVELS.length} levels, from short to long`)}
     ${action('part', icons.practice, 'Particle drill', 'Unlimited, with focus on what you miss')}
     ${action('lis', icons.ear, 'Listen', 'Hear a sentence and choose its meaning')}
+    ${action('kan', icons.kanji, 'Kanji', `All ${data.kanji.length} N5 kanji, with parts, readings and words`)}
     <p class="small muted center">Free practice doesn't change your review schedule.</p>
     <div class="caps sect"><span>Particle guides</span></div>
     <section class="pgrid" id="cards">${cards.map((c) => `<button class="ptile" data-p="${c.p}">
       <b>${c.p}</b><small>${c.name}</small></button>`).join('')}</section>`;
   view.querySelector('#sent').onclick = () => { location.hash = '#/practice/sentences'; };
   view.querySelector('#part').onclick = () => { location.hash = '#/practice/particles'; };
+  view.querySelector('#kan').onclick = () => { location.hash = '#/practice/kanji'; };
   view.querySelector('#lis').onclick = () => startRun(
     shuffled(data.sentences).map((s) => ({ type: 'listen', id: s.id, ref: s })), 'Listen',
   );
@@ -679,7 +887,7 @@ function screenExam() {
 }
 
 function screenKanji() {
-  setTop('Kanji');
+  setTop('Kanji', backTo('#/practice'));
   const started = data.kanji.filter((k) => state.items[kanjiId(k)]).length;
   const steps = data.kanji.map((x) => ({ type: 'learn', kind: 'kanji', id: kanjiId(x), ref: x }));
   // The bar under a tile grows as its review interval approaches three weeks.
@@ -809,7 +1017,10 @@ const SCREENS = {
   practice: screenPractice,
   'practice/sentences': screenSentenceLevels,
   'practice/particles': screenParticleChoice,
-  kanji: screenKanji,
+  'practice/kanji': screenKanji,
+  // Kanji used to be a tab; old links land in Practice.
+  kanji: () => { location.replace('#/practice/kanji'); },
+  talk: screenTalk,
   settings: screenSettings,
 };
 
@@ -818,8 +1029,9 @@ function route() {
   view.onclick = null;
   const name = location.hash.replace('#/', '');
   const unitId = /^course\/(u\d+)$/.exec(name)?.[1];
-  const screen = unitId ? () => screenUnit(unitId) : SCREENS[name] || screenToday;
-  const tab = SCREENS[name] || unitId ? name.split('/')[0] : 'today';
+  const catId = /^talk\/(\w+)$/.exec(name)?.[1];
+  const screen = unitId ? () => screenUnit(unitId) : catId ? () => screenTalkList(catId) : SCREENS[name] || screenToday;
+  const tab = SCREENS[name] || unitId || catId ? name.split('/')[0] : 'today';
   tabbar.querySelectorAll('a').forEach((a) => {
     const on = a.dataset.tab === tab;
     a.classList.toggle('on', on);
@@ -853,14 +1065,19 @@ async function init() {
       if (!r.ok) throw new Error(`${f}: ${r.status}`);
       return r.json();
     });
-    const [kanji, vocab, sentences, particles, glossary, bank, ...rest] = await Promise.all([
+    const [kanji, vocab, sentences, particles, glossary, bank, talk, ...rest] = await Promise.all([
       ...['kanji-n5', 'vocab-n5', 'sentences', 'particles', 'glossary', 'particle-bank'].map(get),
+      get('talk').catch(() => ({ categories: [], lex: {} })),
       ...UNIT_FILES.map((f) => get(`course/${f}`).catch(() => [])),
       ...['exam-n5-1', 'exam-n5-2'].map((f) => get(`course/${f}`).catch(() => null)),
     ]);
     const papers = rest.slice(UNIT_FILES.length).filter(Boolean);
     data = mergeCourse({ kanji, vocab, sentences, particles, glossary, bank, papers }, rest.slice(0, UNIT_FILES.length));
-    for (const [w, [y, m]] of Object.entries(bank.lex)) if (!glossary[w]) glossary[w] = { y, m, ro: romaji(y) };
+    for (const [w, [y, m, ro]] of [...Object.entries(bank.lex), ...Object.entries(talk.lex)]) {
+      if (!glossary[w]) glossary[w] = { y, m, ro: ro ?? romaji(y) };
+    }
+    data.talk = talk.categories;
+    data.talkPhrases = talk.categories.flatMap((c) => c.items.map((p) => ({ ...p, cat: c.id })));
     window.addEventListener('hashchange', route);
     route();
   } catch (err) {

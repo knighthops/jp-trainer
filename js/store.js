@@ -10,6 +10,7 @@ const defaults = () => ({
   course: { done: {}, passed: {}, missed: {} },
   practice: { sent: {}, part: {} },
   exams: { current: null, history: [] },
+  talk: { saved: {} },
   settings: { newPerDay: 4, hints: true, theme: 'system' },
 });
 
@@ -45,6 +46,7 @@ export function parseBackup(text) {
       course: { ...base.course, ...(isObject(raw.course) ? raw.course : {}) },
       practice: { ...base.practice, ...(isObject(raw.practice) ? raw.practice : {}) },
       exams: { ...base.exams, ...(isObject(raw.exams) ? raw.exams : {}) },
+      talk: { ...base.talk, ...(isObject(raw.talk) ? raw.talk : {}) },
       settings: { ...base.settings, ...(isObject(raw.settings) ? raw.settings : {}) },
     },
   };

@@ -45,6 +45,8 @@ export function renderListen(root, sentence, { glossary, others = [], review = f
     play();
   };
 
+  // onDone learns whether the first choice was right, so reviews can be graded.
+  let right = true;
   const finish = () => {
     root.querySelector('#reveal').hidden = false;
     root.querySelectorAll('.choice').forEach((b) => {
@@ -52,12 +54,12 @@ export function renderListen(root, sentence, { glossary, others = [], review = f
       if (b.dataset.o === sentence.en) b.classList.add('right');
     });
     root.querySelector('#after').innerHTML = '<button class="btn" id="cont">Continue</button>';
-    root.querySelector('#cont').onclick = onDone;
+    root.querySelector('#cont').onclick = () => onDone(right);
   };
   root.querySelector('#opts').onclick = (e) => {
     const b = e.target.closest('.choice');
     if (!b || b.disabled) return;
-    if (b.dataset.o !== sentence.en) b.classList.add('wrong');
+    if (b.dataset.o !== sentence.en) { b.classList.add('wrong'); right = false; }
     finish();
   };
   if (review) finish();
