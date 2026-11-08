@@ -5,6 +5,7 @@ import { newRecord, rate, isDue, stageOf } from '../js/srs.js';
 import { validNext, explainWrong, orders, tokenize, romajiLine, spoken } from '../js/drills.js';
 import { backupJson, parseBackup } from '../js/store.js';
 import { romaji, toHiragana, toKana, judgeReading } from '../js/romaji.js';
+import { speechText } from '../js/tts.js';
 import { matchReading } from '../js/readings.js';
 import { reviewSteps, kanjiId, talkId } from '../js/session.js';
 import {
@@ -623,4 +624,12 @@ test('unit stars: passed, then 80% strong, then 80% mastered', () => {
   assert.equal(unitStars(state, unit), 2);
   for (const id of ids) state.items[id] = { ...newRecord(), interval: 30 };
   assert.equal(unitStars(state, unit), 3);
+});
+
+test('speech uses kana for words with kanji, so the device voice cannot misread them', () => {
+  const g = { 行ってらっしゃい: { y: 'いってらっしゃい' }, 今日: { y: 'きょう' }, 今: { y: 'いま' }, 学生: { y: 'がくせい' }, 私: { y: 'わたし' }, は: { y: 'は' } };
+  assert.equal(speechText('行ってらっしゃい 。', g), 'いってらっしゃい。');
+  assert.equal(speechText('私 は 学生 です', g), 'わたしはがくせいです');
+  assert.equal(speechText('今日は', g), 'きょうは', 'joined text is matched longest word first');
+  assert.equal(speechText('未知', g), '未知', 'unknown kanji are left for the voice');
 });

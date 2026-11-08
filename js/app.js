@@ -1,7 +1,7 @@
 // Routing and screens.
 import { load, save, dayStats, daysStudied, dayKey, backupJson, parseBackup } from './store.js';
 import { renderListen } from './listen.js';
-import { speak, speakLines, cancel, sayBtn, NORMAL, SLOW } from './tts.js';
+import { speak, speakLines, cancel, sayBtn, setReadings, NORMAL, SLOW } from './tts.js';
 import { GRADES, newRecord, rate, label, STAGES, stageOf, STRONG } from './srs.js';
 import { reviewSteps, kanjiId } from './session.js';
 import { renderSentence, renderParticle, renderCheck, particleCardHtml, bindGloss, glossHtml, romajiLine, shuffled } from './drills.js';
@@ -1324,6 +1324,7 @@ async function init() {
       if (!glossary[w]) glossary[w] = { y, m, ro: ro ?? romaji(y) };
     }
     data.talk = talk.categories;
+    setReadings(glossary);
     // Lessons finished before grammar had its own reviews get their grammar item now.
     let added = false;
     for (const u of data.units) {

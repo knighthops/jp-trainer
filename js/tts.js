@@ -20,13 +20,42 @@ export function hasJapaneseVoice() {
   });
 }
 
+/* ---------- Kanji to kana before speaking ---------- */
+
+// Device voices guess kanji readings and sometimes guess wrong (行って read as おこなって),
+// so words with kanji are spoken from their stored kana. Particles stay as written,
+// so the voice still reads a topic は as "wa".
+const HAS_KANJI = /[一-龯々]/;
+let readings = {};
+export function setReadings(glossary) { readings = glossary || {}; }
+
+export function speechText(text, glossary = readings) {
+  const say = (w) => (HAS_KANJI.test(w) && glossary[w]?.y) || null;
+  // Longest known word first, so 今日 wins over 今 + 日.
+  const respell = (chunk) => {
+    let out = '';
+    let i = 0;
+    while (i < chunk.length) {
+      let hit = null;
+      for (let len = Math.min(10, chunk.length - i); len >= 1 && !hit; len--) {
+        const piece = chunk.slice(i, i + len);
+        const y = say(piece);
+        if (y) hit = [y, len];
+      }
+      if (hit) { out += hit[0]; i += hit[1]; } else { out += chunk[i]; i++; }
+    }
+    return out;
+  };
+  return String(text).split(/\s+/).map((w) => say(w) || (HAS_KANJI.test(w) ? respell(w) : w)).join('');
+}
+
 // Any new playback ends a running dialogue.
 let playback = 0;
 
 function utter(text, { rate = NORMAL, pitch = 1, onend } = {}) {
   const synth = window.speechSynthesis;
   synth.cancel();
-  const u = new SpeechSynthesisUtterance(text);
+  const u = new SpeechSynthesisUtterance(speechText(text));
   u.lang = 'ja-JP';
   u.rate = rate;
   u.pitch = pitch;
@@ -53,7 +82,8 @@ export function speakLines(lines, { rate = NORMAL, onend } = {}) {
     if (id !== playback) return;
     if (i >= lines.length) { onend?.(); return; }
     const line = lines[i++];
-    utter(line.t.replace(/\s+/g, ''), { rate, pitch: ['B', 'M'].includes(line.s) ? 0.8 : 1.15, onend: next });
+    // Spaces mark word edges in the data; speechText uses them and drops them.
+    utter(line.t, { rate, pitch: ['B', 'M'].includes(line.s) ? 0.8 : 1.15, onend: next });
   };
   next();
   return true;
