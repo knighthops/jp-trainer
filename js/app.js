@@ -1,10 +1,12 @@
 // Routing and screens.
 import { load, save, dayStats, daysStudied, dayKey, backupJson, parseBackup } from './store.js';
 import { renderListen } from './listen.js';
-import { speak, speakLines, cancel, sayBtn, setReadings, NORMAL, SLOW } from './tts.js';
+import { speak, speakLines, speakStep, cancel, sayBtn, setReadings, unlockSpeech, NORMAL, SLOW } from './tts.js';
+import { radioChannels, startRadio } from './radio.js';
+import { startRush } from './rush.js';
 import { GRADES, newRecord, rate, label, STAGES, stageOf, STRONG } from './srs.js';
 import { reviewSteps, kanjiId } from './session.js';
-import { renderSentence, renderParticle, renderCheck, particleCardHtml, bindGloss, glossHtml, romajiLine, shuffled } from './drills.js';
+import { renderSentence, renderParticle, renderCheck, particleCardHtml, bindGloss, glossHtml, glossText, romajiLine, shuffled } from './drills.js';
 import {
   UNIT_FILES, mergeCourse, isUnlocked, unitProgress, nextUp, examUnlocked, lessonSteps, words as splitWords,
   LEVELS, levelSentences, levelProgress, levelUnlocked, particleItem, courseSteps, rankOf, unitStrength, unitStars, grammarId,
@@ -24,7 +26,9 @@ let run = null;
 let stepCleanup = null;
 let settingsNotice = '';
 
-const TABS = [['today', 'Today'], ['course', 'Course'], ['practice', 'Practice'], ['talk', 'Talk'], ['settings', 'Settings']];
+const TABS = [['today', 'Home'], ['course', 'Course'], ['listen', 'Listen'], ['dojo', 'Dojo']];
+// Leaving a screen stops whatever it was doing (Radio playback, the Rush timer).
+let screenCleanup = null;
 
 const applyTheme = () => {
   const t = state.settings.theme;
@@ -42,7 +46,8 @@ function setTop(title, { close = false, onClose = endRun, onPrev = null, count =
   top.innerHTML = `<div class="top-in">
       ${close ? `<button class="hbtn" id="close" aria-label="Exit">${icons.close}</button>` : '<span class="mark" aria-hidden="true">学</span>'}
       ${onPrev ? `<button class="hprev" id="hprev">${icons.back}<span>Previous</span></button>` : ''}
-      <h1>${onPrev ? '' : title}</h1><span class="count">${count}</span></div>
+      <h1>${onPrev ? '' : title}</h1><span class="count">${count}</span>
+      ${close || count ? '' : `<a class="hbtn gear" href="#/settings" aria-label="Settings">${icons.gear}</a>`}</div>
     ${progress === null ? '' : `<div class="progress"><i style="width:${progress}%"></i></div>`}`;
   if (close) top.querySelector('#close').onclick = onClose;
   if (onPrev) top.querySelector('#hprev').onclick = onPrev;
@@ -188,73 +193,55 @@ function screenToday() {
   view.querySelector('#kodopen').onclick = () => startRun(kanjiDeck(), 'Kanji', { useSrs: true });
 }
 
-/* ---------- Talk ---------- */
+/* ---------- Listen: Radio, the listening quiz and Talk phrases ---------- */
 
 const PUNCT = /^[。、！？…]+$/;
 // A Talk phrase in the shape the listening step expects.
 const talkSentence = (p) => ({ id: p.id, en: p.en, blocks: p.t.split(' ').filter((w) => !PUNCT.test(w)).map((t) => ({ t })) });
+const lineRo = (text) => romajiLine(text.split(' '), data.glossary);
 
-function screenTalk() {
-  setTop('Talk');
+let talkRate = NORMAL;
+let showText = false;
+
+// One Talk phrase. Tap it to hear it; its romaji and English stay hidden until Show,
+// so the ear does the work first.
+function phraseHtml(p) {
   const saved = state.talk.saved;
-  const starred = data.talkPhrases.filter((p) => saved[p.id]).length;
-  view.innerHTML = `
-    <section class="card hero">
-      <span class="water" aria-hidden="true">話</span>
-      <span class="caps">Everyday Japanese</span>
-      <h2>Phrases people<br>actually say</h2>
-      <p class="sub">${data.talkPhrases.length} phrases written or approved by native speakers. Star one to practise it by ear in your daily session.</p>
-    </section>
-    ${starred ? `<a class="action" href="#/talk/saved"><span class="icbox">${icons.star}</span>
-      <span class="grow"><strong>Starred</strong><span class="small">${starred} ${starred === 1 ? 'phrase' : 'phrases'} in your reviews</span></span>
-      <span class="chev">${icons.chevron}</span></a>` : ''}
-    <div class="caps sect"><span>Situations</span></div>
-    <section class="cgrid">${data.talk.map((c) => {
-    const n = c.items.filter((p) => saved[p.id]).length;
-    return `<a class="ctile" href="#/talk/${c.id}"><span class="cjp jp">${c.jp}</span><strong>${c.title}</strong>
-        <span class="small muted">${c.items.length} phrases${n ? ` · ${n} starred` : ''}</span></a>`;
-  }).join('')}</section>
-    <p class="small muted center">From Tatoeba, a free collection of sentences. Casual phrases are marked: use them with friends.</p>`;
+  const tokens = p.t.split(' ');
+  return `<article class="card phrase gloss-zone ${showText ? 'open' : ''}" data-id="${p.id}">
+    <button class="pplay" data-play aria-label="Play">
+      <span class="pline jp">${tokens.map((w) => (data.glossary[w] ? `<span class="word" data-word="${w}">${w}</span>` : `<span>${w}</span>`)).join('')}</span>
+    </button>
+    <div class="ptext"><p class="romaji">${lineRo(p.t)}</p><p class="pen">${p.en}</p>${glossHtml()}</div>
+    <div class="prow"><span class="tag ${p.c ? 'casual' : ''}">${p.c ? 'Casual' : 'Polite'}</span><span class="grow"></span>
+      <button class="chip" data-show>${showText ? 'Hide' : 'Show'}</button>
+      <button class="say" data-play aria-label="Play">${icons.speaker}</button>
+      <button class="say star ${saved[p.id] ? 'on' : ''}" data-star aria-pressed="${Boolean(saved[p.id])}" aria-label="Star">${icons.star}</button></div>
+  </article>`;
 }
 
-function screenTalkList(catId) {
-  const cat = data.talk.find((c) => c.id === catId);
-  const saved = state.talk.saved;
-  const list = catId === 'saved' ? data.talkPhrases.filter((p) => saved[p.id]) : cat?.items;
-  if (!list) { location.hash = '#/talk'; return; }
-  setTop(cat ? cat.title : 'Starred', backTo('#/talk'));
-  let rate = NORMAL;
-  const card = (p) => {
-    const tokens = p.t.split(' ');
-    return `<article class="card phrase gloss-zone" data-id="${p.id}">
-      <div class="pline jp">${tokens.map((w) => (data.glossary[w] ? `<button class="word" data-word="${w}">${w}</button>` : `<span>${w}</span>`)).join('')}</div>
-      <p class="romaji">${romajiLine(tokens, data.glossary)}</p>
-      <p class="pen">${p.en}</p>
-      <div class="prow"><span class="tag ${p.c ? 'casual' : ''}">${p.c ? 'Casual' : 'Polite'}</span><span class="grow"></span>
-        <button class="say" data-play aria-label="Play">${icons.speaker}</button>
-        <button class="say star ${saved[p.id] ? 'on' : ''}" data-star aria-pressed="${Boolean(saved[p.id])}" aria-label="Star for review">${icons.star}</button></div>
-      ${glossHtml()}
-    </article>`;
-  };
-  view.innerHTML = `
-    <div class="talkbar">${cat ? `<span class="cjp jp">${cat.jp}</span>` : '<span></span>'}
-      <div class="seg mini" id="speed"><button class="on" data-r="${NORMAL}">Normal</button><button data-r="${SLOW}">Slow</button></div></div>
-    ${list.length ? list.map(card).join('') : '<p class="small muted center">No starred phrases yet. Tap the star on any phrase.</p>'}
-    <p class="small muted center">Tap a word for its meaning. Starred phrases come back in your daily session.</p>`;
-  view.querySelectorAll('.phrase').forEach((el) => bindGloss(el, data.glossary));
-  view.onclick = (e) => {
-    const sp = e.target.closest('#speed [data-r]');
-    if (sp) {
-      rate = Number(sp.dataset.r);
-      view.querySelectorAll('#speed button').forEach((x) => x.classList.toggle('on', x === sp));
-      return;
-    }
+// Clicks inside a list of phrases: play, show, star, and word meanings once shown.
+function bindPhrases(root, list) {
+  root.addEventListener('click', (e) => {
     const art = e.target.closest('.phrase');
     if (!art) return;
-    const p = list.find((x) => x.id === art.dataset.id);
-    if (e.target.closest('[data-play]')) speak(p.t.replace(/ /g, ''), { rate });
+    const p = list().find((x) => x.id === art.dataset.id);
+    if (!p) return;
+    const word = e.target.closest('[data-word]');
+    if (word && art.classList.contains('open')) {
+      art.querySelectorAll('.sel').forEach((x) => x.classList.remove('sel'));
+      word.classList.add('sel');
+      art.querySelector('.gloss').innerHTML = glossText(word.dataset.word, data.glossary[word.dataset.word]);
+      return;
+    }
+    if (e.target.closest('[data-play]')) speak(p.t.replace(/ /g, ''), { rate: talkRate });
+    if (e.target.closest('[data-show]')) {
+      const open = art.classList.toggle('open');
+      art.querySelector('[data-show]').textContent = open ? 'Hide' : 'Show';
+    }
     const star = e.target.closest('[data-star]');
     if (star) {
+      const saved = state.talk.saved;
       if (saved[p.id]) {
         delete saved[p.id];
         delete state.items[`t:${p.id}`];
@@ -263,7 +250,108 @@ function screenTalkList(catId) {
       star.classList.toggle('on', Boolean(saved[p.id]));
       star.setAttribute('aria-pressed', String(Boolean(saved[p.id])));
     }
+  });
+}
+
+const flat = (t) => t.replace(/ /g, '');
+const searchKey = (p) => `${flat(p.t)} ${lineRo(p.t)} ${p.en}`.toLowerCase();
+
+function listenQuiz() {
+  // Sentences from finished lessons first: they are the ones you can follow.
+  const known = data.sentences.filter((s) => s.lesson && state.course.done[s.lesson]);
+  const pool = known.length >= 8 ? known : data.sentences;
+  startRun(shuffled(pool).map((s) => ({ type: 'listen', id: s.id, ref: s })), 'Listening quiz');
+}
+
+function screenListen() {
+  setTop('Listen');
+  const channels = radioChannels(state, data);
+  const saved = state.talk.saved;
+  const starred = data.talkPhrases.filter((p) => saved[p.id]).length;
+  const own = channels.filter((c) => !c.talk && c.id !== 'starred');
+  const chRow = (c) => `<a class="crow" href="#/listen/radio/${c.id}">
+      <span class="cjp jp big">${c.jp}</span>
+      <span class="grow"><strong>${c.title}</strong><span class="small muted">${c.items.length} lines</span></span>
+      <span class="playdot" aria-hidden="true">${icons.play}</span></a>`;
+  view.innerHTML = `
+    <label class="search">${icons.search}<input id="q" type="search" placeholder="Find a phrase: thank you, 駅, sumimasen" autocomplete="off"></label>
+    <div id="results" hidden></div>
+    <div id="browse" class="stack">
+      <div class="caps sect"><span><span class="jp">ラジオ</span> Radio</span><span class="muted">Hands-free</span></div>
+      <section class="clist">${own.length ? own.map(chRow).join('') : `<p class="small muted pad">Finish a course lesson to tune in to what you have learned.</p>`}</section>
+      <button class="action" id="quiz"><span class="icbox">${icons.ear}</span>
+        <span class="grow"><strong>Listening quiz</strong><span class="small">Hear a sentence and choose its meaning</span></span><span class="chev">${icons.chevron}</span></button>
+      <div class="caps sect"><span><span class="jp">会話</span> Talk</span><span class="muted">${data.talkPhrases.length} phrases</span></div>
+      <section class="clist">
+        ${starred ? `<div class="crow"><a class="grow crow-in" href="#/listen/talk/saved"><span class="cjp">${icons.star}</span>
+          <span class="grow"><strong>My phrases</strong><span class="small muted">${starred} starred · in your reviews</span></span></a>
+          <a class="playbtn" href="#/listen/radio/starred" aria-label="Play all">${icons.play}</a></div>` : ''}
+        ${data.talk.map((c) => {
+    const n = c.items.filter((p) => saved[p.id]).length;
+    return `<div class="crow"><a class="grow crow-in" href="#/listen/talk/${c.id}"><span class="cjp jp">${c.jp}</span>
+          <span class="grow"><strong>${c.title}</strong><span class="small muted">${c.items.length}${n ? ` · ${n} ★` : ''}</span></span></a>
+          <a class="playbtn" href="#/listen/radio/talk-${c.id}" aria-label="Play all ${c.title}">${icons.play}</a></div>`;
+  }).join('')}
+      </section>
+      <p class="small muted center">Talk phrases come from Tatoeba. Casual ones are for friends. Star a phrase to add it to your reviews.</p>
+    </div>`;
+  view.querySelector('#quiz').onclick = listenQuiz;
+  const results = view.querySelector('#results');
+  const browse = view.querySelector('#browse');
+  let found = [];
+  bindPhrases(results, () => found);
+  view.querySelector('#q').addEventListener('input', (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    browse.hidden = Boolean(q);
+    results.hidden = !q;
+    if (!q) return;
+    found = data.talkPhrases.filter((p) => searchKey(p).includes(q)).slice(0, 30);
+    results.innerHTML = found.length ? found.map(phraseHtml).join('') : '<p class="small muted center">No phrase matches that yet.</p>';
+  });
+}
+
+function screenTalkList(catId) {
+  const cat = data.talk.find((c) => c.id === catId);
+  const saved = state.talk.saved;
+  const list = () => (catId === 'saved' ? data.talkPhrases.filter((p) => saved[p.id]) : cat?.items);
+  if (!list()) { location.hash = '#/listen'; return; }
+  setTop(cat ? cat.title : 'My phrases', backTo('#/listen'));
+  const radio = catId === 'saved' ? 'starred' : `talk-${catId}`;
+  const items = list();
+  view.innerHTML = `
+    <div class="talkbar">
+      <a class="btn small-btn" href="#/listen/radio/${radio}">${icons.play}<span>Play all</span></a>
+      <div class="seg mini" id="speed"><button class="${talkRate === NORMAL ? 'on' : ''}" data-r="${NORMAL}">Normal</button><button class="${talkRate === SLOW ? 'on' : ''}" data-r="${SLOW}">Slow</button></div>
+    </div>
+    <div class="row tight"><span class="grow small muted">Tap a phrase to hear it.</span>
+      <button class="chip" id="showall">${showText ? 'Hide all text' : 'Show all text'}</button></div>
+    <div id="plist" class="stack">${items.length ? items.map(phraseHtml).join('') : '<p class="small muted center">No starred phrases yet. Tap the star on any phrase.</p>'}</div>`;
+  bindPhrases(view.querySelector('#plist'), list);
+  view.querySelector('#speed').onclick = (e) => {
+    const sp = e.target.closest('[data-r]');
+    if (!sp) return;
+    talkRate = Number(sp.dataset.r);
+    view.querySelectorAll('#speed button').forEach((x) => x.classList.toggle('on', x === sp));
   };
+  view.querySelector('#showall').onclick = (e) => {
+    showText = !showText;
+    e.target.textContent = showText ? 'Hide all text' : 'Show all text';
+    view.querySelectorAll('.phrase').forEach((a) => {
+      a.classList.toggle('open', showText);
+      a.querySelector('[data-show]').textContent = showText ? 'Hide' : 'Show';
+    });
+  };
+}
+
+function screenRadio(id) {
+  const channel = radioChannels(state, data).find((c) => c.id === id);
+  if (!channel) { location.replace('#/listen'); return; }
+  screenCleanup = startRadio({
+    view, setTop, settings: state.settings,
+    persist: () => save(state),
+    romajiOf: lineRo,
+    onExit: () => { history.length > 1 ? history.back() : (location.hash = '#/listen'); },
+  }, channel);
 }
 
 /* ---------- Step runner ---------- */
@@ -687,6 +775,84 @@ function renderDialogue(step) {
   view.querySelector('#next').onclick = advance;
 }
 
+/* ---------- Stories ---------- */
+
+// Each unit's chapter opens once its test is passed, and uses only words taught so far.
+const storyOf = (unitId) => (data.stories || []).find((s) => s.unit === unitId);
+const PITCH = { A: 1.15, B: 0.8 };
+
+function screenStory(unitId) {
+  const story = storyOf(unitId);
+  const unit = data.units.find((u) => u.id === unitId);
+  if (!story || !unit || !state.course.passed[unitId]) { location.replace('#/course'); return; }
+  setTop(`Story ${unit.n}`, backTo('#/course'));
+  let rate = NORMAL;
+  let playing = -1;
+  const read = state.course.stories?.[unitId];
+  view.innerHTML = `
+    <section class="card story-head">
+      <span class="caps"><span class="jp">物語</span> Chapter ${unit.n}${read ? ' · read' : ''}</span>
+      <h2>${story.title}</h2>
+      <div class="row tight">
+        <button class="btn small-btn" id="play">${icons.play}<span>Play chapter</span></button>
+        <div class="seg mini" id="speed"><button class="on" data-r="${NORMAL}">Normal</button><button data-r="${SLOW}">Slow</button></div>
+      </div>
+      <p class="small muted">Every word here is one you have learned. Tap a line to hear it, a word for its meaning.</p>
+    </section>
+    <div class="row tight"><span class="grow"></span><button class="chip" id="showall">Show all English</button></div>
+    <section class="card story gloss-zone" id="lines">
+      ${story.lines.map((l, i) => `<div class="sline ${story.cast[l.s] === 'B' ? 'b' : ''}" data-i="${i}">
+        <span class="who jp">${l.s}</span>
+        <div class="grow"><div class="stem jp">${wordLine(l.t)}</div>
+          <p class="romaji">${lineRomaji(l.t)}</p><p class="sen small">${l.en}</p></div>
+        <button class="say" data-line aria-label="Play line">${icons.speaker}</button></div>`).join('')}
+      ${glossHtml()}
+    </section>
+    <div class="dock"><button class="btn" id="done">${read ? 'Back to the course' : 'Finish the chapter'}</button></div>`;
+  const lines = view.querySelectorAll('.sline');
+  bindGloss(view.querySelector('#lines'), data.glossary);
+  const mark = (i) => lines.forEach((el, n) => el.classList.toggle('now', n === i));
+  const say = (i, chain) => {
+    playing = i;
+    mark(i);
+    const l = story.lines[i];
+    speakStep(l.t, {
+      rate, pitch: PITCH[story.cast[l.s]] || 1,
+      onend: () => {
+        if (chain && i + 1 < story.lines.length) setTimeout(() => { if (playing === i) say(i + 1, true); }, 350);
+        else { playing = -1; mark(-1); }
+      },
+    });
+  };
+  view.querySelector('#play').onclick = () => say(0, true);
+  view.querySelector('#speed').onclick = (e) => {
+    const b = e.target.closest('[data-r]');
+    if (!b) return;
+    rate = Number(b.dataset.r);
+    view.querySelectorAll('#speed button').forEach((x) => x.classList.toggle('on', x === b));
+  };
+  view.querySelector('#lines').addEventListener('click', (e) => {
+    if (e.target.closest('[data-word]')) return;
+    const line = e.target.closest('.sline');
+    if (!line) return;
+    line.classList.add('open');
+    say(Number(line.dataset.i), false);
+  });
+  view.querySelector('#showall').onclick = (e) => {
+    const open = !view.querySelector('#lines').classList.contains('all');
+    view.querySelector('#lines').classList.toggle('all', open);
+    e.currentTarget.textContent = open ? 'Hide English' : 'Show all English';
+  };
+  view.querySelector('#done').onclick = () => {
+    if (!read) {
+      (state.course.stories ||= {})[unitId] = Date.now();
+      save(state);
+    }
+    location.hash = '#/course';
+  };
+  screenCleanup = () => { playing = -1; cancel(); };
+}
+
 // The end of a course lesson: what was gained, how far the course has come, and the next step.
 // What got stronger in this run: items that reached Strong or Mastered, and units that earned a star.
 function memoryHtml() {
@@ -772,26 +938,46 @@ function renderSummary() {
 
 /* ---------- Other tabs ---------- */
 
-function screenPractice() {
-  setTop('Practice');
+// Kanji Rush plays the kanji you have met, topped up from your level so there is always a field.
+function rushPool() {
+  const seen = data.kanji.filter((k) => state.items[kanjiId(k)]);
+  const pool = [...new Set([...seen, ...levelKanji()])];
+  return pool.length >= 8 ? pool : [...new Set([...pool, ...data.kanji])].slice(0, 8);
+}
+
+function screenRush() {
+  screenCleanup = startRush({
+    view, setTop, pool: rushPool(), all: data.kanji,
+    best: () => state.practice.rushBest || 0,
+    onBest: (n) => { state.practice.rushBest = n; save(state); },
+    onExit: () => { location.hash = '#/dojo'; },
+  });
+}
+
+function screenDojo() {
+  setTop('Dojo');
   const { cards, sets } = data.particles;
+  const best = state.practice.rushBest || 0;
   const action = (id, icon, name, sub) => `<button class="action" id="${id}"><span class="icbox">${icon}</span>
     <span class="grow"><strong>${name}</strong><span class="small">${sub}</span></span><span class="chev">${icons.chevron}</span></button>`;
   view.innerHTML = `
+    <button class="card hero rush-tile" id="rush">
+      <span class="water" aria-hidden="true">速</span>
+      <span class="caps">60 seconds · Best ${best}</span>
+      <h2>Kanji Rush</h2>
+      <span class="sub">Match each kanji to its meaning against the clock.</span>
+    </button>
     ${action('sent', icons.blocks, 'Sentence drill', `${LEVELS.length} levels, from short to long`)}
     ${action('part', icons.practice, 'Particle drill', 'Unlimited, with focus on what you miss')}
-    ${action('lis', icons.ear, 'Listen', 'Hear a sentence and choose its meaning')}
     ${action('kan', icons.kanji, 'Kanji', `All ${data.kanji.length} N5 kanji, with parts, readings and words`)}
-    <p class="small muted center">Free practice doesn't change your review schedule.</p>
+    <p class="small muted center">Dojo practice doesn't change your review schedule.</p>
     <div class="caps sect"><span>Particle guides</span></div>
     <section class="pgrid" id="cards">${cards.map((c) => `<button class="ptile" data-p="${c.p}">
       <b>${c.p}</b><small>${c.name}</small></button>`).join('')}</section>`;
-  view.querySelector('#sent').onclick = () => { location.hash = '#/practice/sentences'; };
-  view.querySelector('#part').onclick = () => { location.hash = '#/practice/particles'; };
-  view.querySelector('#kan').onclick = () => { location.hash = '#/practice/kanji'; };
-  view.querySelector('#lis').onclick = () => startRun(
-    shuffled(data.sentences).map((s) => ({ type: 'listen', id: s.id, ref: s })), 'Listen',
-  );
+  view.querySelector('#rush').onclick = () => { location.hash = '#/dojo/rush'; };
+  view.querySelector('#sent').onclick = () => { location.hash = '#/dojo/sentences'; };
+  view.querySelector('#part').onclick = () => { location.hash = '#/dojo/particles'; };
+  view.querySelector('#kan').onclick = () => { location.hash = '#/dojo/kanji'; };
   view.querySelector('#cards').onclick = (e) => {
     const b = e.target.closest('[data-p]');
     if (!b) return;
@@ -805,7 +991,7 @@ function screenPractice() {
 const backTo = (hash) => ({ close: true, onClose: () => { location.hash = hash; } });
 
 function screenSentenceLevels() {
-  setTop('Sentence drill', backTo('#/practice'));
+  setTop('Sentence drill', backTo('#/dojo'));
   view.innerHTML = `
     <p class="small muted">Build a sentence right the first time to clear it. Clear 80% of a level to open the next.</p>
     ${LEVELS.map((level) => {
@@ -853,7 +1039,7 @@ function startParticles(title, choice, lead = []) {
 const PAIRS = [['は', 'が'], ['に', 'で'], ['を', 'が'], ['と', 'も'], ['から', 'まで'], ['か', 'ね']];
 
 function screenParticleChoice() {
-  setTop('Particle drill', backTo('#/practice'));
+  setTop('Particle drill', backTo('#/dojo'));
   const { cards } = data.particles;
   const usable = PAIRS.filter((pair) => data.bank.frames.some((f) => pair.includes(f.a) && f.w[pair.find((p) => p !== f.a)]));
   const seen = Object.values(state.practice.part).reduce((n, s) => n + s.seen, 0);
@@ -912,6 +1098,18 @@ function screenCourse() {
           <span class="nsub">${pips(u)}<span class="small muted">${sub}</span></span></span>
         <span class="chev">${icons.chevron}</span></a>`;
   };
+  // A unit's story chapter sits just after it on the path, open once the unit is passed.
+  const storyNode = (u) => {
+    const open = Boolean(state.course.passed[u.id]);
+    // A locked chapter shows only for the unit you're on, as something to aim for.
+    if (!storyOf(u.id) || (!open && u !== next?.unit)) return '';
+    const read = state.course.stories?.[u.id];
+    const inner = `<span class="dot">${open ? icons.story : icons.lock}</span>
+        <span class="grow"><span class="label">Story: ${storyOf(u.id).title}</span>
+          <span class="small muted">${open ? (read ? 'Read · on Radio' : 'New chapter, all words you know') : `Pass Unit ${u.n} to read`}</span></span>`;
+    return open ? `<a class="node story-node ${read ? 'done' : 'unread'}" href="#/course/story/${u.id}">${inner}<span class="chev">${icons.chevron}</span></a>`
+      : `<div class="node story-node off">${inner}</div>`;
+  };
   view.innerHTML = `
     <section class="card hero course-hero">
       <span class="caps">${next?.unit ? `Unit ${next.unit.n} · ` : ''}<span class="jp">${rank.jp}</span> ${rank.en}</span>
@@ -921,7 +1119,7 @@ function screenCourse() {
       ${go ? `<button class="btn" id="go">${go.label}</button>` : ''}
       ${due ? `<button class="btn ghost hero-ghost" id="revonly">Review only · ${due}</button>` : ''}
     </section>
-    <section class="path">${shown.map(node).join('')}
+    <section class="path">${shown.map((u) => node(u) + storyNode(u)).join('')}
       ${folded ? `<div class="node off fold"><span class="dot">${icons.lock}</span><span class="grow"><span class="label">Units ${shown.length + 1}–${units.length}</span>
         <span class="small muted">Open as you pass each unit</span></span></div>` : ''}
       <a class="node ${examUnlocked(state, units) ? '' : 'off'} last" href="#/course/exam">
@@ -1135,7 +1333,7 @@ function screenExam() {
 }
 
 function screenKanji() {
-  setTop('Kanji', backTo('#/practice'));
+  setTop('Kanji', backTo('#/dojo'));
   const started = data.kanji.filter((k) => state.items[kanjiId(k)]).length;
   const steps = data.kanji.map((x) => ({ type: 'learn', kind: 'kanji', id: kanjiId(x), ref: x }));
   // The bar under a tile shows its memory stage: a third for Learning, two for Strong, full for Mastered.
@@ -1156,7 +1354,7 @@ function screenKanji() {
 }
 
 function screenSettings() {
-  setTop('Settings');
+  setTop('Settings', backTo('#/today'));
   const s = state.settings;
   const seg = (key, options) => `<div class="seg" data-key="${key}">${options.map(([v, text]) =>
     `<button class="${s[key] === v ? 'on' : ''}" data-v='${JSON.stringify(v)}'>${text}</button>`).join('')}</div>`;
@@ -1261,31 +1459,48 @@ const SCREENS = {
   today: screenToday,
   course: screenCourse,
   'course/exam': screenExam,
-  practice: screenPractice,
-  'practice/sentences': screenSentenceLevels,
-  'practice/particles': screenParticleChoice,
-  'practice/kanji': screenKanji,
-  // Kanji used to be a tab; old links land in Practice.
-  kanji: () => { location.replace('#/practice/kanji'); },
-  talk: screenTalk,
+  listen: screenListen,
+  dojo: screenDojo,
+  'dojo/rush': screenRush,
+  'dojo/sentences': screenSentenceLevels,
+  'dojo/particles': screenParticleChoice,
+  'dojo/kanji': screenKanji,
   settings: screenSettings,
 };
 
+// Screens with a parameter: [pattern, screen].
+const PARAM_SCREENS = [
+  [/^course\/(u\d+)$/, (id) => screenUnit(id)],
+  [/^course\/story\/(u\d+)$/, (id) => screenStory(id)],
+  [/^listen\/talk\/(\w+)$/, (id) => screenTalkList(id)],
+  [/^listen\/radio\/([\w-]+)$/, (id) => screenRadio(id)],
+];
+
+// Old addresses from before the tabs were reshuffled.
+const MOVED = [[/^practice(\/|$)/, 'dojo$1'], [/^talk\/(\w+)$/, 'listen/talk/$1'], [/^talk$/, 'listen'], [/^kanji$/, 'dojo/kanji']];
+
 function route() {
   if (!data || run) return;
+  screenCleanup?.();
+  screenCleanup = null;
   view.onclick = null;
   const name = location.hash.replace('#/', '');
-  const unitId = /^course\/(u\d+)$/.exec(name)?.[1];
-  const catId = /^talk\/(\w+)$/.exec(name)?.[1];
-  const screen = unitId ? () => screenUnit(unitId) : catId ? () => screenTalkList(catId) : SCREENS[name] || screenToday;
-  const tab = SCREENS[name] || unitId || catId ? name.split('/')[0] : 'today';
+  const moved = MOVED.find(([re]) => re.test(name));
+  if (moved) { location.replace(`#/${name.replace(moved[0], moved[1])}`); return; }
+  let screen = SCREENS[name];
+  for (const [re, fn] of PARAM_SCREENS) {
+    const m = !screen && re.exec(name);
+    if (m) screen = () => fn(m[1]);
+  }
+  // Settings sits outside the tabs; the rest light up the tab they belong to.
+  const tab = screen ? name.split('/')[0] : 'today';
   tabbar.querySelectorAll('a').forEach((a) => {
     const on = a.dataset.tab === tab;
     a.classList.toggle('on', on);
     if (on) a.setAttribute('aria-current', 'page');
     else a.removeAttribute('aria-current');
   });
-  screen();
+  (screen || screenToday)();
   animate();
   window.scrollTo(0, 0);
 }
@@ -1294,6 +1509,7 @@ async function init() {
   applyTheme();
   // Any listen button, on any screen.
   document.addEventListener('click', (e) => {
+    unlockSpeech();
     const el = e.target.closest('[data-say]');
     if (el) speak(el.dataset.say);
     const info = e.target.closest('[data-info]');
@@ -1312,9 +1528,10 @@ async function init() {
       if (!r.ok) throw new Error(`${f}: ${r.status}`);
       return r.json();
     });
-    const [kanji, vocab, sentences, particles, glossary, bank, talk, ...rest] = await Promise.all([
+    const [kanji, vocab, sentences, particles, glossary, bank, talk, stories, ...rest] = await Promise.all([
       ...['kanji-n5', 'vocab-n5', 'sentences', 'particles', 'glossary', 'particle-bank'].map(get),
       get('talk').catch(() => ({ categories: [], lex: {} })),
+      get('stories').catch(() => []),
       ...UNIT_FILES.map((f) => get(`course/${f}`).catch(() => [])),
       ...['exam-n5-1', 'exam-n5-2'].map((f) => get(`course/${f}`).catch(() => null)),
     ]);
@@ -1324,6 +1541,7 @@ async function init() {
       if (!glossary[w]) glossary[w] = { y, m, ro: ro ?? romaji(y) };
     }
     data.talk = talk.categories;
+    data.stories = stories;
     setReadings(glossary);
     // Lessons finished before grammar had its own reviews get their grammar item now.
     let added = false;

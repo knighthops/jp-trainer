@@ -14,6 +14,8 @@ import {
 } from '../js/course.js';
 import { unitTest, mockExam, grade } from '../js/exam.js';
 import { checkLogin, hashPassword, userId } from '../js/lock.js';
+import { radioChannels } from '../js/radio.js';
+import { rushQuestion } from '../js/rush.js';
 
 const json = (f) => JSON.parse(readFileSync(new URL(`../data/${f}.json`, import.meta.url)));
 const data = {
@@ -400,13 +402,13 @@ test('mock exam papers match the JLPT N5 layout', () => {
 });
 
 test('backup keeps course, practice and exam progress', () => {
-  const state = { ...blank(), v: 1, course: { done: { u01a: 1 }, passed: { u01: 1 }, missed: {}, best: { u01: 0.9 }, current: null }, practice: { sent: { s01: 1 }, part: {} }, exams: { current: null, history: [{ total: 100 }] } };
+  const state = { ...blank(), v: 1, course: { done: { u01a: 1 }, passed: { u01: 1 }, missed: {}, best: { u01: 0.9 }, current: null, stories: { u01: 1 } }, practice: { sent: { s01: 1 }, part: {}, rushBest: 12 }, exams: { current: null, history: [{ total: 100 }] } };
   const { state: restored } = parseBackup(backupJson(state, NOW));
   assert.deepEqual(restored.course, state.course);
   assert.deepEqual(restored.practice, state.practice);
   assert.deepEqual(restored.exams, state.exams);
   const old = parseBackup(backupJson(blankOld(), NOW)).state;
-  assert.deepEqual(old.course, { done: {}, passed: {}, missed: {}, best: {}, current: null });
+  assert.deepEqual(old.course, { done: {}, passed: {}, missed: {}, best: {}, current: null, stories: {} });
 });
 
 test('backup round-trips and rejects bad files without changing anything', () => {
@@ -632,4 +634,61 @@ test('speech uses kana for words with kanji, so the device voice cannot misread 
   assert.equal(speechText('私 は 学生 です', g), 'わたしはがくせいです');
   assert.equal(speechText('今日は', g), 'きょうは', 'joined text is matched longest word first');
   assert.equal(speechText('未知', g), '未知', 'unknown kanji are left for the voice');
+});
+
+const STORY_GRAMMAR = new Set(['は', 'が', 'を', 'に', 'で', 'と', 'も', 'の', 'か', 'ね', 'よ', 'へ', '。', '、', '！', '？', '…']);
+
+test('story chapters use only words taught up to their unit', () => {
+  const merged = course();
+  const stories = json('stories');
+  assert.ok(stories.length >= 4);
+  const allowed = new Set(STORY_GRAMMAR);
+  for (const unit of merged.units) {
+    Object.keys(unit.lex || {}).forEach((w) => allowed.add(w));
+    for (const l of unit.lessons) [...(l.words || []), ...(l.kanji || [])].forEach((w) => allowed.add(w));
+    const story = stories.find((s) => s.unit === unit.id);
+    if (!story) continue;
+    assert.ok(story.title && story.lines.length >= 5, `${unit.id} has a real chapter`);
+    for (const line of story.lines) {
+      assert.ok(story.cast[line.s], `${unit.id}: ${line.s} is in the cast`);
+      assert.ok(line.en, `${unit.id}: every line has English`);
+      const unknown = line.t.split(' ').filter((w) => !allowed.has(w));
+      assert.deepEqual(unknown, [], `${unit.id}: "${line.t}" uses words not taught yet`);
+    }
+  }
+  for (const s of stories) assert.ok(merged.units.some((u) => u.id === s.unit), `${s.unit} is a unit`);
+});
+
+test('radio channels open with finished lessons and read stories', () => {
+  const merged = course();
+  merged.talk = [{ id: 'greet', jp: '挨拶', title: 'Greetings', items: [{ id: 'g1', t: 'こんにちは 。', en: 'Hello.' }] }];
+  merged.talkPhrases = merged.talk[0].items;
+  merged.stories = json('stories');
+  const state = blank();
+  state.talk = { saved: {} };
+  assert.deepEqual(radioChannels(state, merged).map((c) => c.id), ['talk-greet']);
+  const [unit] = merged.units;
+  state.course.done[unit.lessons[0].id] = 1;
+  state.course.stories = { [unit.id]: 1 };
+  state.talk.saved.g1 = 1;
+  const ids = radioChannels(state, merged).map((c) => c.id);
+  assert.deepEqual(ids, ['course', 'unit', 'stories', 'starred', 'talk-greet']);
+  const ch = radioChannels(state, merged)[0];
+  assert.ok(ch.items.every((x) => x.t && x.en));
+  assert.equal(new Set(ch.items.map((x) => x.t)).size, ch.items.length, 'no line twice');
+});
+
+test('kanji rush asks four different meanings, one of them right', () => {
+  const all = json('kanji-n5');
+  const pool = all.slice(0, 8);
+  let last = null;
+  for (let n = 0; n < 50; n++) {
+    const q = rushQuestion(pool, all, Math.random, last);
+    assert.equal(q.options.length, 4);
+    assert.equal(new Set(q.options).size, 4);
+    assert.ok(q.options.includes(q.right));
+    assert.equal(q.right, q.k.mean[0]);
+    assert.notEqual(q.k, last, 'never the same kanji twice in a row');
+    last = q.k;
+  }
 });

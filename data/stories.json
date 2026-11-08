@@ -1,0 +1,42 @@
+[
+{"unit":"u01","title":"Ben meets Tanaka-san","jp":"はじめまして","cast":{"ベン":"B","田中":"A"},"lines":[
+  {"s":"ベン","t":"はじめまして 。 ベン です 。","en":"Nice to meet you. I'm Ben."},
+  {"s":"ベン","t":"私 は アメリカ人 です 。 学生 です 。","en":"I'm American. I'm a student."},
+  {"s":"田中","t":"はじめまして 。 田中 です 。 どうぞ よろしく 。","en":"Nice to meet you. I'm Tanaka. Pleased to meet you."},
+  {"s":"ベン","t":"田中 さん は 先生 です か 。","en":"Are you a teacher, Tanaka-san?"},
+  {"s":"田中","t":"いいえ 、 先生 ではありません 。 会社員 です 。","en":"No, I'm not a teacher. I'm an office worker."},
+  {"s":"ベン","t":"そう です か 。","en":"I see."},
+  {"s":"田中","t":"ベン さん は 日本人 です か 。","en":"Ben-san, are you Japanese?"},
+  {"s":"ベン","t":"いいえ 、 アメリカ人 です 。 よろしく おねがいします 。","en":"No, I'm American. Pleased to meet you."}
+]},
+{"unit":"u02","title":"Whose bag is that?","jp":"だれのかばん","cast":{"ベン":"B","田中":"A"},"lines":[
+  {"s":"田中","t":"ベン さん 、 これ は 何 です か 。","en":"Ben-san, what is this?"},
+  {"s":"ベン","t":"それ は 私 の 傘 です 。","en":"That's my umbrella."},
+  {"s":"田中","t":"あの かばん も ベン さん の です か 。","en":"Is that bag over there yours too?"},
+  {"s":"ベン","t":"いいえ 、 あの かばん は 私 の ではありません 。","en":"No, that bag isn't mine."},
+  {"s":"田中","t":"あれ は だれ の かばん です か 。","en":"Whose bag is that?"},
+  {"s":"ベン","t":"私 の 友達 の かばん です 。","en":"It's my friend's bag."},
+  {"s":"田中","t":"その 友達 は 先生 です か 。","en":"Is that friend a teacher?"},
+  {"s":"ベン","t":"はい 、 大学 の 先生 です 。","en":"Yes, a university teacher."},
+  {"s":"田中","t":"そう です か 。 ありがとうございます 。","en":"I see. Thank you."}
+]},
+{"unit":"u03","title":"At the café","jp":"いくらですか","cast":{"ベン":"B","店員":"A"},"lines":[
+  {"s":"店員","t":"いらっしゃいませ 。","en":"Welcome!"},
+  {"s":"ベン","t":"すみません 。 コーヒー は いくら です か 。","en":"Excuse me. How much is the coffee?"},
+  {"s":"店員","t":"三百円 です 。","en":"It's 300 yen."},
+  {"s":"ベン","t":"その パン は いくら です か 。","en":"How much is that bread?"},
+  {"s":"店員","t":"二百円 です 。 安い です 。","en":"It's 200 yen. It's cheap."},
+  {"s":"ベン","t":"じゃあ 、 コーヒー を ください 。 パン も ください 。","en":"Then a coffee, please. And the bread too."},
+  {"s":"店員","t":"はい 。 五百円 です 。","en":"Sure. That's 500 yen."},
+  {"s":"店員","t":"ありがとうございます 。","en":"Thank you very much."}
+]},
+{"unit":"u04","title":"Test day?","jp":"今何時","cast":{"ベン":"B","田中":"A"},"lines":[
+  {"s":"ベン","t":"すみません 、 今 何時 です か 。","en":"Excuse me, what time is it now?"},
+  {"s":"田中","t":"九時 半 です 。","en":"It's half past nine."},
+  {"s":"ベン","t":"今日 は 十時 から テスト です 。","en":"I have a test from ten today."},
+  {"s":"田中","t":"ベン さん 、 今日 は 休み です 。","en":"Ben-san, today is a day off."},
+  {"s":"ベン","t":"じゃあ 、 テスト は 明日 です か 。","en":"Then is the test tomorrow?"},
+  {"s":"田中","t":"いいえ 、 テスト は 昨日 でした 。","en":"No, the test was yesterday."},
+  {"s":"ベン","t":"すみません …","en":"Oh no…"}
+]}
+]

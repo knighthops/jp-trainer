@@ -8,11 +8,12 @@ const defaults = () => ({
   shadow: {},
   lastBackup: null,
   // best: top unit-test share per unit. current: the lesson left part-way, to resume.
-  course: { done: {}, passed: {}, missed: {}, best: {}, current: null },
-  practice: { sent: {}, part: {} },
+  // stories: when each unit's story chapter was first read.
+  course: { done: {}, passed: {}, missed: {}, best: {}, current: null, stories: {} },
+  practice: { sent: {}, part: {}, rushBest: 0 },
   exams: { current: null, history: [] },
   talk: { saved: {} },
-  settings: { newPerDay: 4, hints: true, theme: 'system' },
+  settings: { newPerDay: 4, hints: true, theme: 'system', radioEnglish: true, radioSlow: false, radioText: true },
 });
 
 const isObject = (x) => x !== null && typeof x === 'object' && !Array.isArray(x);

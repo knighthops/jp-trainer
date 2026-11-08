@@ -52,14 +52,16 @@ export function speechText(text, glossary = readings) {
 // Any new playback ends a running dialogue.
 let playback = 0;
 
-function utter(text, { rate = NORMAL, pitch = 1, onend } = {}) {
+const englishVoice = () => window.speechSynthesis.getVoices().find((v) => /^en[-_]/i.test(v.lang)) || null;
+
+function utter(text, { rate = NORMAL, pitch = 1, onend, english = false } = {}) {
   const synth = window.speechSynthesis;
   synth.cancel();
-  const u = new SpeechSynthesisUtterance(speechText(text));
-  u.lang = 'ja-JP';
-  u.rate = rate;
+  const u = new SpeechSynthesisUtterance(english ? text : speechText(text));
+  u.lang = english ? 'en-US' : 'ja-JP';
+  u.rate = english ? 1 : rate;
   u.pitch = pitch;
-  const voice = japaneseVoice();
+  const voice = english ? englishVoice() : japaneseVoice();
   if (voice) u.voice = voice;
   if (onend) { u.onend = onend; u.onerror = onend; }
   synth.speak(u);
@@ -87,6 +89,26 @@ export function speakLines(lines, { rate = NORMAL, onend } = {}) {
   };
   next();
   return true;
+}
+
+// One utterance in a longer sequence (Radio). Returns a token: if any other playback
+// starts, onend is not called, so the sequence stops by itself.
+export function speakStep(text, { rate = NORMAL, pitch = 1, english = false, onend } = {}) {
+  if (!supported()) return false;
+  const id = ++playback;
+  utter(text, { rate, pitch, english, onend: () => { if (id === playback) onend?.(); } });
+  return true;
+}
+
+// iPhone only lets a page speak after speech has started inside a tap. A silent
+// utterance on the first tap unlocks it, so Radio can start from a route change.
+let unlocked = false;
+export function unlockSpeech() {
+  if (unlocked || !supported()) return;
+  unlocked = true;
+  const u = new SpeechSynthesisUtterance(' ');
+  u.volume = 0;
+  window.speechSynthesis.speak(u);
 }
 
 export function cancel() {
