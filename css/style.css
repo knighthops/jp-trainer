@@ -337,13 +337,12 @@ mark{background:var(--accent-soft);color:var(--accent);font-weight:700;border-ra
 .goal.done .gic{opacity:1}
 .goal.none{opacity:.55}
 
-.kod{gap:12px}
+.kod{flex-direction:row;align-items:center;gap:16px;width:100%;text-align:left;font:inherit;color:inherit;cursor:pointer}
+.kod:active{background:var(--accent-soft)}
 .kod-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
-.kod-main{display:flex;gap:16px;align-items:center}
-.kod-glyph{flex:none;width:112px;height:112px;border-radius:22px;background:var(--paper);font-size:76px;font-weight:500;line-height:1;display:grid;place-items:center;color:var(--ink)}
-.kod-glyph:active{background:var(--accent-soft)}
-.kod-info{min-width:0;display:flex;flex-direction:column;gap:4px}
-.kod-info h3{font-size:22px;line-height:1.2;letter-spacing:-.015em}
+.kod-glyph{flex:none;width:96px;height:96px;border-radius:20px;background:var(--paper);font-size:64px;font-weight:500;line-height:1;display:grid;place-items:center;color:var(--ink)}
+.kod-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+.kod-info strong{font-size:19px;line-height:1.25;letter-spacing:-.01em}
 .kod-info .caps{margin-right:4px}
 .kod-parts{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
 .part{display:flex;align-items:center;gap:6px;padding:6px 10px 6px 8px;border-radius:12px;box-shadow:inset 0 0 0 1px var(--line)}
@@ -404,3 +403,81 @@ a.action{color:inherit;text-decoration:none}
 .tag.casual{background:var(--accent-soft);color:var(--accent)}
 .say.star.on{color:#d9a22c}
 .say.star.on svg{fill:currentColor}
+
+/* ---------- Course progress ---------- */
+.pips{display:inline-flex;align-items:center;gap:4px;vertical-align:middle}
+.pip{width:9px;height:9px;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--line);background:transparent}
+.pip.on{background:var(--accent);box-shadow:none}
+.pip.test{border-radius:2px;transform:rotate(45deg) scale(.9);margin-left:3px}
+.pip.pop{animation:pip-pop .5s .25s both cubic-bezier(.3,1.6,.5,1)}
+@keyframes pip-pop{from{transform:scale(0)}to{transform:scale(1)}}
+.hero .pip{box-shadow:inset 0 0 0 1.5px currentColor;opacity:.9}
+.hero .pip.on{box-shadow:none;opacity:1}
+.course-hero .hero-meta{opacity:.72;margin-top:4px}
+.path{display:flex;flex-direction:column;position:relative;padding-left:2px}
+.node{display:flex;align-items:center;gap:14px;min-height:64px;padding:10px 4px;text-decoration:none;color:inherit;position:relative}
+.node::before{content:"";position:absolute;left:21px;top:0;bottom:0;width:2px;background:var(--line)}
+.node:first-child::before{top:50%}
+.node.last::before{bottom:50%}
+.node.done::before{background:var(--accent)}
+.node .dot{position:relative;width:36px;height:36px;border-radius:50%;flex:none;display:grid;place-items:center;font-weight:750;font-size:14px;background:var(--card);box-shadow:inset 0 0 0 2px var(--line);color:var(--ink2)}
+.node .dot svg.ic{width:18px;height:18px}
+.node.done .dot{background:var(--accent);box-shadow:none;color:#fff}
+.node.now .dot{background:var(--ink);color:var(--on-ink);box-shadow:0 0 0 5px var(--accent-soft)}
+.node.off{opacity:.5}
+.node .grow{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.node .label{font-weight:650;line-height:1.25}
+.node.now .label{font-size:17px}
+.nsub{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+@media (prefers-reduced-motion:no-preference){.node.now .dot{animation:now-glow 2.4s ease-in-out infinite}}
+@keyframes now-glow{50%{box-shadow:0 0 0 9px var(--accent-soft)}}
+.dock.stack{display:flex;flex-direction:column;gap:8px}
+.lesson-done .burst{width:64px;height:64px;border-radius:50%;background:var(--accent);display:grid;place-items:center;margin-bottom:4px}
+.lesson-done .burst svg.ic{width:34px;height:34px;stroke:#fff;stroke-width:2.6}
+@media (prefers-reduced-motion:no-preference){.lesson-done .burst{animation:burst .45s both cubic-bezier(.3,1.5,.5,1)}}
+@keyframes burst{from{transform:scale(.3);opacity:0}to{transform:scale(1);opacity:1}}
+.unit-strip{display:flex;align-items:center;gap:10px;margin-top:4px;opacity:.85}
+.gains{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
+.gain{background:var(--card);border-radius:16px;padding:14px;box-shadow:inset 0 0 0 1px var(--line);display:flex;flex-direction:column;gap:2px}
+.gain b{font-size:26px;font-weight:800;color:var(--accent);letter-spacing:-.02em;line-height:1.1}
+.gain span{font-size:13px;color:var(--mute)}
+.gain .gl{font-size:22px;color:var(--ink);letter-spacing:.12em;margin-top:4px}
+.rankup{display:flex;align-items:center;gap:12px;margin-top:8px;padding:10px 16px 10px 10px;border-radius:16px;background:rgba(127,127,127,.18)}
+.rankup .jp{font-size:26px;font-weight:700;width:52px;height:52px;border-radius:12px;background:var(--accent);color:#fff;display:grid;place-items:center}
+.rankup span:last-child{display:flex;flex-direction:column;text-align:left;line-height:1.2}
+.rankup small{font-size:11px;text-transform:uppercase;letter-spacing:.08em;opacity:.7}
+.rankup b{font-size:18px}
+@media (prefers-reduced-motion:reduce){.pip.pop{animation:none}}
+.hero .btn.hero-ghost{background:transparent;color:inherit;box-shadow:inset 0 0 0 1.5px currentColor;opacity:.85;margin-top:2px}
+.course-card .btn{margin-top:2px}
+
+/* ---------- Memory stages and mastery ---------- */
+.head-tags{display:inline-flex;align-items:center;gap:6px}
+.stage{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;padding:2px 8px 2px 3px;border-radius:10px;background:var(--paper);color:var(--ink2)}
+.stage .jp{width:18px;height:18px;border-radius:6px;display:grid;place-items:center;font-size:11px;background:var(--line);color:var(--ink)}
+.stage.s-learning .jp{background:#d9a22c;color:#fff}
+.stage.s-strong .jp{background:var(--accent);color:#fff}
+.stage.s-mastered .jp{background:#8e6bbf;color:#fff}
+.tile i.s-learning{background:#d9a22c}
+.tile i.s-strong{background:var(--accent)}
+.tile i.s-mastered{background:#8e6bbf}
+.stars{display:inline-flex;gap:1px;margin-left:6px;font-size:13px;vertical-align:1px;letter-spacing:0}
+.stars i{font-style:normal;color:var(--line)}
+.stars i.on{color:#d9a22c}
+.unit-mem{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.unit-mem .stars{margin-left:0;font-size:16px}
+.starup{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line2)}
+.starup .stars{font-size:22px;margin:0}
+.starup span:last-child{display:flex;flex-direction:column;line-height:1.25}
+.starup small{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--mute);font-weight:700}
+.gtag{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 12px;margin-bottom:10px;border-radius:12px;background:var(--card);box-shadow:inset 0 0 0 1px var(--line)}
+.gtag .grow{flex:1;min-width:0}
+.type-in{display:flex;flex-direction:column;gap:4px;margin-top:4px}
+.type-in input{height:54px;border:0;border-radius:14px;padding:0 16px;font-size:22px;text-align:center;color:var(--ink);background:var(--paper);box-shadow:inset 0 0 0 1.5px var(--line);width:100%}
+.type-in input:focus{outline:none;box-shadow:inset 0 0 0 2px var(--ink)}
+.type-in input:disabled{opacity:.7}
+.type-in #kana{font-size:18px;min-height:24px;color:var(--ink2)}
+.rate.three{grid-template-columns:repeat(3,1fr)}
+/* The summary ring and the home progress ring share a class name; keep the summary one its own size. */
+.done-hero .ring{width:108px;height:108px;flex:none}
+.done-hero .ring circle{stroke-width:8}

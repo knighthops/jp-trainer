@@ -38,6 +38,8 @@ export function mockExam(paper) {
   };
 }
 
+const MIN_QUESTIONS = 10;
+
 // The written questions of a unit, plus word questions drawn from what it teaches.
 export function unitTest(unit, data, rng = Math.random) {
   const taught = unit.lessons.flatMap((l) => l.words || [])
@@ -48,6 +50,14 @@ export function unitTest(unit, data, rng = Math.random) {
     ? { id: `${unit.id}-r${i}`, q: `[${v.w}]`, ask: 'How is this read?', o: [v.y, ...others('y', v.y)], w: `${v.w} is read ${v.y}: ${v.m}.`, word: v.w }
     : { id: `${unit.id}-m${i}`, q: `[${v.w}]`, ask: 'What does this mean?', o: [v.m, ...others('m', v.m)], w: `${v.w} means ${v.m}.`, word: v.w }));
   const written = (unit.quiz || []).map((q, i) => ({ ...q, id: `${unit.id}-q${i}` }));
+  // Units that teach few words borrow fill-the-blank drills, so no test is too short to be fair.
+  const blanks = unit.lessons.flatMap((l) => l.drills).filter((d) => d.c)
+    .map((d, i) => ({
+      id: `${unit.id}-c${i}`, q: d.c, ask: d.en ? `You want to say: “${d.en}”` : 'Which fits the blank?',
+      o: [d.a, ...Object.keys(d.w)].slice(0, 4), w: d.note || '',
+    }));
+  const room = Math.max(0, MIN_QUESTIONS - wordQs.length - written.length);
+  written.push(...shuffled(blanks, rng).slice(0, room));
   return {
     key: unit.id,
     title: `Unit ${unit.n} test`,
@@ -250,7 +260,11 @@ export function startExam(ctx, exam, { mode = 'exam', resume = null } = {}) {
       save();
       question();
     };
-    view.querySelector('#finish').onclick = nextSection;
+    view.querySelector('#finish').onclick = () => {
+      // Ending a section can't be undone, so check first when answers are missing.
+      if (blank && !window.confirm(`${blank} ${blank === 1 ? 'question is' : 'questions are'} not answered. ${lastSection ? 'Finish' : 'End this section'} anyway?`)) return;
+      nextSection();
+    };
   }
 
   function nextSection() {
@@ -271,7 +285,9 @@ export function startExam(ctx, exam, { mode = 'exam', resume = null } = {}) {
   function results() {
     window.scrollTo(0, 0);
     const r = grade(exam, st.answers);
-    ctx.onResult?.(r, exam, st.answers, mode);
+    // A unit test can add a note (a new rank) and its own buttons (next unit, drill the misses).
+    const extra = ctx.onResult?.(r, exam, st.answers, mode) || {};
+    const actions = extra.actions || [{ label: 'Finish', run: null }];
     setTop(exam.title, { close: true, onClose: () => ctx.onExit() });
     const headline = exam.scoring === 'jlpt' ? `${r.total}<small> / 180</small>` : `${Math.round(r.share * 100)}%`;
     const rows = exam.scoring === 'jlpt'
@@ -284,7 +300,8 @@ export function startExam(ctx, exam, { mode = 'exam', resume = null } = {}) {
         <h2>${r.pass ? 'Passed' : 'Not yet'}</h2>
         <p class="sub">${exam.scoring === 'jlpt'
           ? `${r.pass ? 'Above' : 'Below'} the N5 pass mark of 80. This is an estimate: real scores are scaled, and this isn't an official result.`
-          : r.pass ? 'The next unit is open.' : `You need ${Math.round(PASS_SHARE * 100)}%. Go over the answers below, then try again.`}</p>
+          : extra.note || (r.pass ? 'Unit cleared.' : `You need ${Math.round(PASS_SHARE * 100)}%. Go over the answers below, then try again.`)}</p>
+        ${extra.badge || ''}
       </section>
       ${rows || r.sections.length > 1 ? `<section class="card list">${rows}${r.sections.map((s) => `<div class="row"><span class="grow small">${s.title}</span><span class="num small">${s.right} / ${s.total}</span></div>`).join('')}</section>` : ''}
       ${missed.length ? `<div class="caps sect"><span>Answers to go over</span></div>
@@ -297,8 +314,13 @@ export function startExam(ctx, exam, { mode = 'exam', resume = null } = {}) {
           ${q.w ? `<p class="small">${q.w}</p>` : ''}
           ${q.en ? `<p class="small muted">${q.en}</p>` : ''}
         </section>`).join('')}` : ''}
-      <div class="dock"><button class="btn" id="fin">Finish</button></div>`;
-    view.querySelector('#fin').onclick = () => ctx.onExit();
+      <div class="dock stack">${actions.map((a, i) => `<button class="btn ${i ? 'ghost' : ''}" data-act="${i}">${a.label}</button>`).join('')}</div>`;
+    view.querySelector('.dock').onclick = (e) => {
+      const b = e.target.closest('[data-act]');
+      if (!b) return;
+      ctx.onExit();
+      actions[Number(b.dataset.act)].run?.();
+    };
   }
 
   if (st.started) {

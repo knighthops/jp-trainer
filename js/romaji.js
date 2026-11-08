@@ -50,3 +50,66 @@ export function romaji(kana) {
   }
   return out.replace(/ou|oo/g, 'ō').replace(/uu/g, 'ū').replace(/aa/g, 'ā');
 }
+
+/* ---------- Typed romaji to hiragana ---------- */
+
+const KANA = {};
+for (const [kana, roms] of Object.entries(ROWS)) [...kana].forEach((k, i) => { KANA[roms[i]] ||= k; });
+Object.assign(KANA, {
+  si: 'し', ti: 'ち', tu: 'つ', hu: 'ふ', zi: 'じ', di: 'ぢ', du: 'づ', wo: 'を', o: 'お',
+  la: 'ぁ', li: 'ぃ', lu: 'ぅ', le: 'ぇ', lo: 'ぉ', xa: 'ぁ', xi: 'ぃ', xu: 'ぅ', xe: 'ぇ', xo: 'ぉ',
+  ltu: 'っ', xtu: 'っ', lya: 'ゃ', lyu: 'ゅ', lyo: 'ょ', xya: 'ゃ', xyu: 'ゅ', xyo: 'ょ', '-': 'ー',
+});
+// Two-letter starts that take a small ゃゅょ: kya → きゃ, sha → しゃ, ja → じゃ.
+const YOON = { ky: 'き', gy: 'ぎ', sh: 'し', sy: 'し', j: 'じ', zy: 'じ', jy: 'じ', ch: 'ち', ty: 'ち', cy: 'ち', dy: 'ぢ', ny: 'に', hy: 'ひ', by: 'び', py: 'ぴ', my: 'み', ry: 'り' };
+const Y_SMALL = { a: 'ゃ', u: 'ゅ', o: 'ょ' };
+for (const [start, k] of Object.entries(YOON)) {
+  for (const [v, small] of Object.entries(Y_SMALL)) KANA[start + v] ||= k + small;
+}
+Object.assign(KANA, { shi: 'し', chi: 'ち', tsu: 'つ', ji: 'じ', fu: 'ふ', she: 'しぇ', che: 'ちぇ', je: 'じぇ' });
+
+// Converts as the learner types. A lone trailing "n" stays as "n" until `done`,
+// so "kon" can still become "konnichiha".
+export function toKana(text, { done = false } = {}) {
+  const s = text.toLowerCase();
+  let out = '';
+  let i = 0;
+  while (i < s.length) {
+    const c = s[i];
+    if (!/[a-z\-']/.test(c)) { out += c; i++; continue; }
+    if (c === "'") { i++; continue; }
+    // A doubled consonant is a small っ: "kitte" → きって.
+    if (/[bcdfghjkmpqrstvwxyz]/.test(c) && s[i + 1] === c && c !== 'n') { out += 'っ'; i++; continue; }
+    if (c === 'n') {
+      const next = s[i + 1];
+      // "nn" before a vowel is ん + な-row ("konnichiha"); otherwise it's just ん ("honn").
+      if (next === 'n') {
+        out += 'ん';
+        i += /[aiueoy]/.test(s[i + 2] || '') ? 1 : 2;
+        continue;
+      }
+      if (next === undefined) { out += done ? 'ん' : 'n'; i++; continue; }
+      if (!/[aiueoy]/.test(next)) { out += 'ん'; i++; continue; }
+    }
+    let hit = null;
+    for (let len = 3; len >= 1 && !hit; len--) {
+      const piece = s.slice(i, i + len);
+      if (piece.length === len && KANA[piece]) hit = [KANA[piece], len];
+    }
+    if (hit) { out += hit[0]; i += hit[1]; } else { out += s.slice(i); break; }
+  }
+  return out;
+}
+
+// Near misses: a missing dakuten, a big ゃ for a small one, a dropped long vowel or っ.
+const SMALL_KANA = { ぁ: 'あ', ぃ: 'い', ぅ: 'う', ぇ: 'え', ぉ: 'お', ゃ: 'や', ゅ: 'ゆ', ょ: 'よ', っ: '' };
+const loose = (s) => s.normalize('NFD').replace(/[\u3099\u309A]/g, '').normalize('NFC')
+  .replace(/[ぁぃぅぇぉゃゅょっ]/g, (c) => SMALL_KANA[c]).replace(/[ーうい]/g, '');
+
+// 'right', 'close' or 'wrong' for a typed reading against every accepted reading.
+export function judgeReading(typed, answers) {
+  const t = toHiragana(typed.trim());
+  if (!t) return 'wrong';
+  if (answers.includes(t)) return 'right';
+  return answers.some((a) => loose(a) === loose(t)) ? 'close' : 'wrong';
+}

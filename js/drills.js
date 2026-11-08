@@ -222,16 +222,24 @@ export function renderParticle(root, item, set, cards, { glossary, review = fals
 // first option in `o` is the right one.
 export function renderCheck(root, q, { glossary, review = false, onDone }) {
   let clean = true;
-  const list = q.q.replace(/[[\]]/g, '').replace(/([。、？！])/g, ' $1 ').trim().split(/\s+/);
+  // A [bracketed] word is the one being tested, so it gets no romaji, audio or tap-to-translate.
+  const tokens = q.q.replace(/([。、？！])/g, ' $1 ').trim().split(/\s+/);
+  const secret = (w) => /^\[.*\]$/.test(w);
+  const bare = (w) => w.replace(/[[\]]/g, '');
+  const hasSecret = tokens.some(secret);
   const options = shuffled(q.o);
   const english = /[A-Za-z]/.test(q.q);
   const show = (o) => (/[A-Za-z]/.test(o) ? o : o.replace(/ +/g, ''));
+  const wordHtml = (w) => (secret(w) ? `<u>${bare(w)}</u>`
+    : glossary[w] ? `<button class="word" data-word="${w}">${w}</button>` : `<span>${w}</span>`);
+  const romajiRow = hasSecret ? '' : `<p class="romaji center">${romajiLine(tokens, glossary, '')} ${sayBtn(tokens.join(''))}</p>`;
   root.innerHTML = `
     <div class="card gloss-zone">
       <span class="caps">Check</span>
-      ${english ? `<p class="en">${q.q}</p>` : `<div class="pline small-line">${list.map((w) => (glossary[w] ? `<button class="word" data-word="${w}">${w}</button>` : `<span>${w}</span>`)).join('')}</div>
-      <p class="romaji center">${romajiLine(list, glossary, '')} ${sayBtn(list.join(''))}</p>
-      ${glossHtml()}`}
+      ${q.ask ? `<p class="small muted">${q.ask}</p>` : ''}
+      ${english ? `<p class="en">${q.q}</p>` : `<div class="pline small-line">${tokens.map(wordHtml).join('')}</div>
+      ${romajiRow}
+      ${tokens.some((w) => !secret(w) && glossary[w]) ? glossHtml() : ''}`}
     </div>
     <div class="choices" id="opts">${options.map((o) => `<button class="choice" data-o="${o}">${show(o)}</button>`).join('')}</div>
     <div class="fb" id="fb" role="status"></div>

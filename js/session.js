@@ -1,13 +1,7 @@
-// Builds the ordered steps of a daily session. No DOM, so it can be unit tested.
-// Reviews come first, then the next course lesson, then one listening clip.
+// Builds the short review block that runs before each course lesson, or on its own.
+// No DOM, so it can be unit tested.
 import { isDue } from './srs.js';
-import { dayStats } from './store.js';
-import { nextUp, lessonSteps } from './course.js';
-
-const MAX_REVIEWS = 40;
-const MAX_SENTENCES = 5;
-const MAX_CHOICES = 5;
-const MAX_TALK = 5;
+import { grammarId, grammarDrills } from './course.js';
 
 export const kanjiId = (k) => `k:${k.k}`;
 export const wordId = (w) => `w:${w.w}`;
@@ -15,51 +9,35 @@ export const sentenceId = (s) => `s:${s.id}`;
 export const particleId = (item) => `p:${item.id}`;
 export const talkId = (phrase) => `t:${phrase.id}`;
 
-export function buildSession(state, data, now = Date.now()) {
+// A short block of what's due, sized for a pocket of time: cards first, then grammar,
+// a few drills, starred phrases and missed test questions. Run it again for more.
+export function reviewSteps(state, data, now = Date.now(), { cards = 15, grammar = 5, drills = 3, rng = Math.random } = {}) {
   const { items } = state;
-  const stats = dayStats(state, now);
+  const due = (s) => isDue(items[s.id], now);
   const oldestFirst = (a, b) => items[a.id].due - items[b.id].due;
-
-  const reviews = [
-    ...data.kanji.map((x) => ({ type: 'card', kind: 'kanji', id: kanjiId(x), ref: x })),
-    ...data.vocab.map((x) => ({ type: 'card', kind: 'word', id: wordId(x), ref: x })),
-  ].filter((s) => isDue(items[s.id], now)).sort(oldestFirst).slice(0, MAX_REVIEWS);
-
-  const sentences = data.sentences.map((x) => ({ type: 'sentence', id: sentenceId(x), ref: x }))
-    .filter((s) => isDue(items[s.id], now)).sort(oldestFirst).slice(0, MAX_SENTENCES);
-
-  const choices = [
-    ...data.particles.sets.flatMap((set) => set.items.map((x) => ({ type: 'particle', id: particleId(x), ref: x, set }))),
-    ...(data.courseChoices || []).map((x) => ({ type: 'particle', id: particleId(x), ref: x, set: {} })),
-  ].filter((s) => isDue(items[s.id], now)).sort(oldestFirst).slice(0, MAX_CHOICES);
-
-  // Starred Talk phrases, heard and matched to their meaning. A new star is due at once.
+  const pick = (list, n) => list.filter(due).sort(oldestFirst).slice(0, n);
   const saved = state.talk?.saved || {};
-  const talk = (data.talkPhrases || []).filter((x) => saved[x.id])
-    .map((x) => ({ type: 'talk', id: talkId(x), ref: x }))
-    .filter((s) => !items[s.id] || isDue(items[s.id], now))
-    .sort((a, b) => (items[a.id]?.due ?? 0) - (items[b.id]?.due ?? 0)).slice(0, MAX_TALK);
-
-  // Questions missed on a unit test come back until they are answered.
-  const missed = Object.values(state.course?.missed || {}).map((q) => ({ type: 'check', id: q.id, ref: q, missed: true }));
-
-  const next = nextUp(state, data.units);
-  const lesson = next?.type === 'lesson' && !(stats.lessons > 0) ? lessonSteps(next.unit, next.lesson, state, data) : [];
-
-  // One clip per day: the least recently heard, favouring sentences already met.
-  const heard = state.shadow || {};
-  const met = data.sentences.filter((x) => items[sentenceId(x)]);
-  const clip = stats.shadow > 0 ? null : [...(met.length ? met : data.sentences)]
-    .sort((a, b) => (heard[a.id] || 0) - (heard[b.id] || 0))[0];
-  const listen = clip ? [{ type: 'listen', id: clip.id, ref: clip }] : [];
-
-  return {
-    steps: [...reviews, ...sentences, ...choices, ...talk, ...missed, ...lesson, ...listen],
-    next,
-    counts: {
-      reviews: reviews.length + sentences.length + choices.length + talk.length + missed.length,
-      lesson: lesson.length ? 1 : 0,
-      listen: listen.length,
-    },
-  };
+  // A grammar point is practised through one of its lesson's drills, a different one each time.
+  const lessons = (data.units || []).flatMap((unit) => unit.lessons.map((lesson) => ({ unit, lesson })));
+  const grammarSteps = pick(lessons.map(({ unit, lesson }) => ({ id: grammarId(lesson), unit, lesson })), grammar)
+    .map(({ id, unit, lesson }) => {
+      const options = grammarDrills(lesson, data);
+      const drill = options[Math.floor(rng() * options.length)];
+      return drill && { ...drill, id, grammar: { unit, lesson } };
+    }).filter(Boolean);
+  return [
+    ...pick([
+      ...data.kanji.map((x) => ({ type: 'card', kind: 'kanji', id: kanjiId(x), ref: x })),
+      ...data.vocab.map((x) => ({ type: 'card', kind: 'word', id: wordId(x), ref: x })),
+    ], cards),
+    ...grammarSteps,
+    // Course drills are reviewed through their grammar point, so only the older practice sets come here.
+    ...pick(data.sentences.filter((x) => !x.lesson).map((x) => ({ type: 'sentence', id: sentenceId(x), ref: x })), drills),
+    ...pick(data.particles.sets.flatMap((set) => set.items.map((x) => ({ type: 'particle', id: particleId(x), ref: x, set }))), drills),
+    // A newly starred phrase is due at once.
+    ...(data.talkPhrases || []).filter((x) => saved[x.id]).map((x) => ({ type: 'talk', id: talkId(x), ref: x }))
+      .filter((s) => !items[s.id] || due(s)).sort((a, b) => (items[a.id]?.due ?? 0) - (items[b.id]?.due ?? 0)).slice(0, drills),
+    // Questions missed on a unit test come back until they are answered.
+    ...Object.values(state.course?.missed || {}).slice(0, drills).map((q) => ({ type: 'check', id: q.id, ref: q, missed: true })),
+  ];
 }

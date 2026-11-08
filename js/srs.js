@@ -50,3 +50,21 @@ export function label(rec, grade) {
   if (interval === 0) return '10 min';
   return interval < 30 ? `${interval}d` : `${Math.round(interval / 30)}mo`;
 }
+
+// How well an item is known, from its review interval. Forgetting drops it back;
+// a missed day never does, since the interval only changes when the item is rated.
+export const STAGES = [
+  { id: 'new', jp: '新', en: 'New' },
+  { id: 'learning', jp: '習', en: 'Learning' },
+  { id: 'strong', jp: '強', en: 'Strong' },
+  { id: 'mastered', jp: '極', en: 'Mastered' },
+];
+export const STRONG = 2;
+export const MASTERED = 3;
+
+export function stageOf(rec) {
+  if (!rec) return 0;
+  if (rec.interval >= 21) return MASTERED;
+  if (rec.interval >= 3) return STRONG;
+  return 1;
+}

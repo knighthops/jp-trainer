@@ -1,14 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { newRecord, rate, isDue } from '../js/srs.js';
+import { newRecord, rate, isDue, stageOf } from '../js/srs.js';
 import { validNext, explainWrong, orders, tokenize, romajiLine, spoken } from '../js/drills.js';
 import { backupJson, parseBackup } from '../js/store.js';
-import { romaji, toHiragana } from '../js/romaji.js';
+import { romaji, toHiragana, toKana, judgeReading } from '../js/romaji.js';
 import { matchReading } from '../js/readings.js';
-import { buildSession, kanjiId, talkId } from '../js/session.js';
+import { reviewSteps, kanjiId, talkId } from '../js/session.js';
 import {
   UNIT_FILES, mergeCourse, nextUp, isUnlocked, examUnlocked, lessonSteps, LEVELS, levelUnlocked, toBlocks, autoAlts, words, particleItem,
+  courseSteps, rankOf, LESSON_NEW, unitStars, unitItems, grammarId,
 } from '../js/course.js';
 import { unitTest, mockExam, grade } from '../js/exam.js';
 import { checkLogin, hashPassword, userId } from '../js/lock.js';
@@ -179,27 +180,34 @@ test('kanji data: example words exist in vocab', () => {
   }
 });
 
-test('a new learner gets the first lesson and one listening clip', () => {
+test('a new learner has nothing to review, and the course starts at the first lesson', () => {
   const merged = course();
-  const { steps, counts, next } = buildSession(blank(), merged, NOW);
-  assert.deepEqual(counts, { reviews: 0, lesson: 1, listen: 1 });
-  assert.equal(next.lesson.id, 'u01a');
+  assert.deepEqual(reviewSteps(blank(), merged, NOW), []);
+  const steps = lessonSteps(merged.units[0], merged.units[0].lessons[0], blank(), merged);
+  assert.equal(nextUp(blank(), merged.units).lesson.id, 'u01a');
   assert.equal(steps[0].type, 'lesson');
-  assert.equal(steps.at(-1).type, 'listen');
-  assert.equal(steps.at(-2).type, 'lessonEnd');
+  assert.equal(steps.at(-1).type, 'lessonEnd');
   assert.equal(steps.filter((s) => s.type === 'learn').length, steps.filter((s) => s.type === 'card').length);
 });
 
-test('due items lead the session, and only one lesson a day is added', () => {
+test('reviews take what is due, oldest first, in a short block', () => {
   const merged = course();
   const state = blank();
-  const key = merged.kanji[0];
-  state.items[kanjiId(key)] = { ...newRecord(), due: NOW - DAY, reps: 2, interval: 3 };
-  assert.equal(buildSession(state, merged, NOW).steps[0].id, kanjiId(key));
-  const d = new Date(NOW);
-  const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  state.days[today] = { newK: 0, newW: 0, reviews: 1, sentences: 0, particles: 0, shadow: 1, lessons: 1 };
-  assert.deepEqual(buildSession(state, merged, NOW).counts, { reviews: 1, lesson: 0, listen: 0 });
+  merged.kanji.slice(0, 30).forEach((k, i) => {
+    state.items[kanjiId(k)] = { ...newRecord(), due: NOW - (i + 1) * DAY, reps: 2, interval: 3 };
+  });
+  state.items[kanjiId(merged.kanji[40])] = { ...newRecord(), due: NOW + DAY, reps: 2, interval: 3 };
+  const steps = reviewSteps(state, merged, NOW);
+  assert.equal(steps.length, 15);
+  assert.equal(steps[0].id, kanjiId(merged.kanji[29]));
+  assert.ok(!steps.some((s) => s.id === kanjiId(merged.kanji[40])));
+});
+
+test('missed unit-test questions come back in reviews', () => {
+  const merged = course();
+  const state = blank();
+  state.course.missed = { 'u01-q0': { id: 'u01-q0', q: 'x', o: ['a', 'b'] } };
+  assert.equal(reviewSteps(state, merged, NOW).at(-1).type, 'check');
 });
 
 test('words already known are not taught again', () => {
@@ -391,25 +399,13 @@ test('mock exam papers match the JLPT N5 layout', () => {
 });
 
 test('backup keeps course, practice and exam progress', () => {
-  const state = { ...blank(), v: 1, course: { done: { u01a: 1 }, passed: { u01: 1 }, missed: {} }, practice: { sent: { s01: 1 }, part: {} }, exams: { current: null, history: [{ total: 100 }] } };
+  const state = { ...blank(), v: 1, course: { done: { u01a: 1 }, passed: { u01: 1 }, missed: {}, best: { u01: 0.9 }, current: null }, practice: { sent: { s01: 1 }, part: {} }, exams: { current: null, history: [{ total: 100 }] } };
   const { state: restored } = parseBackup(backupJson(state, NOW));
   assert.deepEqual(restored.course, state.course);
   assert.deepEqual(restored.practice, state.practice);
   assert.deepEqual(restored.exams, state.exams);
   const old = parseBackup(backupJson(blankOld(), NOW)).state;
-  assert.deepEqual(old.course, { done: {}, passed: {}, missed: {} });
-});
-
-test('listening clip rotates to the least recently heard sentence already met', () => {
-  const state = blank();
-  const [a, b, c] = data.sentences;
-  state.items[`s:${a.id}`] = newRecord();
-  state.items[`s:${b.id}`] = newRecord();
-  state.shadow = { [a.id]: NOW - DAY };
-  assert.equal(buildSession(state, data, NOW).steps.at(-1).ref.id, b.id);
-  state.shadow[b.id] = NOW;
-  assert.equal(buildSession(state, data, NOW).steps.at(-1).ref.id, a.id);
-  assert.notEqual(buildSession(state, data, NOW).steps.at(-1).ref.id, c.id);
+  assert.deepEqual(old.course, { done: {}, passed: {}, missed: {}, best: {}, current: null });
 });
 
 test('backup round-trips and rejects bad files without changing anything', () => {
@@ -506,14 +502,125 @@ test('Talk phrases are sourced, categorised, and every word can be tapped', () =
   assert.deepEqual(unknown, []);
 });
 
-test('starred Talk phrases join the daily session until they are reviewed', () => {
+test('starred Talk phrases join reviews until they are reviewed', () => {
   const c = course();
   c.talkPhrases = json('talk').categories.flatMap((cat) => cat.items);
   const state = { ...blank(), talk: { saved: { [c.talkPhrases[0].id]: NOW } } };
-  const first = buildSession(state, c, NOW);
-  const step = first.steps.find((s) => s.type === 'talk');
+  const first = reviewSteps(state, c, NOW);
+  const step = first.find((s) => s.type === 'talk');
   assert.equal(step.id, talkId(c.talkPhrases[0]));
   state.items[step.id] = rate(newRecord(), 'good', NOW);
-  assert.ok(!buildSession(state, c, NOW).steps.some((s) => s.type === 'talk'));
-  assert.ok(buildSession(state, c, NOW + 2 * DAY).steps.some((s) => s.type === 'talk'));
+  assert.ok(!reviewSteps(state, c, NOW).some((s) => s.type === 'talk'));
+  assert.ok(reviewSteps(state, c, NOW + 2 * DAY).some((s) => s.type === 'talk'));
+});
+
+test('a big lesson comes in parts of at most LESSON_NEW new items', () => {
+  const merged = course();
+  const state = blank();
+  const unit = merged.units.find((u) => u.n === 6);
+  const steps = lessonSteps(unit, unit.lessons[0], state, merged);
+  const learn = steps.filter((s) => s.type === 'learn');
+  assert.ok(learn.length <= LESSON_NEW);
+  assert.equal(steps.at(-1).type, 'lessonPart');
+  for (const s of learn) state.items[s.id] = newRecord();
+  const rest = lessonSteps(unit, unit.lessons[0], state, merged);
+  assert.equal(rest.at(-1).type, 'lessonEnd');
+  assert.ok(rest.filter((s) => s.type === 'learn').every((s) => !learn.some((x) => x.id === s.id)));
+});
+
+test('new items are recalled in small groups, soon after they are taught', () => {
+  const merged = course();
+  const unit = merged.units.find((u) => u.n === 4);
+  const types = lessonSteps(unit, unit.lessons[0], blank(), merged).map((s) => s.type);
+  const firstCard = types.indexOf('card');
+  assert.ok(firstCard > 0 && firstCard <= 5, `first recall at step ${firstCard}`);
+});
+
+test('a resumed lesson rebuilds the same steps even after cards were rated', () => {
+  const merged = course();
+  const state = blank();
+  const [unit] = merged.units;
+  const steps = lessonSteps(unit, unit.lessons[0], state, merged);
+  const fresh = steps.filter((s) => s.type === 'learn').map((s) => s.id);
+  for (const id of fresh) state.items[id] = newRecord();
+  const again = lessonSteps(unit, unit.lessons[0], state, merged, { fresh, part: false });
+  assert.deepEqual(again.map((s) => `${s.type}:${s.id}`), steps.map((s) => `${s.type}:${s.id}`));
+});
+
+test('course steps count lessons and unit tests, and ranks only rise', () => {
+  const merged = course();
+  const state = blank();
+  assert.deepEqual(courseSteps(state, merged.units), { done: 0, total: merged.units.length * 3 });
+  state.course.done.u01a = 1;
+  state.course.passed.u01 = 1;
+  assert.equal(courseSteps(state, merged.units).done, 2);
+  assert.equal(rankOf(0).en, 'Beginner');
+  assert.equal(rankOf(5).en, 'Starter');
+  assert.equal(rankOf(24).next, null);
+});
+
+test('every unit test has at least 10 questions', () => {
+  const merged = course();
+  for (const unit of merged.units) {
+    const n = unitTest(unit, merged).sections[0].questions.length;
+    assert.ok(n >= 10, `Unit ${unit.n} has ${n}`);
+  }
+});
+
+test('the particle drill label does not name the answer', () => {
+  const merged = course();
+  for (let i = 0; i < 20; i++) {
+    const item = particleItem(merged.bank, { rng: Math.random });
+    assert.equal(item.label, 'Pick the particle');
+  }
+});
+
+test('memory stages follow the review interval', () => {
+  assert.equal(stageOf(undefined), 0);
+  assert.equal(stageOf({ interval: 0 }), 1);
+  assert.equal(stageOf({ interval: 2 }), 1);
+  assert.equal(stageOf({ interval: 3 }), 2);
+  assert.equal(stageOf({ interval: 21 }), 3);
+});
+
+test('typed romaji becomes hiragana', () => {
+  const cases = { kyou: 'きょう', gakusei: 'がくせい', kitte: 'きって', konnichiha: 'こんにちは', shinbun: 'しんぶん', "kin'en": 'きんえん', chuugakkou: 'ちゅうがっこう', tsukue: 'つくえ', 'ra-men': 'らーめん', jisho: 'じしょ', fujisan: 'ふじさん' };
+  for (const [typed, kana] of Object.entries(cases)) assert.equal(toKana(typed, { done: true }), kana, typed);
+  assert.equal(toKana('hon'), 'ほn', 'a trailing n waits while typing');
+  assert.equal(toKana('ほん'), 'ほん', 'kana typed directly passes through');
+});
+
+test('typed readings are right, close or wrong', () => {
+  assert.equal(judgeReading('きょう', ['きょう']), 'right');
+  assert.equal(judgeReading('キョウ', ['きょう']), 'right');
+  assert.equal(judgeReading('きよう', ['きょう']), 'close');
+  assert.equal(judgeReading('きょ', ['きょう']), 'close');
+  assert.equal(judgeReading('かくせい', ['がくせい']), 'close');
+  assert.equal(judgeReading('あした', ['きょう']), 'wrong');
+  assert.equal(judgeReading('', ['きょう']), 'wrong');
+});
+
+test('grammar points are reviewed through one of their lesson drills', () => {
+  const merged = course();
+  const state = blank();
+  const lesson = merged.units[0].lessons[0];
+  state.items[grammarId(lesson)] = { ...newRecord(), due: NOW - DAY, reps: 1, interval: 1 };
+  const step = reviewSteps(state, merged, NOW, { rng: () => 0 }).find((s) => s.grammar);
+  assert.equal(step.id, grammarId(lesson));
+  assert.ok(['sentence', 'particle'].includes(step.type));
+  assert.equal(step.ref.lesson, lesson.id);
+});
+
+test('unit stars: passed, then 80% strong, then 80% mastered', () => {
+  const merged = course();
+  const state = blank();
+  const [unit] = merged.units;
+  assert.equal(unitStars(state, unit), 0);
+  state.course.passed[unit.id] = 1;
+  assert.equal(unitStars(state, unit), 1);
+  const ids = unitItems(unit);
+  for (const id of ids) state.items[id] = { ...newRecord(), interval: 5 };
+  assert.equal(unitStars(state, unit), 2);
+  for (const id of ids) state.items[id] = { ...newRecord(), interval: 30 };
+  assert.equal(unitStars(state, unit), 3);
 });

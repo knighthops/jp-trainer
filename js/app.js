@@ -1,17 +1,17 @@
 // Routing and screens.
-import { load, save, dayStats, daysStudied, lastWeek, dayKey, backupJson, parseBackup } from './store.js';
+import { load, save, dayStats, daysStudied, dayKey, backupJson, parseBackup } from './store.js';
 import { renderListen } from './listen.js';
 import { speak, speakLines, cancel, sayBtn, NORMAL, SLOW } from './tts.js';
-import { GRADES, newRecord, rate, label } from './srs.js';
-import { buildSession, kanjiId, wordId } from './session.js';
+import { GRADES, newRecord, rate, label, STAGES, stageOf, STRONG } from './srs.js';
+import { reviewSteps, kanjiId } from './session.js';
 import { renderSentence, renderParticle, renderCheck, particleCardHtml, bindGloss, glossHtml, romajiLine, shuffled } from './drills.js';
 import {
   UNIT_FILES, mergeCourse, isUnlocked, unitProgress, nextUp, examUnlocked, lessonSteps, words as splitWords,
-  LEVELS, levelSentences, levelProgress, levelUnlocked, particleItem,
+  LEVELS, levelSentences, levelProgress, levelUnlocked, particleItem, courseSteps, rankOf, unitStrength, unitStars, grammarId,
 } from './course.js';
 import { mockExam, unitTest, startExam } from './exam.js';
 import { icons } from './icons.js';
-import { romaji } from './romaji.js';
+import { romaji, toHiragana, toKana, judgeReading } from './romaji.js';
 import { matchReading } from './readings.js';
 import { currentUser, logOut } from './lock.js';
 
@@ -24,7 +24,6 @@ let run = null;
 let stepCleanup = null;
 let settingsNotice = '';
 
-const WEEKDAYS = '日月火水木金土';
 const TABS = [['today', 'Today'], ['course', 'Course'], ['practice', 'Practice'], ['talk', 'Talk'], ['settings', 'Settings']];
 
 const applyTheme = () => {
@@ -52,10 +51,11 @@ function setTop(title, { close = false, onClose = endRun, onPrev = null, count =
 /* ---------- Home ---------- */
 
 const BACKUP_DAYS = 14;
-const backupDue = () => Object.keys(state.items).length > 0
+// Only once there is a week of study worth losing.
+const backupDue = () => daysStudied(state) >= 7
   && (!state.lastBackup || Date.now() - state.lastBackup > BACKUP_DAYS * 864e5);
 
-/* ---------- Today: a dashboard ---------- */
+/* ---------- Home ---------- */
 
 const DAY_MS = 864e5;
 const localDay = (t = Date.now()) => Math.floor((t - new Date(t).getTimezoneOffset() * 6e4) / DAY_MS);
@@ -89,48 +89,67 @@ function ringSvg(share) {
     <circle cx="60" cy="60" r="50" class="fill" pathLength="100" stroke-dasharray="${pct} 100" transform="rotate(-90 60 60)"/></svg>`;
 }
 
+// Kanji at your level: every kanji taught up to and including the unit you're on.
+function levelKanji() {
+  const units = data.units || [];
+  const next = nextUp(state, units);
+  const upTo = next?.unit ? units.indexOf(next.unit) : units.length - 1;
+  const chars = units.slice(0, upTo + 1).flatMap((u) => u.lessons.flatMap((l) => l.kanji || []));
+  const list = [...new Set(chars)].map((c) => data.kanji.find((k) => k.k === c)).filter(Boolean);
+  return list.length ? list : data.kanji;
+}
+
+// The guessing deck: today's kanji, then due ones, then ones not seen yet, then the rest by due date.
+function kanjiDeck(now = Date.now()) {
+  const first = featuredKanji();
+  const rec = (k) => state.items[kanjiId(k)];
+  const rest = levelKanji().filter((k) => k !== first);
+  const due = rest.filter((k) => rec(k) && rec(k).due <= now).sort((a, b) => rec(a).due - rec(b).due);
+  const unseen = rest.filter((k) => !rec(k));
+  const later = rest.filter((k) => rec(k) && rec(k).due > now).sort((a, b) => rec(a).due - rec(b).due);
+  return [first, ...due, ...unseen, ...later].map((k, n) => ({
+    type: 'card', kind: 'kanji', id: kanjiId(k), ref: k, label: n ? 'Guess the kanji' : 'Kanji of the day',
+  }));
+}
+
 function kanjiOfTheDay() {
   const k = featuredKanji();
-  const i = data.kanji.indexOf(k);
-  const word = (w) => data.vocab.find((v) => v.w === w) || (data.glossary[w] && { w, y: data.glossary[w].y, m: data.glossary[w].m });
-  const words = (k.words || []).map(word).filter(Boolean).slice(0, 3);
-  const reads = (list) => list.map((r) => `<span class="jp">${r.replace(/-/g, '')}</span>`).join('、');
-  return `<section class="card kod" id="kod" data-i="${i}">
-    <div class="kod-head"><span class="caps">Kanji of the day</span><span class="tag">${k.strokes} strokes</span></div>
-    <div class="kod-main">
-      <button class="kod-glyph jp" id="kodopen" aria-label="Study ${k.k}">${k.k}</button>
-      <div class="kod-info">
-        <h3>${k.mean.join(', ')}</h3>
-        ${k.on.length ? `<p class="small"><span class="caps">On</span> ${reads(k.on)}</p>` : ''}
-        ${k.kun.length ? `<p class="small"><span class="caps">Kun</span> ${reads(k.kun)}</p>` : ''}
-      </div>
-    </div>
-    ${k.parts?.length > 1 || k.parts?.[0]?.c !== k.k ? `<div class="kod-parts">${k.parts.map((p, n) => `${n ? '<span class="plus">+</span>' : ''}<span class="part"><b class="jp">${p.c}</b><small>${p.label}</small></span>`).join('')}</div>` : ''}
-    ${words.length ? `<div class="kod-words">${words.map((w) => `<div class="kword">
-      <span class="jp kw">${w.w}</span><span class="grow"><span class="jp small">${w.y}</span><br><span class="small muted">${w.m}</span></span>${sayBtn(w.w)}</div>`).join('')}</div>` : ''}
-  </section>`;
+  const pool = levelKanji();
+  const due = pool.filter((x) => state.items[kanjiId(x)]?.due <= Date.now()).length;
+  return `<button class="card kod" id="kodopen" aria-label="Guess today's kanji">
+    <span class="kod-glyph jp" aria-hidden="true">${k.k}</span>
+    <span class="kod-info">
+      <span class="caps">Kanji of the day</span>
+      <strong>What does it mean?</strong>
+      <span class="small muted">Tap to guess, then keep going through ${pool.length} kanji at your level${due ? ` · ${due} due` : ''}</span>
+    </span>
+    <span class="chev">${icons.chevron}</span>
+  </button>`;
 }
 
 function courseCard(next) {
   const units = data.units || [];
   const passed = units.filter((u) => state.course.passed[u.id]).length;
-  const lessons = units.flatMap((u) => u.lessons);
-  const done = lessons.filter((l) => state.course.done[l.id]).length;
+  const steps = courseSteps(state, units);
+  const rank = rankOf(passed);
+  const go = nextAction(next);
+  const due = reviewSteps(state, data).length;
   const label = next?.type === 'lesson' ? next.lesson.title
-    : next?.type === 'test' ? 'Unit test' : next?.type === 'exam' ? 'Mock exam' : 'Course complete';
+    : next?.type === 'test' ? `Unit ${next.unit.n} test` : next?.type === 'exam' ? 'Mock exam' : 'Course complete';
   const seg = (u) => (state.course.passed[u.id] ? 'on' : u === next?.unit ? 'now' : '');
   return `<section class="card course-card">
     <div class="cc-top">
-      <div class="ringbox">${ringSvg(units.length ? passed / units.length : 0)}
-        <span class="ringtext"><b>${passed}</b><small>of ${units.length}</small></span></div>
+      <div class="ringbox">${ringSvg(steps.total ? steps.done / steps.total : 0)}
+        <span class="ringtext"><b>${steps.done}</b><small>of ${steps.total}</small></span></div>
       <div class="grow">
         <span class="caps">Course${next?.unit ? ` · Unit ${next.unit.n}` : ''}</span>
         <h3>${label}</h3>
-        <p class="small muted">${done} of ${lessons.length} lessons done</p>
+        <p class="small muted"><span class="jp">${rank.jp}</span> ${rank.en}${next?.unit ? ` · ${pips(next.unit)}` : ''}</p>
       </div>
     </div>
     <div class="segs" aria-label="${passed} of ${units.length} units passed">${units.map((u) => `<i class="${seg(u)}"></i>`).join('')}</div>
-    ${next ? '<button class="btn ghost" id="cont">Continue the course</button>' : ''}
+    ${go ? `<button class="btn" id="cont">${go.label}</button>` : ''}
+    ${due ? `<button class="btn ghost" id="revonly">Review only · ${due}</button>` : ''}
   </section>`;
 }
 
@@ -156,62 +175,17 @@ function heatmap(now = Date.now()) {
   </section>`;
 }
 
-function statTiles() {
-  const kanjiStarted = data.kanji.filter((k) => state.items[kanjiId(k)]).length;
-  const wordsStarted = data.vocab.filter((w) => state.items[wordId(w)]).length;
-  const starred = Object.keys(state.talk.saved).length;
-  const best = state.exams.history.filter((h) => h.mode === 'exam').reduce((m, h) => Math.max(m, h.total), -1);
-  const tile = (value, total, name, href) => `<a class="stat" href="${href}">
-    <b>${value}${total ? `<small> / ${total}</small>` : ''}</b><span>${name}</span>
-    ${total ? `<i style="width:${(Number(value) / total) * 100}%"></i>` : ''}</a>`;
-  return `<section class="stats">
-    ${tile(kanjiStarted, data.kanji.length, 'Kanji started', '#/practice/kanji')}
-    ${tile(wordsStarted, data.vocab.length, 'Words started', '#/course')}
-    ${tile(starred, 0, starred === 1 ? 'Phrase starred' : 'Phrases starred', '#/talk')}
-    ${tile(best < 0 ? '–' : best, best < 0 ? 0 : 180, 'Best mock exam', '#/course/exam')}
-  </section>`;
-}
-
+// Home: the course and the kanji of the day, nothing else.
 function screenToday() {
   setTop('JP Trainer');
-  const { steps, counts, next } = buildSession(state, data);
-  const stats = dayStats(state);
-  const now = new Date();
-  const glyph = WEEKDAYS[now.getDay()];
-  const reviewed = stats.reviews + stats.newK + stats.newW + stats.sentences + stats.particles;
-  const goal = (icon, name, left, done) => `<div class="goal ${left ? '' : done ? 'done' : 'none'}">
-    <span class="gic">${left || !done ? icon : icons.check}</span>
-    <b>${left || (done ? '' : '–')}</b><span>${name}</span></div>`;
-
+  const next = nextUp(state, data.units);
   view.innerHTML = `
-    <section class="card hero">
-      <span class="water" aria-hidden="true">${glyph}</span>
-      <span class="caps">${now.toLocaleDateString('en', { weekday: 'long' })} · <span class="jp">${now.getMonth() + 1}月${now.getDate()}日 ${glyph}曜日</span></span>
-      <h2>${steps.length ? 'Your session<br>is ready' : 'All caught up'}</h2>
-      <div class="goals">
-        ${goal(icons.repeat, 'Reviews', counts.reviews, reviewed > 0)}
-        ${goal(icons.course, 'Lesson', counts.lesson, stats.lessons > 0)}
-        ${goal(icons.ear, 'Listen', counts.listen, (stats.shadow || 0) > 0)}
-      </div>
-      ${steps.length ? `<button class="btn" id="start">Start · ${steps.length} steps</button>` : '<p class="sub">Nothing is due. Practise if you want more.</p>'}
-    </section>
-    ${next?.type === 'test' ? `<a class="nudge" href="#/course/${next.unit.id}">${icons.exam}<span class="grow">Your Unit ${next.unit.n} test is ready.</span><span class="chev">${icons.chevron}</span></a>` : ''}
-    ${next?.type === 'exam' ? `<a class="nudge" href="#/course/exam">${icons.exam}<span class="grow">You've finished the units. The mock exam is open.</span><span class="chev">${icons.chevron}</span></a>` : ''}
-    ${backupDue() ? `<a class="nudge" href="#/settings">${icons.download}<span class="grow">Back up your progress. Safari can clear saved data.</span><span class="chev">${icons.chevron}</span></a>` : ''}
-    ${kanjiOfTheDay()}
     ${courseCard(next)}
-    ${heatmap(now.getTime())}
-    ${statTiles()}`;
-  view.querySelector('#start')?.addEventListener('click', () => startRun(steps, 'Daily session', { useSrs: true }));
-  view.querySelector('#kodopen').onclick = () => {
-    const steps2 = data.kanji.map((x) => ({ type: 'learn', kind: 'kanji', id: kanjiId(x), ref: x }));
-    startRun(steps2, 'Kanji', { browse: true, start: Number(view.querySelector('#kod').dataset.i) });
-  };
-  view.querySelector('#cont')?.addEventListener('click', () => {
-    if (next.type === 'lesson') startLesson(next.unit, next.lesson);
-    else if (next.type === 'test') runUnitTest(next.unit);
-    else location.hash = '#/course/exam';
-  });
+    ${kanjiOfTheDay()}
+    ${backupDue() ? `<a class="nudge" href="#/settings">${icons.download}<span class="grow">Back up your progress. Safari can clear saved data.</span><span class="chev">${icons.chevron}</span></a>` : ''}`;
+  view.querySelector('#cont')?.addEventListener('click', () => nextAction(next).go());
+  view.querySelector('#revonly')?.addEventListener('click', startReviews);
+  view.querySelector('#kodopen').onclick = () => startRun(kanjiDeck(), 'Kanji', { useSrs: true });
 }
 
 /* ---------- Talk ---------- */
@@ -295,8 +269,18 @@ function screenTalkList(catId) {
 /* ---------- Step runner ---------- */
 
 // `more` makes a run endless: it supplies the next step when the list runs out.
-function startRun(steps, title, { useSrs = false, browse = false, start = 0, more = null, onDrill = null } = {}) {
-  run = { steps: [...steps], i: start, title, useSrs, browse, more, onDrill, clean: 0, drills: 0, cards: 0 };
+const kanjiKnown = () => Object.keys(state.items).filter((id) => id.startsWith('k:')).length;
+
+// `lesson` ({ unit, lesson }) marks a course lesson: its place is saved, and it ends on a lesson-complete screen.
+// `then` runs when the steps run out, in place of the summary.
+// What moved up during reviews that flowed into a lesson, so the lesson's end screen can show it.
+let carried = null;
+const starMap = () => Object.fromEntries((data.units || []).map((u) => [u.id, unitStars(state, u)]));
+
+function startRun(steps, title, { useSrs = false, browse = false, start = 0, more = null, onDrill = null, lesson = null, then = null } = {}) {
+  const from = carried || { ups: [0, 0, 0, 0], stars: starMap(), kanji: kanjiKnown() };
+  carried = null;
+  run = { steps: [...steps], i: start, title, useSrs, browse, more, onDrill, lesson, then, kanjiBefore: from.kanji, ups: from.ups, starsBefore: from.stars, clean: 0, drills: 0, cards: 0 };
   document.body.classList.add('in-run');
   renderStep();
 }
@@ -339,10 +323,13 @@ function record(id, grade) {
   const stats = dayStats(state);
   const prev = state.items[id];
   state.items[id] = rate(prev || newRecord(), grade);
+  const before = stageOf(prev);
+  const after = stageOf(state.items[id]);
+  if (after > before) run.ups[after]++;
   const kind = id[0];
   if (kind === 's') stats.sentences++;
   else if (kind === 'p') stats.particles++;
-  else if (kind === 't') stats.reviews++;
+  else if (kind === 't' || kind === 'g') stats.reviews++;
   else if (prev) stats.reviews++;
   else if (kind === 'k') stats.newK++;
   else stats.newW++;
@@ -356,18 +343,36 @@ function renderStep() {
   if (run.i >= run.steps.length) {
     // Browsing has nothing to summarize, so it just closes.
     if (run.browse) return endRun();
+    // Reviews before a lesson flow straight into it.
+    if (run.then) {
+      const then = run.then;
+      carried = { ups: run.ups, stars: run.starsBefore, kanji: run.kanjiBefore };
+      clearStep();
+      run = null;
+      return then();
+    }
     return renderSummary();
   }
   const step = run.steps[run.i];
-  // Finishing a lesson has no screen of its own.
-  if (step.type === 'lessonEnd') {
+  // Finishing a lesson (or one part of a big one) has no screen of its own.
+  if (step.type === 'lessonEnd' || step.type === 'lessonPart') {
     if (!step.done) {
       step.done = true;
-      if (!state.course.done[step.id]) dayStats(state).lessons = (dayStats(state).lessons || 0) + 1;
-      state.course.done[step.id] = Date.now();
+      if (step.type === 'lessonEnd') {
+        if (!state.course.done[step.id]) dayStats(state).lessons = (dayStats(state).lessons || 0) + 1;
+        state.course.done[step.id] = Date.now();
+        // The lesson's grammar point starts its own reviews.
+        state.items[`g:${step.id}`] ||= rate(newRecord(), 'good');
+      } else run.part = true;
+      if (state.course.current?.lesson === step.id) delete state.course.current;
       save(state);
     }
     return advance();
+  }
+  // Save the place in a course lesson, so leaving the app doesn't lose it.
+  if (run.lesson && state.course.current?.lesson === run.lesson.lesson.id && state.course.current.i !== run.i) {
+    state.course.current.i = run.i;
+    save(state);
   }
   setTop(run.title, {
     close: true,
@@ -443,6 +448,12 @@ function renderStep() {
     bindGloss(view.querySelector('.gloss-zone'), data.glossary);
     view.querySelector('#next').onclick = advance;
   }
+  // A grammar review says which lesson it comes from, but not the pattern: that would give the answer away.
+  if (step.grammar) {
+    const { unit, lesson } = step.grammar;
+    view.insertAdjacentHTML('afterbegin', `<div class="gtag"><span class="caps grow">Grammar review · Lesson ${unit.n}.${unit.lessons.indexOf(lesson) + 1}</span>
+      ${stageChip(state.items[step.id])}</div>`);
+  }
   animate();
 }
 
@@ -499,8 +510,15 @@ const wordFacts = (w) => `<div>
 
 const factsHtml = (step) => (step.kind === 'kanji' ? kanjiFacts(step.ref) : wordFacts(step.ref));
 
+// A small 新/習/強/極 chip for how well an item is known.
+const stageChip = (rec) => {
+  const s = STAGES[stageOf(rec)];
+  return `<span class="stage s-${s.id}"><span class="jp">${s.jp}</span>${s.en}</span>`;
+};
+
 const headHtml = (title, step) => `<div class="study-head"><span class="caps">${title}</span>
-  ${step.kind === 'kanji' ? `<span class="tag">N${step.ref.jlpt}</span>` : '<span class="tag">Word</span>'}</div>`;
+  <span class="head-tags">${state.items[step.id] && !run?.browse ? stageChip(state.items[step.id]) : ''}
+  ${step.kind === 'kanji' ? `<span class="tag">N${step.ref.jlpt}</span>` : '<span class="tag">Word</span>'}</span></div>`;
 
 function renderLearn(step) {
   const title = run.browse ? 'Kanji' : `New ${step.kind === 'kanji' ? 'kanji' : 'word'}`;
@@ -512,42 +530,107 @@ function renderLearn(step) {
   view.querySelector('#next').onclick = advance;
 }
 
+/* ---------- Typing the reading ---------- */
+
+const KANJI_RE = /[一-龯々]/;
+// Every reading that counts as right: a kanji takes any of its on or kun readings,
+// with or without its okurigana; a word takes its kana spelling.
+function readingsOf(step) {
+  if (step.kind !== 'kanji') return [toHiragana(step.ref.y)];
+  return [...new Set([...step.ref.on, ...step.ref.kun].flatMap((r) => {
+    const h = toHiragana(r).replace(/^-|-$/g, '');
+    return [h.replace(/[-.]/g, ''), h.split(/[-.]/)[0]];
+  }).filter(Boolean))];
+}
+
+// Known items (Strong and up) are reviewed by typing the reading. Kana-only words and guessing decks aren't.
+const typesReading = (step) => run.useSrs && !step.isNew && !step.label && stageOf(state.items[step.id]) >= STRONG
+  && (step.kind === 'kanji' || KANJI_RE.test(step.ref.w));
+
+function rateButtons(step, grades = GRADES) {
+  const rec = state.items[step.id] || newRecord();
+  const act = view.querySelector('#act');
+  act.innerHTML = `<div class="rate ${grades.length < 4 ? 'three' : ''}">${grades.map((g) => `<button class="${g}" data-g="${g}">
+    ${g[0].toUpperCase() + g.slice(1)}<small>${label(rec, g)}</small></button>`).join('')}</div>`;
+  act.onclick = (e) => {
+    // Only rating buttons: the click that attached this handler bubbles here too.
+    const btn = e.target.closest('[data-g]');
+    if (btn) finishCard(step, btn.dataset.g);
+  };
+}
+
+function finishCard(step, grade) {
+  record(step.id, grade);
+  run.cards++;
+  step.done = true;
+  // "Again" comes back later in this session.
+  if (grade === 'again') run.steps.splice(Math.min(run.i + 4, run.steps.length), 0, { ...step, done: false });
+  advance();
+}
+
+function reveal() {
+  view.querySelector('#back').hidden = false;
+  view.querySelector('#ask').hidden = true;
+  view.querySelector('#studycard').classList.add('revealed');
+}
+
 function renderCard(step) {
+  const typed = !step.done && typesReading(step);
+  const ask = step.label ? 'Guess the meaning and reading, then check.'
+    : typed ? `Type ${step.kind === 'kanji' ? 'a reading' : 'the reading'} in romaji or kana.` : 'Recall the reading and meaning, then check.';
   view.innerHTML = `<div class="card study" id="studycard">
-      ${headHtml(step.isNew ? 'Now recall it' : 'Review', step)}${glyphHtml(step)}
-      <p class="ask" id="ask">Recall the reading and meaning, then check.</p>
+      ${headHtml(step.label || (step.isNew ? 'Now recall it' : 'Review'), step)}${glyphHtml(step)}
+      <p class="ask" id="ask">${ask}</p>
+      ${typed ? `<form class="type-in" id="typein" autocomplete="off">
+        <input id="typed" class="jp" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done" aria-label="Reading">
+        <p class="small muted center" id="kana">&nbsp;</p></form>` : ''}
+      <div class="fb" id="fb" role="status" hidden></div>
       <div class="back" id="back" hidden>${factsHtml(step)}</div>
     </div>
-    <div class="dock" id="act"><button class="btn" id="show">Show answer</button></div>`;
+    <div class="dock" id="act">${typed
+    ? '<div class="pair"><button class="btn ghost" id="dunno">Show me</button><button class="btn" id="check">Check</button></div>'
+    : '<button class="btn" id="show">Show answer</button>'}</div>`;
   // Already rated in this run: show the answer without rating it again.
   if (step.done) {
-    view.querySelector('#back').hidden = false;
-    view.querySelector('#ask').hidden = true;
-    view.querySelector('#studycard').classList.add('revealed');
-    view.querySelector('#act').innerHTML = `<button class="btn" id="next">Next</button>`;
+    reveal();
+    view.querySelector('#act').innerHTML = '<button class="btn" id="next">Next</button>';
     view.querySelector('#next').onclick = advance;
     return;
   }
-  view.querySelector('#show').onclick = () => {
-    view.querySelector('#back').hidden = false;
-    view.querySelector('#ask').hidden = true;
-    view.querySelector('#studycard').classList.add('revealed');
-    const rec = (run.useSrs && state.items[step.id]) || newRecord();
-    const act = view.querySelector('#act');
-    act.innerHTML = `<div class="rate">${GRADES.map((g) => `<button class="${g}" data-g="${g}">
-      ${g[0].toUpperCase() + g.slice(1)}<small>${label(rec, g)}</small></button>`).join('')}</div>`;
-    act.onclick = (e) => {
-      // Only rating buttons: the Show click that attached this handler bubbles here too.
-      const btn = e.target.closest('[data-g]');
-      if (!btn) return;
-      record(step.id, btn.dataset.g);
-      run.cards++;
-      step.done = true;
-      // "Again" comes back later in this session.
-      if (btn.dataset.g === 'again') run.steps.splice(Math.min(run.i + 4, run.steps.length), 0, { ...step, done: false });
-      advance();
-    };
+  if (!typed) {
+    view.querySelector('#show').onclick = () => { reveal(); rateButtons(step); };
+    return;
+  }
+  const input = view.querySelector('#typed');
+  const kana = view.querySelector('#kana');
+  const fb = view.querySelector('#fb');
+  input.focus();
+  input.oninput = () => { kana.textContent = toKana(input.value) || '\u00a0'; };
+  const answers = readingsOf(step);
+  const settle = (verdict) => {
+    reveal();
+    input.disabled = true;
+    const shown = step.kind === 'kanji' ? '' : ` It's ${answers[0]}.`;
+    fb.hidden = false;
+    if (verdict === 'right') {
+      fb.className = 'fb good';
+      fb.textContent = 'Right.';
+      // Recalled it: no "Again" needed.
+      rateButtons(step, ['hard', 'good', 'easy']);
+      return;
+    }
+    fb.className = verdict === 'close' ? 'fb info' : 'fb bad';
+    fb.textContent = verdict === 'close' ? `Close: check the small kana, dakuten and long vowels.${shown}`
+      : `Not this time.${shown}`;
+    view.querySelector('#act').innerHTML = '<button class="btn" id="next">Next</button>';
+    view.querySelector('#next').onclick = () => finishCard(step, verdict === 'close' ? 'hard' : 'again');
   };
+  view.querySelector('#typein').onsubmit = (e) => {
+    e.preventDefault();
+    settle(judgeReading(toKana(input.value, { done: true }), answers));
+  };
+  view.querySelector('#check').onclick = () => settle(judgeReading(toKana(input.value, { done: true }), answers));
+  view.querySelector('#dunno').onclick = () => settle('wrong');
 }
 
 // A row of tappable words, for text written as "word word word".
@@ -604,7 +687,63 @@ function renderDialogue(step) {
   view.querySelector('#next').onclick = advance;
 }
 
+// The end of a course lesson: what was gained, how far the course has come, and the next step.
+// What got stronger in this run: items that reached Strong or Mastered, and units that earned a star.
+function memoryHtml() {
+  const strong = run.ups[STRONG];
+  const mastered = run.ups[STRONG + 1];
+  const stars = (data.units || []).map((u) => ({ u, n: unitStars(state, u) })).filter(({ u, n }) => n > (run.starsBefore[u.id] || 0) && n > 1);
+  if (!strong && !mastered && !stars.length) return '';
+  return `${stars.map(({ u, n }) => `<div class="starup"><span class="stars">${starHtml(n)}</span><span><small>Unit ${u.n} mastery</small><b>${u.title}</b></span></div>`).join('')}
+    ${strong || mastered ? `<div class="row"><span class="grow">Moved up</span><span class="num">${[
+    strong ? `${stageChip({ interval: 3 })} +${strong}` : '', mastered ? `${stageChip({ interval: 21 })} +${mastered}` : ''].filter(Boolean).join(' ')}</span></div>` : ''}`;
+}
+
+function renderLessonDone() {
+  const { unit, lesson } = run.lesson;
+  setTop(run.title, { close: true, progress: 100 });
+  const name = `Lesson ${unit.n}.${unit.lessons.indexOf(lesson) + 1}`;
+  const seen = new Set();
+  const learned = run.steps.filter((s) => s.type === 'learn' && !seen.has(s.id) && seen.add(s.id));
+  const kanji = learned.filter((s) => s.kind === 'kanji').map((s) => s.ref.k);
+  const words = learned.filter((s) => s.kind === 'word').length;
+  const kanjiNow = kanjiKnown();
+  const steps = courseSteps(state, data.units);
+  const p = unitProgress(state, unit);
+  const next = nextUp(state, data.units);
+  const go = nextAction(next);
+  const perfect = run.drills > 0 && run.clean === run.drills;
+  const chip = (big, small, glyphs = '') => `<div class="gain"><b>${big}</b><span>${small}</span>${glyphs ? `<span class="jp gl">${glyphs}</span>` : ''}</div>`;
+  const status = run.part ? 'More new items are waiting in part 2.'
+    : p.done === p.total ? `Unit ${unit.n} test is ready.` : `${p.done} of ${p.total} lessons in Unit ${unit.n}.`;
+  view.innerHTML = `<section class="card hero done-hero lesson-done">
+      <div class="burst" aria-hidden="true">${icons.check}</div>
+      <span class="caps">${run.part ? 'Part done' : perfect ? 'Clean run' : 'Lesson done'}</span>
+      <h2>${name}${run.part ? ', part 1' : ''}</h2>
+      <div class="unit-strip">${pips(unit, run.part ? null : lesson.id)}<span class="small">${status}</span></div>
+    </section>
+    ${kanji.length || words ? `<div class="caps sect"><span>You gained</span></div>
+      <div class="gains">${kanji.length ? chip(`+${kanji.length}`, kanji.length === 1 ? 'kanji' : 'kanji', kanji.join(' ')) : ''}${words ? chip(`+${words}`, words === 1 ? 'word' : 'words') : ''}</div>` : ''}
+    <section class="card list">
+      ${run.drills ? `<div class="row"><span class="grow">Drills right first time</span><span class="num">${run.clean} / ${run.drills}</span></div>` : ''}
+      ${memoryHtml()}
+      <div class="row"><span class="grow">Kanji collected</span><span class="num">${kanjiNow > run.kanjiBefore ? `${run.kanjiBefore} → ` : ''}<b>${kanjiNow}</b> / ${data.kanji.length}</span></div>
+      <div class="row"><span class="grow">Course<div class="meter"><i style="width:${(steps.done / steps.total) * 100}%"></i></div></span><span class="num">${steps.done} / ${steps.total}</span></div>
+    </section>
+    <div class="dock stack">
+      ${go ? `<button class="btn" id="go">${run.part ? 'Keep going: part 2' : `Next: ${go.label.replace(/^(Take the|Start|Open the) /, '')}`}</button>` : ''}
+      <button class="btn ghost" id="fin">Done for now</button>
+    </div>`;
+  view.querySelector('#fin').onclick = endRun;
+  view.querySelector('#go')?.addEventListener('click', () => {
+    endRun();
+    go.go();
+  });
+  animate();
+}
+
 function renderSummary() {
+  if (run.lesson) return renderLessonDone();
   setTop(run.title, { close: true, progress: 100 });
   const C = 2 * Math.PI * 46;
   const share = run.drills ? run.clean / run.drills : 1;
@@ -620,6 +759,7 @@ function renderSummary() {
       <h2>${share >= 0.8 ? 'Nice work' : 'Good effort'}</h2>
       <p class="sub">${run.useSrs ? 'Your next reviews are scheduled.' : 'Practice does not change your review schedule.'}</p>
     </section>
+    ${memoryHtml() ? `<section class="card list">${memoryHtml()}</section>` : ''}
     ${cards || drills ? `<section class="card list">${cards}${drills}</section>` : ''}
     <div class="dock"><button class="btn" id="fin">Finish</button></div>`;
   view.querySelector('#fin').onclick = endRun;
@@ -746,38 +886,105 @@ function screenCourse() {
   setTop('Course');
   const units = data.units;
   const next = nextUp(state, units);
+  const go = nextAction(next);
+  const due = reviewSteps(state, data).length;
   const passed = units.filter((u) => state.course.passed[u.id]).length;
+  const steps = courseSteps(state, units);
+  const rank = rankOf(passed);
+  const toRank = rank.next ? rank.next.at - passed : 0;
   const nextLabel = next?.type === 'lesson' ? next.lesson.title
-    : next?.type === 'test' ? 'Unit test' : next?.type === 'exam' ? 'Mock exam' : '';
-  view.innerHTML = `
-    <section class="card hero">
-      <span class="caps">${next?.unit ? `Unit ${next.unit.n} · ` : ''}${passed} of ${units.length} units passed</span>
-      <h2>${nextLabel || 'Course'}</h2>
-      <div class="meter"><i style="width:${units.length ? (passed / units.length) * 100 : 0}%"></i></div>
-      ${next ? '<button class="btn" id="go">Continue</button>' : ''}
-    </section>
-    <section class="card list">${units.map((u) => {
+    : next?.type === 'test' ? `Unit ${next.unit.n} test` : next?.type === 'exam' ? 'Mock exam' : 'Course';
+  // Units up to two past the current one are shown; the rest fold into one row.
+  const here = next?.unit ? units.indexOf(next.unit) : units.length - 1;
+  const shown = units.slice(0, here + 2);
+  const folded = units.length - shown.length;
+  const node = (u) => {
     const p = unitProgress(state, u);
     const open = isUnlocked(state, units, u);
-    return `<a class="row unit ${open ? '' : 'off'}" href="#/course/${u.id}">
-        <span class="unum ${p.passed ? 'on' : ''}">${p.passed ? icons.check : open ? u.n : icons.lock}</span>
-        <span class="grow"><span class="label">${u.title}</span><br><span class="small muted">${u.goal}</span></span>
+    const now = u === next?.unit;
+    const best = state.course.best?.[u.id];
+    const known = p.passed || now ? strengthLine(u) : '';
+    const sub = now ? `${p.done} of ${p.total} lessons${p.done === p.total ? ' · test ready' : ''}${known ? ` · ${known}` : ''}`
+      : p.passed ? [known, best ? `best ${Math.round(best * 100)}%` : ''].filter(Boolean).join(' · ') : open ? u.goal : 'Locked · pass its test to skip ahead';
+    return `<a class="node ${p.passed ? 'done' : ''} ${now ? 'now' : ''} ${open ? '' : 'off'}" href="#/course/${u.id}">
+        <span class="dot">${p.passed ? icons.check : open ? u.n : icons.lock}</span>
+        <span class="grow"><span class="label">${u.title}${p.passed ? `<span class="stars">${starHtml(unitStars(state, u))}</span>` : ''}</span>
+          <span class="nsub">${pips(u)}<span class="small muted">${sub}</span></span></span>
         <span class="chev">${icons.chevron}</span></a>`;
-  }).join('')}
-      <a class="row unit ${examUnlocked(state, units) ? '' : 'off'}" href="#/course/exam">
-        <span class="unum">${examUnlocked(state, units) ? icons.exam : icons.lock}</span>
-        <span class="grow"><span class="label">Mock exam</span><br><span class="small muted">The full JLPT N5 format, timed and scored</span></span>
+  };
+  view.innerHTML = `
+    <section class="card hero course-hero">
+      <span class="caps">${next?.unit ? `Unit ${next.unit.n} · ` : ''}<span class="jp">${rank.jp}</span> ${rank.en}</span>
+      <h2>${nextLabel}</h2>
+      <div class="meter"><i style="width:${(steps.done / steps.total) * 100}%"></i></div>
+      <span class="small hero-meta">${steps.done} of ${steps.total} steps${rank.next ? ` · ${toRank} ${toRank === 1 ? 'unit' : 'units'} to ${rank.next.en}` : ''}</span>
+      ${go ? `<button class="btn" id="go">${go.label}</button>` : ''}
+      ${due ? `<button class="btn ghost hero-ghost" id="revonly">Review only · ${due}</button>` : ''}
+    </section>
+    <section class="path">${shown.map(node).join('')}
+      ${folded ? `<div class="node off fold"><span class="dot">${icons.lock}</span><span class="grow"><span class="label">Units ${shown.length + 1}–${units.length}</span>
+        <span class="small muted">Open as you pass each unit</span></span></div>` : ''}
+      <a class="node ${examUnlocked(state, units) ? '' : 'off'} last" href="#/course/exam">
+        <span class="dot">${examUnlocked(state, units) ? icons.exam : icons.lock}</span>
+        <span class="grow"><span class="label">Mock exam</span><span class="small muted">The full JLPT N5 format, timed and scored</span></span>
         <span class="chev">${icons.chevron}</span></a>
     </section>`;
-  view.querySelector('#go')?.addEventListener('click', () => {
-    if (next.type === 'lesson') startLesson(next.unit, next.lesson);
-    else if (next.type === 'test') runUnitTest(next.unit);
-    else location.hash = '#/course/exam';
-  });
+  view.querySelector('#go')?.addEventListener('click', go.go);
+  view.querySelector('#revonly')?.addEventListener('click', startReviews);
 }
 
+// A lesson left part-way picks up at the same step with the same new items.
 function startLesson(unit, lesson) {
-  startRun(lessonSteps(unit, lesson, state, data), lesson.title, { useSrs: true });
+  const saved = state.course.current?.lesson === lesson.id ? state.course.current : null;
+  const steps = lessonSteps(unit, lesson, state, data, saved);
+  const start = saved ? Math.min(saved.i, steps.length - 1) : 0;
+  state.course.current = {
+    lesson: lesson.id,
+    fresh: steps.filter((s) => s.type === 'learn').map((s) => s.id),
+    part: steps.at(-1).type === 'lessonPart',
+    i: start,
+  };
+  save(state);
+  startRun(steps, lesson.title, { useSrs: true, start, lesson: { unit, lesson } });
+}
+
+const resumable = (next) => next?.type === 'lesson' && state.course.current?.lesson === next.lesson.id && state.course.current.i > 0;
+
+// The label and action for whatever the course wants next.
+function nextAction(next) {
+  if (!next) return null;
+  if (next.type === 'lesson') {
+    const name = `${next.unit.n}.${next.unit.lessons.indexOf(next.lesson) + 1}`;
+    const lesson = () => startLesson(next.unit, next.lesson);
+    if (resumable(next)) return { label: `Resume lesson ${name}`, go: lesson };
+    // What's due comes first, then the lesson, in one tap.
+    const due = reviewSteps(state, data);
+    if (due.length) return { label: `Review ${due.length} → Lesson ${name}`, go: () => startRun(due, 'Reviews', { useSrs: true, then: lesson }) };
+    return { label: `Start lesson ${name}`, go: lesson };
+  }
+  if (next.type === 'test') return { label: `Take the Unit ${next.unit.n} test`, go: () => runUnitTest(next.unit) };
+  return { label: 'Open the mock exam', go: () => { location.hash = '#/course/exam'; } };
+}
+
+// Reviews on their own, for a pocket of time too short for a lesson.
+function startReviews() {
+  const due = reviewSteps(state, data);
+  if (due.length) startRun(due, 'Reviews', { useSrs: true });
+}
+
+// Three mastery stars, filled up to n.
+const starHtml = (n) => [1, 2, 3].map((i) => `<i class="${i <= n ? 'on' : ''}">★</i>`).join('');
+
+// How much of a unit is remembered well, as a short line.
+function strengthLine(unit) {
+  const s = unitStrength(state, unit);
+  return s.total ? `${s.strong} / ${s.total} strong` : '';
+}
+
+// Lesson dots and a test diamond for one unit.
+function pips(unit, justDone = null) {
+  const dot = (l) => `<i class="pip ${state.course.done[l.id] ? 'on' : ''} ${l.id === justDone ? 'pop' : ''}"></i>`;
+  return `<span class="pips" aria-hidden="true">${unit.lessons.map(dot).join('')}<i class="pip test ${state.course.passed[unit.id] ? 'on' : ''}"></i></span>`;
 }
 
 const examContext = () => ({
@@ -794,24 +1001,57 @@ const examContext = () => ({
   },
 });
 
+// A missed question, in the shape the check drill uses: right answer first.
+const asCheck = (q) => ({ id: q.id, q: q.q, ask: q.ask, w: q.w, o: [q.o[q.a], ...q.o.filter((_, i) => i !== q.a)] });
+
 function runUnitTest(unit) {
+  // Testing out of a locked unit covers things not taught yet, so misses there aren't scheduled.
+  const wasOpen = isUnlocked(state, data.units, unit);
+  const passedBefore = data.units.filter((u) => state.course.passed[u.id]).length;
   document.body.classList.add('in-run');
   startExam({
     ...examContext(),
     persist: () => {},
     onResult: (result, exam, answers) => {
-      if (result.pass) state.course.passed[unit.id] = Date.now();
-      for (const q of exam.sections[0].questions) {
-        if (answers[q.id] === q.a) continue;
-        // Missed words go back to reviews, and missed grammar comes back in the next session.
-        if (q.word) {
-          const id = `w:${q.word}`;
-          state.items[id] = rate(state.items[id] || newRecord(), 'again');
-        } else {
-          state.course.missed[q.id] = { id: q.id, q: q.q, w: q.w, o: [q.o[q.a], ...q.o.filter((_, i) => i !== q.a)] };
+      const missed = exam.sections[0].questions.filter((q) => answers[q.id] !== q.a);
+      state.course.best ||= {};
+      state.course.best[unit.id] = Math.max(state.course.best[unit.id] || 0, result.share);
+      if (result.pass) {
+        state.course.passed[unit.id] ||= Date.now();
+        // Passing the unit settles its old misses.
+        for (const id of Object.keys(state.course.missed)) if (id.startsWith(`${unit.id}-`)) delete state.course.missed[id];
+      } else if (wasOpen) {
+        for (const q of missed) {
+          // Missed words go back to reviews, and missed grammar comes back to be re-checked.
+          if (q.word) {
+            const id = `w:${q.word}`;
+            if (state.items[id]) state.items[id] = rate(state.items[id], 'again');
+          } else state.course.missed[q.id] = asCheck(q);
         }
       }
       save(state);
+      const drill = () => startRun(missed.map((q) => ({ type: 'check', id: q.id, ref: asCheck(q) })), `Unit ${unit.n} misses`);
+      if (!result.pass) {
+        return {
+          actions: [
+            ...(missed.length ? [{ label: `Drill the ${missed.length} ${missed.length === 1 ? 'miss' : 'misses'} now`, run: drill }] : []),
+            { label: 'Done for now', run: null },
+          ],
+        };
+      }
+      const passed = data.units.filter((u) => state.course.passed[u.id]).length;
+      const rank = rankOf(passed);
+      const rose = rankOf(passedBefore).at !== rank.at;
+      const next = nextUp(state, data.units);
+      const go = nextAction(next);
+      return {
+        note: `Unit ${unit.n} cleared. ${passed} of ${data.units.length} units passed.`,
+        badge: rose ? `<div class="rankup"><span class="jp">${rank.jp}</span><span><small>New rank</small><b>${rank.en}</b></span></div>` : '',
+        actions: [
+          ...(go ? [{ label: next.type === 'lesson' ? `Start Unit ${next.unit.n}` : go.label, run: go.go }] : []),
+          { label: 'Done for now', run: null },
+        ],
+      };
     },
   }, unitTest(unit, data));
 }
@@ -823,10 +1063,12 @@ function screenUnit(id) {
   const open = isUnlocked(state, data.units, unit);
   const p = unitProgress(state, unit);
   const ready = p.done === p.total;
+  const nextAfter = data.units[data.units.indexOf(unit) + 1];
   view.innerHTML = `
     <section class="card">
-      <span class="caps">Unit ${unit.n}</span>
+      <div class="kod-head"><span class="caps">Unit ${unit.n}</span>${pips(unit)}</div>
       <h3>${unit.title}</h3>
+      ${strengthLine(unit) ? `<div class="unit-mem"><span class="stars">${starHtml(unitStars(state, unit))}</span><span class="small muted">${strengthLine(unit)} · ★★ at 80% strong, ★★★ at 80% mastered</span></div>` : ''}
       <p class="small">By the end, you can: ${unit.goal.toLowerCase()}.</p>
       ${open ? '' : '<p class="small muted">This unit is locked. If you already know the material, pass this unit\'s test to skip ahead to it.</p>'}
     </section>
@@ -834,8 +1076,10 @@ function screenUnit(id) {
         <span class="unum ${state.course.done[l.id] ? 'on' : ''}">${state.course.done[l.id] ? icons.check : i + 1}</span>
         <span class="grow"><span class="label">${l.title}</span></span><span class="chev">${icons.chevron}</span></button>`).join('')}
     </section>
-    ${p.passed ? '<p class="small muted center">You passed this unit. You can retake the test any time.</p>' : ''}
-    <button class="btn ${ready || !open ? '' : 'ghost'}" id="test">${p.passed ? 'Retake the unit test' : open && !ready ? 'Take the test early' : 'Take the unit test'}</button>`;
+    ${p.passed ? `<p class="small muted center">You passed this unit${state.course.best?.[unit.id] ? ` with a best of ${Math.round(state.course.best[unit.id] * 100)}%` : ''}. You can retake the test any time.</p>` : ''}
+    ${p.passed && nextAfter ? `<button class="btn" id="onward">Go to Unit ${nextAfter.n}</button>` : ''}
+    <button class="btn ${(ready || !open) && !p.passed ? '' : 'ghost'}" id="test">${p.passed ? 'Retake the unit test' : open && !ready ? 'Take the test early' : 'Take the unit test'}</button>`;
+  view.querySelector('#onward')?.addEventListener('click', () => { location.hash = `#/course/${nextAfter.id}`; });
   view.onclick = (e) => {
     const b = e.target.closest('.lessonrow');
     if (b && !b.disabled) startLesson(unit, unit.lessons[Number(b.dataset.i)]);
@@ -845,8 +1089,12 @@ function screenUnit(id) {
 
 function runMock(paper, mode, resume = null) {
   document.body.classList.add('in-run');
+  const base = examContext();
+  // There's one resume slot. A practice run never takes it from a paused timed exam.
+  const keepPaused = mode === 'practice' && state.exams.current?.mode === 'exam' && !resume;
   startExam({
-    ...examContext(),
+    ...base,
+    persist: keepPaused ? () => {} : base.persist,
     onResult: (r, exam, answers, m) => {
       state.exams.history.push({ id: paper.id, mode: m, at: Date.now(), total: r.total, language: r.language, listening: r.listening, pass: r.pass });
       save(state);
@@ -890,11 +1138,8 @@ function screenKanji() {
   setTop('Kanji', backTo('#/practice'));
   const started = data.kanji.filter((k) => state.items[kanjiId(k)]).length;
   const steps = data.kanji.map((x) => ({ type: 'learn', kind: 'kanji', id: kanjiId(x), ref: x }));
-  // The bar under a tile grows as its review interval approaches three weeks.
-  const strength = (k) => {
-    const rec = state.items[kanjiId(k)];
-    return rec ? Math.max(12, Math.min(100, (rec.interval / 21) * 100)) : 0;
-  };
+  // The bar under a tile shows its memory stage: a third for Learning, two for Strong, full for Mastered.
+  const stage = (k) => stageOf(state.items[kanjiId(k)]);
   view.innerHTML = `
     <section class="card">
       <div class="row" style="min-height:0"><span class="grow"><strong>JLPT N5</strong></span>
@@ -902,8 +1147,8 @@ function screenKanji() {
       <div class="meter"><i style="width:${(started / data.kanji.length) * 100}%"></i></div>
     </section>
     <div class="grid" id="grid">${data.kanji.map((k, i) => `<button class="tile" data-i="${i}">
-      <b>${k.k}</b><small>${k.mean[0]}</small>${strength(k) ? `<i style="width:${strength(k)}%"></i>` : ''}</button>`).join('')}</div>
-    <p class="small muted center">The green bar grows as a kanji gets stronger.</p>`;
+      <b>${k.k}</b><small>${k.mean[0]}</small>${stage(k) ? `<i class="s-${STAGES[stage(k)].id}" style="width:${(stage(k) / 3) * 100}%"></i>` : ''}</button>`).join('')}</div>
+    <p class="small muted center">The bar fills as a kanji moves from ${STAGES.slice(1).map((s) => `<span class="jp">${s.jp}</span> ${s.en}`).join(' to ')}.</p>`;
   view.querySelector('#grid').onclick = (e) => {
     const b = e.target.closest('.tile');
     if (b) startRun(steps, 'Kanji', { browse: true, start: Number(b.dataset.i) });
@@ -916,6 +1161,8 @@ function screenSettings() {
   const seg = (key, options) => `<div class="seg" data-key="${key}">${options.map(([v, text]) =>
     `<button class="${s[key] === v ? 'on' : ''}" data-v='${JSON.stringify(v)}'>${text}</button>`).join('')}</div>`;
   view.innerHTML = `
+    <div class="caps sect"><span>Activity</span></div>
+    ${heatmap()}
     <div class="caps sect"><span>Study</span></div>
     <section class="card">
       <strong>Readings on sentence blocks</strong>${seg('hints', [[true, 'Show'], [false, 'Hide']])}
@@ -940,7 +1187,7 @@ function screenSettings() {
     </section>
     <div class="caps sect"><span>About</span></div>
     <section class="card">
-      <p class="small">Content is hand-written for this app. Audio uses your device's Japanese voice. Third-party data sources will be credited here when they are added.</p></section>`;
+      <p class="small">Course lessons and exams are written for this app. Words and kanji are checked against JMdict and KANJIDIC2 (Electronic Dictionary Research and Development Group, CC BY-SA 4.0). Talk phrases come from Tatoeba (tatoeba.org, CC BY 2.0 FR). Audio uses your device's Japanese voice.</p></section>`;
   settingsNotice = '';
   view.querySelector('#logout').onclick = logOut;
   view.querySelector('#export').onclick = exportBackup;
@@ -1077,6 +1324,17 @@ async function init() {
       if (!glossary[w]) glossary[w] = { y, m, ro: ro ?? romaji(y) };
     }
     data.talk = talk.categories;
+    // Lessons finished before grammar had its own reviews get their grammar item now.
+    let added = false;
+    for (const u of data.units) {
+      for (const l of u.lessons) {
+        if (state.course.done[l.id] && !state.items[grammarId(l)]) {
+          state.items[grammarId(l)] = rate(newRecord(), 'good');
+          added = true;
+        }
+      }
+    }
+    if (added) save(state);
     data.talkPhrases = talk.categories.flatMap((c) => c.items.map((p) => ({ ...p, cat: c.id })));
     window.addEventListener('hashchange', route);
     route();

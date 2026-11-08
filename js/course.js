@@ -3,6 +3,7 @@
 // words, so each word can be tapped and romaji can be built reliably.
 import { romaji } from './romaji.js';
 import { shuffled } from './drills.js';
+import { stageOf, STRONG, MASTERED } from './srs.js';
 
 export const UNIT_FILES = ['units-01-04', 'units-05-08', 'units-09-12', 'units-13-16', 'units-17-20', 'units-21-24'];
 export const PASS_SHARE = 0.8;
@@ -120,14 +121,54 @@ export function nextUp(state, units = []) {
 
 export const examUnlocked = (state, units) => units.length > 0 && Boolean(state.course.passed[units.at(-1).id]);
 
+// Every lesson and every unit test is one step along the course.
+export function courseSteps(state, units = []) {
+  const lessons = units.flatMap((u) => u.lessons);
+  const done = lessons.filter((l) => state.course.done[l.id]).length + units.filter((u) => state.course.passed[u.id]).length;
+  return { done, total: lessons.length + units.length };
+}
+
+// Titles earned by passing units. Only ever goes up.
+export const RANKS = [
+  { at: 0, jp: '入門', en: 'Beginner' },
+  { at: 4, jp: '初級', en: 'Starter' },
+  { at: 8, jp: '旅人', en: 'Traveller' },
+  { at: 12, jp: '会話', en: 'Conversant' },
+  { at: 16, jp: '読者', en: 'Reader' },
+  { at: 24, jp: '合格', en: 'N5 ready' },
+];
+
+export function rankOf(passed) {
+  const i = RANKS.findLastIndex((r) => passed >= r.at);
+  return { ...RANKS[i], next: RANKS[i + 1] || null };
+}
+
 /* ---------- Lesson steps ---------- */
 
-export function lessonSteps(unit, lesson, state, data) {
+// New items per sitting, so one lesson fits a short trip. Bigger lessons come in parts.
+export const LESSON_NEW = 8;
+// New items are taught and then recalled in small groups, so recall comes soon after learning.
+const GROUP = 4;
+
+// `resume` ({ fresh, part }) rebuilds a lesson that was left part-way with the same items.
+export function lessonSteps(unit, lesson, state, data, resume = null) {
   const kanji = (lesson.kanji || []).map((c) => data.kanji.find((k) => k.k === c)).filter(Boolean)
-    .filter((k) => !state.items[`k:${k.k}`]).map((ref) => ({ kind: 'kanji', id: `k:${ref.k}`, ref }));
-  const vocab = (lesson.words || []).map((w) => data.vocab.find((v) => v.w === w)).filter(Boolean)
-    .filter((v) => !state.items[`w:${v.w}`]).map((ref) => ({ kind: 'word', id: `w:${ref.w}`, ref }));
-  const learn = [...kanji, ...vocab];
+    .map((ref) => ({ kind: 'kanji', id: `k:${ref.k}`, ref }));
+  // A word that is just one of this lesson's kanji is taught by the kanji card.
+  const glyphs = new Set(kanji.map((k) => k.ref.k));
+  const vocab = (lesson.words || []).filter((w) => !glyphs.has(w)).map((w) => data.vocab.find((v) => v.w === w)).filter(Boolean)
+    .map((ref) => ({ kind: 'word', id: `w:${ref.w}`, ref }));
+  const all = [...kanji, ...vocab];
+  const waiting = resume ? all.filter((s) => resume.fresh.includes(s.id)) : all.filter((s) => !state.items[s.id]);
+  const learn = resume ? waiting : waiting.slice(0, LESSON_NEW);
+  const more = resume ? Boolean(resume.part) : waiting.length > LESSON_NEW;
+  const groups = [];
+  for (let i = 0; i < learn.length; i += GROUP) {
+    const g = learn.slice(i, i + GROUP);
+    groups.push(...g.map((s) => ({ ...s, type: 'learn' })), ...g.map((s) => ({ ...s, type: 'card', isNew: true })));
+  }
+  const intro = { type: 'lesson', ref: lesson, unit };
+  if (more) return [intro, ...groups, { type: 'lessonPart', id: lesson.id }];
   const drills = lesson.drills.map((_, n) => `${lesson.id}-${n}`).map((id) => {
     const s = data.sentences.find((x) => x.id === id);
     if (s) return { type: 'sentence', id: `s:${id}`, ref: s };
@@ -138,9 +179,8 @@ export function lessonSteps(unit, lesson, state, data) {
     ? [{ type: 'dialogue', ref: unit.dialogue, unit }, ...unit.dialogue.check.map((q, n) => ({ type: 'check', id: `${unit.id}-dlg-${n}`, ref: q }))]
     : [];
   return [
-    { type: 'lesson', ref: lesson, unit },
-    ...learn.map((s) => ({ ...s, type: 'learn' })),
-    ...learn.map((s) => ({ ...s, type: 'card', isNew: true })),
+    intro,
+    ...groups,
     ...drills,
     ...dialogue,
     { type: 'lessonEnd', id: lesson.id },
@@ -201,7 +241,8 @@ export function particleItem(bank, { focus = null, pair = null, stats = {}, rng 
   const wrong = pair ? [pair.find((p) => p !== frame.a)] : Object.keys(frame.w);
   return {
     id: frame.id,
-    label: frame.use,
+    // frame.use names the answer's job ("where an action happens"), so it stays out of the question.
+    label: 'Pick the particle',
     before,
     after,
     en: fill(frame.en, picks, 'en'),
@@ -210,4 +251,50 @@ export function particleItem(bank, { focus = null, pair = null, stats = {}, rng 
     why: frame.w,
     note: frame.n,
   };
+}
+
+/* ---------- Memory: grammar items, unit strength and stars ---------- */
+
+// Each lesson's pattern is one review item, practised through a different drill each time.
+export const grammarId = (lesson) => `g:${lesson.id}`;
+
+// The drills a grammar item can be reviewed with, in the shape the step runner uses.
+export function grammarDrills(lesson, data) {
+  return lesson.drills.map((_, n) => `${lesson.id}-${n}`).map((id) => {
+    const s = data.sentences.find((x) => x.id === id);
+    if (s) return { type: 'sentence', ref: s };
+    const c = (data.courseChoices || []).find((x) => x.id === id);
+    return c ? { type: 'particle', ref: c, set: {} } : null;
+  }).filter(Boolean);
+}
+
+// Everything a unit teaches: its kanji, its words (minus ones a kanji card covers) and its grammar.
+export function unitItems(unit) {
+  const ids = [];
+  for (const l of unit.lessons) {
+    const glyphs = new Set(l.kanji || []);
+    ids.push(...(l.kanji || []).map((c) => `k:${c}`));
+    ids.push(...(l.words || []).filter((w) => !glyphs.has(w)).map((w) => `w:${w}`));
+    if (l.drills?.length) ids.push(grammarId(l));
+  }
+  return [...new Set(ids)];
+}
+
+export function unitStrength(state, unit) {
+  const stages = unitItems(unit).map((id) => stageOf(state.items[id]));
+  return {
+    total: stages.length,
+    strong: stages.filter((s) => s >= STRONG).length,
+    mastered: stages.filter((s) => s >= MASTERED).length,
+  };
+}
+
+// ★ passed the test, ★★ 80% of its items strong, ★★★ 80% mastered.
+export function unitStars(state, unit) {
+  if (!state.course.passed[unit.id]) return 0;
+  const s = unitStrength(state, unit);
+  if (!s.total) return 1;
+  if (s.mastered / s.total >= PASS_SHARE) return 3;
+  if (s.strong / s.total >= PASS_SHARE) return 2;
+  return 1;
 }

@@ -7,7 +7,8 @@ const defaults = () => ({
   days: {},
   shadow: {},
   lastBackup: null,
-  course: { done: {}, passed: {}, missed: {} },
+  // best: top unit-test share per unit. current: the lesson left part-way, to resume.
+  course: { done: {}, passed: {}, missed: {}, best: {}, current: null },
   practice: { sent: {}, part: {} },
   exams: { current: null, history: [] },
   talk: { saved: {} },
