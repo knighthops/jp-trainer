@@ -125,7 +125,7 @@ export function startExam(ctx, exam, { mode = 'exam', resume = null } = {}) {
     if (timed && st.endAt && !tick) {
       tick = setInterval(() => {
         const left = st.endAt - Date.now();
-        const el = document.querySelector('#top .count');
+        const el = document.querySelector('.count');
         if (el) el.textContent = clock(left);
         if (left <= 0) nextSection();
       }, 500);

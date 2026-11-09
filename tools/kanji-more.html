@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Build kanji-more.json</title>
+<style>body{font:14px/1.5 system-ui,sans-serif;margin:24px;max-width:900px}li{margin:2px 0}</style></head>
+<body>
+<h1>Build data/kanji-more.json</h1>
+<p>Joins the breakdowns in <code>tools/kanji-parts.txt</code> with readings and stroke counts from KANJIDIC2
+(<code>.dict/kanjidic2-en-3.6.2.json</code>). Readings the app's words use are always kept; otherwise the first two of each kind.</p>
+<div id="out">Loading…</div>
+<script type="module">
+import { mergeCourse, UNIT_FILES } from '../js/course.js';
+import { matchReading } from '../js/readings.js';
+import { toHiragana } from '../js/romaji.js';
+
+const out = document.getElementById('out');
+const get = (p) => fetch(p, { cache: 'no-store' }).then((r) => { if (!r.ok) throw new Error(`${p}: ${r.status}`); return r; });
+try {
+  const [src, kd, kanji, vocab, glossary, bank, talk, ...units] = await Promise.all([
+    get('kanji-parts.txt').then((r) => r.text()), get('../.dict/kanjidic2-en-3.6.2.json').then((r) => r.json()),
+    ...['kanji-n5', 'vocab-n5', 'glossary', 'particle-bank', 'talk'].map((f) => get(`../data/${f}.json`).then((r) => r.json())),
+    ...UNIT_FILES.map((f) => get(`../data/course/${f}.json`).then((r) => r.json())),
+  ]);
+  const data = { kanji, vocab, glossary, bank, sentences: [], particles: {}, papers: [] };
+  mergeCourse(data, units);
+  // Every word with a reading, from every source the app shows.
+  const readings = new Map();
+  const note = (w, y) => { if (w && y && !readings.has(w)) readings.set(w, y); };
+  data.vocab.forEach((v) => note(v.w, v.y));
+  Object.entries(data.glossary).forEach(([w, g]) => note(w, g.y));
+  Object.entries(bank.lex).forEach(([w, [y]]) => note(w, y));
+  Object.entries(talk.lex).forEach(([w, [y]]) => note(w, y));
+
+  const kmap = new Map(kd.characters.map((c) => [c.literal, c]));
+  const have = new Set(kanji.map((k) => k.k));
+  const problems = [];
+  const built = [];
+  for (const line of src.split(/\r?\n/)) {
+    if (!line.trim() || line.startsWith('#')) continue;
+    const [k, mean, ...parts] = line.split('|');
+    const e = kmap.get(k);
+    if (!e) { problems.push(`${k}: not in KANJIDIC2`); continue; }
+    if (have.has(k)) { problems.push(`${k}: already in kanji-n5.json`); continue; }
+    const groups = e.readingMeaning?.groups ?? [];
+    const all = groups.flatMap((g) => g.readings);
+    const on = all.filter((r) => r.type === 'ja_on' && !r.value.includes('-')).map((r) => r.value);
+    const kun = all.filter((r) => r.type === 'ja_kun' && !/^-|-$/.test(r.value)).map((r) => r.value.replace('.', '-'));
+    // Keep the readings the app's words actually use, then top up to two of each.
+    const used = new Set();
+    const words = [...readings].filter(([w]) => w.includes(k));
+    for (const [w, y] of words) {
+      const hit = matchReading({ k, on, kun }, { w }, y);
+      if (!hit) continue;
+      const list = hit.type === 'on' ? on : kun;
+      const r = list.find((x) => toHiragana(x.split('-')[0]) === hit.reading);
+      if (r) used.add(r);
+    }
+    const keep = (list) => list.filter((r, i) => used.has(r) || i < 2);
+    // Example words: course vocabulary first, then any other word the app glosses.
+    const inVocab = new Set(data.vocab.map((v) => v.w));
+    const vocabWords = words.map(([w]) => w).filter((w) => !/[ 　]/.test(w))
+      .sort((a, b) => (inVocab.has(b) - inVocab.has(a)) || a.length - b.length).slice(0, 3);
+    built.push({
+      k, on: keep(on), kun: keep(kun), mean: mean.split(',').map((m) => m.trim()), strokes: e.misc.strokeCounts[0], words: vocabWords,
+      parts: parts.map((p) => { const [c, label, ...mn] = p.split(':'); return { c, label, mn: mn.join(':') }; }),
+    });
+  }
+  // Kanji the app's words use that still have no breakdown.
+  const covered = new Set([...have, ...built.map((b) => b.k)]);
+  const missing = [...new Set([...readings.keys()].join('').match(/[一-龯]/g))].filter((c) => !covered.has(c));
+  if (missing.length) problems.push(`No breakdown yet: ${missing.join(' ')}`);
+  const text = `[\n${built.map((b) => JSON.stringify(b)).join(',\n')}\n]\n`;
+  const save = await fetch('save-kanji-more', { method: 'POST', body: text }).catch(() => null);
+  window.__built = built;
+  out.innerHTML = `<p>${built.length} kanji built. ${save?.status === 204 ? 'Saved data/kanji-more.json.' : "Couldn't save: run tools/serve.ps1."}</p>`
+    + `<h2>Problems (${problems.length})</h2><ul>${problems.map((p) => `<li>${p}</li>`).join('')}</ul>`;
+  window.__problems = problems;
+} catch (err) {
+  out.textContent = err.message;
+  window.__problems = [err.message];
+}
+</script>
+</body>
+</html>

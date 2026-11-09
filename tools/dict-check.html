@@ -62,10 +62,11 @@ const overlaps = (mine, theirs) => {
 
 try {
   const [jm, kd] = await Promise.all([dictFile('jmdict-eng').then(get), dictFile('kanjidic2-en').then(get)]);
-  const [kanji, vocab, glossary, bank, talk, ...unitFiles] = await Promise.all([
-    get('../data/kanji-n5.json'), get('../data/vocab-n5.json'), get('../data/glossary.json'), get('../data/particle-bank.json'), get('../data/talk.json'),
+  const [kanjiN5, more, vocab, glossary, bank, talk, ...unitFiles] = await Promise.all([
+    get('../data/kanji-n5.json'), get('../data/kanji-more.json').catch(() => []), get('../data/vocab-n5.json'), get('../data/glossary.json'), get('../data/particle-bank.json'), get('../data/talk.json'),
     ...UNIT_FILES.map((f) => get(`../data/course/${f}.json`)),
   ]);
+  const kanji = [...kanjiN5, ...more];
 
   // Dictionary text (kanji or kana spelling) → readings and glosses.
   const dict = new Map();

@@ -5,7 +5,7 @@ import { icons } from './icons.js';
 
 export function renderListen(root, sentence, { glossary, others = [], review = false, onDone }) {
   const words = sentence.blocks.map((b) => b.t);
-  const text = words.join('');
+  const text = words.join(' ');
   let rate = NORMAL;
   const options = shuffled([sentence.en, ...shuffled(others.filter((en) => en !== sentence.en)).slice(0, 2)]);
 

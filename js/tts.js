@@ -44,9 +44,16 @@ export function speechText(text, glossary = readings) {
       }
       if (hit) { out += hit[0]; i += hit[1]; } else { out += chunk[i]; i++; }
     }
-    return out;
+    // Half-respelled words read wrong (月 alone is つき, so 七月 became 七つき).
+    // If any kanji is left, the voice gets the whole word as written instead.
+    return HAS_KANJI.test(out) ? chunk : out;
   };
-  return String(text).split(/\s+/).map((w) => say(w) || (HAS_KANJI.test(w) ? respell(w) : w)).join('');
+  const tokens = String(text).split(/\s+/);
+  return tokens.map((w, i) => {
+    // 何 is なん before d, t and n sounds (何 です, 何 の), and なに elsewhere.
+    if (w === '何' && /^[でだどとのなね]/.test(tokens[i + 1] || '')) return 'なん';
+    return say(w) || (HAS_KANJI.test(w) ? respell(w) : w);
+  }).join('');
 }
 
 // Any new playback ends a running dialogue.
@@ -54,17 +61,28 @@ let playback = 0;
 
 const englishVoice = () => window.speechSynthesis.getVoices().find((v) => /^en[-_]/i.test(v.lang)) || null;
 
-function utter(text, { rate = NORMAL, pitch = 1, onend, english = false } = {}) {
+// Stops anything already speaking. iPhone Safari can drop an utterance queued
+// straight after cancel() on an idle voice, so only cancel when there is something to stop.
+function hush() {
   const synth = window.speechSynthesis;
-  synth.cancel();
+  if (synth.speaking || synth.pending) synth.cancel();
+}
+
+function utterance(text, { rate = NORMAL, pitch = 1, english = false } = {}) {
   const u = new SpeechSynthesisUtterance(english ? text : speechText(text));
   u.lang = english ? 'en-US' : 'ja-JP';
   u.rate = english ? 1 : rate;
   u.pitch = pitch;
   const voice = english ? englishVoice() : japaneseVoice();
   if (voice) u.voice = voice;
+  return u;
+}
+
+function utter(text, { onend, ...options } = {}) {
+  hush();
+  const u = utterance(text, options);
   if (onend) { u.onend = onend; u.onerror = onend; }
-  synth.speak(u);
+  window.speechSynthesis.speak(u);
 }
 
 export function speak(text, options) {
@@ -74,20 +92,27 @@ export function speak(text, options) {
   return true;
 }
 
+export const linePitch = (s) => (['B', 'M'].includes(s) ? 0.8 : 1.15);
+
 // Plays lines in turn: [{ s: 'A' | 'B' | 'F' | 'M', t }]. There is only one device
-// voice, so a lower pitch tells the second speaker apart.
-export function speakLines(lines, { rate = NORMAL, onend } = {}) {
+// voice, so a lower pitch tells the second speaker apart. Every line is queued at once:
+// starting each line from the last one's end let iPhone drop lines.
+// onLine(i) runs as each line starts, so the text can follow along.
+export function speakLines(lines, { rate = NORMAL, onend, onLine } = {}) {
   if (!supported()) return false;
   const id = ++playback;
-  let i = 0;
-  const next = () => {
-    if (id !== playback) return;
-    if (i >= lines.length) { onend?.(); return; }
-    const line = lines[i++];
+  hush();
+  lines.forEach((line, i) => {
     // Spaces mark word edges in the data; speechText uses them and drops them.
-    utter(line.t, { rate, pitch: ['B', 'M'].includes(line.s) ? 0.8 : 1.15, onend: next });
-  };
-  next();
+    const u = utterance(line.t, { rate, pitch: linePitch(line.s) });
+    u.onstart = () => { if (id === playback) onLine?.(i); };
+    if (i === lines.length - 1) {
+      const done = () => { if (id === playback) { onLine?.(-1); onend?.(); } };
+      u.onend = done;
+      u.onerror = done;
+    }
+    window.speechSynthesis.speak(u);
+  });
   return true;
 }
 

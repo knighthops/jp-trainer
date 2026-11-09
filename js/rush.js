@@ -1,62 +1,107 @@
-// Kanji Rush: as many kanji meanings as you can in 60 seconds. A miss costs 2 seconds.
+// Kanji Rush: as many kanji as you can before the clock runs out. Pick each one's
+// meaning, or its reading in kana. A miss costs time unless that's turned off.
 // Free play: it never touches the review schedule.
 import { shuffled } from './drills.js';
+import { romaji, toHiragana } from './romaji.js';
 
 export const RUSH_MS = 60000;
 export const PENALTY_MS = 2000;
+export const TIMES = [30, 60, 90, 120, 0]; // 0: no clock, play until you stop.
+export const MODES = [['meaning', 'Meaning'], ['reading', 'Reading']];
 
-// Four options: the right meaning and three others that don't share it.
-export function rushQuestion(pool, all, rng = Math.random, last = null) {
+// A kanji's readings as they are spoken: たか-い is たかい.
+const readingsOf = (k) => [...k.on, ...k.kun].map((r) => r.replace(/-/g, ''));
+// The reading asked for: the first on reading (as used in compounds), else the first kun.
+const mainReading = (k) => readingsOf(k)[0];
+
+// Four options: the right answer and three that aren't answers for this kanji.
+// In reading mode, wrong readings come from the same kind (on or kun) where possible.
+export function rushQuestion(pool, all, rng = Math.random, last = null, mode = 'meaning') {
   const choices = pool.length > 1 ? pool.filter((k) => k !== last) : pool;
   const k = choices[Math.floor(rng() * choices.length)];
+  if (mode === 'reading') {
+    const right = mainReading(k);
+    const own = new Set(readingsOf(k).map(toHiragana));
+    const isOn = /[ァ-ヶ]/.test(right);
+    const others = shuffled(all.filter((x) => x !== k), rng)
+      .flatMap((x) => (isOn ? x.on : x.kun.map((r) => r.replace(/-/g, ''))).slice(0, 1))
+      .filter((r, i, a) => r && !own.has(toHiragana(r)) && a.indexOf(r) === i).slice(0, 3);
+    return { k, right, options: shuffled([right, ...others], rng) };
+  }
   const right = k.mean[0];
   const others = shuffled(all.filter((x) => x !== k && !k.mean.includes(x.mean[0])), rng)
     .map((x) => x.mean[0]).filter((m, i, a) => a.indexOf(m) === i).slice(0, 3);
   return { k, right, options: shuffled([right, ...others], rng) };
 }
 
-// ctx: { view, setTop, pool, all, best, onBest(score), onExit }
+// The key a best score is kept under: each mode and clock has its own record.
+export const bestKey = ({ mode, secs, penalty }) => `${mode}-${secs}${penalty ? '' : '-free'}`;
+
+const optHtml = (o, mode) => (mode === 'reading'
+  ? `<button class="opt kana" data-o="${o}"><span class="jp">${o}</span><small>${romaji(o)}</small></button>`
+  : `<button class="opt" data-o="${o}">${o}</button>`);
+
+// ctx: { view, setTop, pool, all, settings, saveSettings(s), best(key), onBest(key, score), onExit }
 export function startRush(ctx) {
   const { view, setTop } = ctx;
+  const opts = { mode: 'meaning', secs: 60, penalty: true, ...ctx.settings };
   let timer = null;
 
   function intro() {
     setTop('Kanji Rush', { close: true, onClose: ctx.onExit });
+    const seg = (key, list) => `<div class="seg" data-key="${key}">${list.map(([v, text]) => `<button class="${opts[key] === v ? 'on' : ''}" data-v='${JSON.stringify(v)}'>${text}</button>`).join('')}</div>`;
     view.innerHTML = `
       <section class="card hero rush-hero">
         <span class="water" aria-hidden="true">速</span>
-        <span class="caps">60 seconds</span>
+        <span class="caps">${opts.secs ? `${opts.secs} seconds` : 'No clock'}</span>
         <h2>Kanji Rush</h2>
-        <p class="sub">Pick each kanji's meaning as fast as you can. A miss costs 2 seconds. ${ctx.pool.length} kanji in play.</p>
+        <p class="sub">${opts.mode === 'reading' ? 'Pick each kanji\'s reading in kana' : 'Pick each kanji\'s meaning'} as fast as you can.${opts.penalty && opts.secs ? ` A miss costs ${PENALTY_MS / 1000} seconds.` : ''} ${ctx.pool.length} kanji in play.</p>
         <button class="btn" id="go">Start</button>
       </section>
-      <p class="small muted center">Best: <strong class="num">${ctx.best()}</strong></p>`;
+      <section class="card rush-set">
+        <strong>Answer with</strong>${seg('mode', MODES)}
+        <strong>Time</strong>${seg('secs', TIMES.map((s) => [s, s ? `${s}s` : 'Off']))}
+        ${opts.secs ? `<strong>Penalty for a miss</strong>${seg('penalty', [[true, `−${PENALTY_MS / 1000}s`], [false, 'None']])}` : ''}
+      </section>
+      <p class="small muted center">Best at these settings: <strong class="num">${ctx.best(bestKey(opts))}</strong></p>`;
     view.querySelector('#go').onclick = play;
+    view.querySelector('.rush-set').onclick = (e) => {
+      const b = e.target.closest('.seg button');
+      if (!b) return;
+      opts[b.parentElement.dataset.key] = JSON.parse(b.dataset.v);
+      ctx.saveSettings({ ...opts });
+      intro();
+    };
   }
 
   function play() {
-    const end = { at: Date.now() + RUSH_MS };
+    const total = opts.secs * 1000;
+    const end = { at: Date.now() + total };
     let score = 0;
+    let tries = 0;
     let combo = 0;
     let q = null;
     const misses = [];
-    setTop('Kanji Rush', { close: true, onClose: () => { clearInterval(timer); ctx.onExit(); } });
+    const stop = () => { clearInterval(timer); finish(score, tries, misses); };
+    setTop('Kanji Rush', { close: true, confirm: true, onClose: () => { clearInterval(timer); ctx.onExit(); } });
     view.innerHTML = `
-      <div class="rush-bar"><i id="rbar"></i></div>
-      <div class="rush-stats"><span><b class="num" id="rscore">0</b> right</span><span id="rcombo" class="muted"></span><span class="num" id="rtime">60</span></div>
+      ${total ? '<div class="rush-bar"><i id="rbar"></i></div>' : ''}
+      <div class="rush-stats"><span><b class="num" id="rscore">0</b> right</span><span id="rcombo" class="muted"></span>
+        ${total ? `<span class="num" id="rtime">${opts.secs}</span>` : '<button class="chip" id="rstop">Finish</button>'}</div>
       <section class="card rush-card"><div class="rush-k jp" id="rk"></div></section>
-      <div class="opts long rush-opts" id="ropts"></div>`;
+      <div class="opts long rush-opts ${opts.mode}" id="ropts"></div>`;
     const el = (id) => view.querySelector(`#${id}`);
     const ask = () => {
-      q = rushQuestion(ctx.pool, ctx.all, Math.random, q?.k);
+      q = rushQuestion(ctx.pool, ctx.all, Math.random, q?.k, opts.mode);
       el('rk').textContent = q.k.k;
-      el('ropts').innerHTML = q.options.map((o) => `<button class="opt" data-o="${o}">${o}</button>`).join('');
+      el('ropts').innerHTML = q.options.map((o) => optHtml(o, opts.mode)).join('');
     };
     const tick = () => {
+      if (!total) return;
       const left = Math.max(0, end.at - Date.now());
-      el('rbar').style.width = `${(left / RUSH_MS) * 100}%`;
+      el('rbar').style.width = `${(left / total) * 100}%`;
       el('rtime').textContent = Math.ceil(left / 1000);
-      if (!left) finish(score, misses);
+      if (!left) stop();
     };
     el('ropts').onclick = (e) => {
       const b = e.target.closest('[data-o]');
@@ -64,13 +109,14 @@ export function startRush(ctx) {
       const card = el('rk').parentElement;
       card.classList.remove('hit', 'miss');
       void card.offsetWidth;
+      tries++;
       if (b.dataset.o === q.right) {
         score++;
         combo++;
         card.classList.add('hit');
       } else {
         combo = 0;
-        end.at -= PENALTY_MS;
+        if (opts.penalty) end.at -= PENALTY_MS;
         card.classList.add('miss');
         if (!misses.includes(q.k)) misses.push(q.k);
       }
@@ -79,28 +125,34 @@ export function startRush(ctx) {
       ask();
       tick();
     };
+    el('rstop')?.addEventListener('click', stop);
     ask();
-    timer = setInterval(tick, 100);
+    if (total) timer = setInterval(tick, 100);
     tick();
   }
 
-  function finish(score, misses) {
+  function finish(score, tries, misses) {
     clearInterval(timer);
-    const before = ctx.best();
-    const record = score > before;
-    if (record) ctx.onBest(score);
+    const key = bestKey(opts);
+    const before = ctx.best(key);
+    // With no clock, the score is how many you got right, so a record means little: just show it.
+    const record = opts.secs > 0 && score > before;
+    if (record) ctx.onBest(key, score);
+    const answer = (k) => (opts.mode === 'reading'
+      ? readingsOf(k).slice(0, 3).map((r) => `<span class="jp">${r}</span> ${romaji(r)}`).join(', ')
+      : k.mean.slice(0, 2).join(', '));
     setTop('Kanji Rush', { close: true, onClose: ctx.onExit });
     view.innerHTML = `
       <section class="card done-hero">
-        <span class="caps">${record ? 'New best' : 'Time'}</span>
+        <span class="caps">${record ? 'New best' : opts.secs ? 'Time' : 'Finished'}</span>
         <div class="rush-score num">${score}</div>
-        <p class="small muted">${record ? (before ? `Up from ${before}` : 'Your first score') : `Best ${before}`}</p>
+        <p class="small muted">${opts.secs ? (record ? (before ? `Up from ${before}` : 'Your first score') : `Best ${before}`) : `${score} of ${tries} right`}</p>
       </section>
       ${misses.length ? `<div class="caps sect"><span>Missed</span></div>
-        <section class="card">${misses.map((k) => `<div class="row"><b class="jp rush-mk">${k.k}</b><span class="grow">${k.mean.slice(0, 2).join(', ')}</span></div>`).join('')}</section>` : ''}
-      <div class="dock stack"><button class="btn" id="again">Play again</button><button class="btn ghost" id="done">Done</button></div>`;
+        <section class="card">${misses.map((k) => `<div class="row"><b class="jp rush-mk">${k.k}</b><span class="grow">${answer(k)}</span></div>`).join('')}</section>` : ''}
+      <div class="dock stack"><button class="btn" id="again">Play again</button><button class="btn ghost" id="done">Change settings</button></div>`;
     view.querySelector('#again').onclick = play;
-    view.querySelector('#done').onclick = ctx.onExit;
+    view.querySelector('#done').onclick = intro;
   }
 
   intro();

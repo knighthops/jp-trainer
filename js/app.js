@@ -3,10 +3,14 @@ import { load, save, dayStats, daysStudied, dayKey, backupJson, parseBackup } fr
 import { renderListen } from './listen.js';
 import { speak, speakLines, speakStep, cancel, sayBtn, setReadings, unlockSpeech, NORMAL, SLOW } from './tts.js';
 import { radioChannels, startRadio } from './radio.js';
-import { startRush } from './rush.js';
-import { GRADES, newRecord, rate, label, STAGES, stageOf, STRONG } from './srs.js';
+import { startRush, bestKey as rushKey } from './rush.js';
+import {
+  GRADES, GRADE_NAMES, GRADE_HELP, TROUBLE, newRecord, rate, label, STAGES, stageOf, STRONG,
+} from './srs.js';
 import { reviewSteps, kanjiId } from './session.js';
-import { renderSentence, renderParticle, renderCheck, particleCardHtml, bindGloss, glossHtml, glossText, romajiLine, shuffled } from './drills.js';
+import {
+  renderSentence, renderParticle, renderCheck, particleCardHtml, bindGloss, glossHtml, glossText, romajiLine, shuffled, setKanji, partsHtml, wordKanjiHtml, kanjiOf, kanjiIn,
+} from './drills.js';
 import {
   UNIT_FILES, mergeCourse, isUnlocked, unitProgress, nextUp, examUnlocked, lessonSteps, words as splitWords,
   LEVELS, levelSentences, levelProgress, levelUnlocked, particleItem, courseSteps, rankOf, unitStrength, unitStars, grammarId,
@@ -20,6 +24,7 @@ import { currentUser, logOut } from './lock.js';
 const view = document.getElementById('view');
 const top = document.getElementById('top');
 const tabbar = document.getElementById('tabbar');
+const runbar = document.getElementById('runbar');
 const state = load();
 let data = null;
 let run = null;
@@ -42,15 +47,50 @@ function animate() {
   view.classList.add('anim');
 }
 
-function setTop(title, { close = false, onClose = endRun, onPrev = null, count = '', progress = null } = {}) {
-  top.innerHTML = `<div class="top-in">
-      ${close ? `<button class="hbtn" id="close" aria-label="Exit">${icons.close}</button>` : '<span class="mark" aria-hidden="true">学</span>'}
-      ${onPrev ? `<button class="hprev" id="hprev">${icons.back}<span>Previous</span></button>` : ''}
-      <h1>${onPrev ? '' : title}</h1><span class="count">${count}</span>
-      ${close || count ? '' : `<a class="hbtn gear" href="#/settings" aria-label="Settings">${icons.gear}</a>`}</div>
+// The edge-swipe target for the current screen: Previous in a run, Back on a sub-screen.
+let swipeBack = null;
+
+// Sessions (lessons, reviews, drills, Rush, Radio, exams) put Exit, Previous and the count
+// in a bar at the bottom, in thumb reach. Sub-screens (`back`) keep the tab bar and a back
+// arrow at the top. `jump` turns the count into "Back to N" after Previous.
+// `confirm` asks for a second tap on Exit, so a stray thumb doesn't end a session.
+function setTop(title, {
+  close = false, onClose = endRun, onPrev = null, count = '', progress = null, back = false, jump = null, confirm = false,
+} = {}) {
+  const barred = close && !back;
+  document.body.classList.toggle('has-runbar', barred);
+  runbar.hidden = !barred;
+  swipeBack = onPrev || (back ? onClose : null);
+  if (!barred) {
+    top.innerHTML = `<div class="top-in">
+        ${close ? `<button class="hbtn" id="close" aria-label="Back">${icons.back}</button>` : '<span class="mark" aria-hidden="true">学</span>'}
+        <h1>${title}</h1>
+        ${close ? '' : `<a class="hbtn gear" href="#/settings" aria-label="Settings">${icons.gear}</a>`}</div>`;
+    if (close) top.querySelector('#close').onclick = onClose;
+    runbar.innerHTML = '';
+    return;
+  }
+  top.innerHTML = `<div class="top-in slim"><h1>${title}</h1></div>
     ${progress === null ? '' : `<div class="progress"><i style="width:${progress}%"></i></div>`}`;
-  if (close) top.querySelector('#close').onclick = onClose;
-  if (onPrev) top.querySelector('#hprev').onclick = onPrev;
+  runbar.innerHTML = `
+    <button id="rbexit"><span class="rbi">${icons.close}</span><span class="rbl">Exit</span></button>
+    <button id="rbprev" ${onPrev ? '' : 'disabled'}><span class="rbi">${icons.back}</span><span class="rbl">Previous</span></button>
+    ${jump ? `<button id="rbjump" class="jump"><span class="rbi">${icons.next}</span><span class="rbl">${jump.label}</span></button>`
+    : `<span class="rbcount"><b class="count">${count}</b></span>`}`;
+  const exit = runbar.querySelector('#rbexit');
+  let armed = null;
+  exit.onclick = () => {
+    if (!confirm || armed) { clearTimeout(armed); onClose(); return; }
+    exit.classList.add('armed');
+    exit.querySelector('.rbl').textContent = 'Tap to exit';
+    armed = setTimeout(() => {
+      armed = null;
+      exit.classList.remove('armed');
+      exit.querySelector('.rbl').textContent = 'Exit';
+    }, 2500);
+  };
+  if (onPrev) runbar.querySelector('#rbprev').onclick = onPrev;
+  if (jump) runbar.querySelector('#rbjump').onclick = jump.go;
 }
 
 /* ---------- Home ---------- */
@@ -180,17 +220,42 @@ function heatmap(now = Date.now()) {
   </section>`;
 }
 
-// Home: the course and the kanji of the day, nothing else.
+// Kanji and words you keep forgetting, most-forgotten first.
+function troubleSteps() {
+  const cards = [
+    ...data.kanji.map((x) => ({ type: 'card', kind: 'kanji', id: kanjiId(x), ref: x })),
+    ...data.vocab.map((x) => ({ type: 'card', kind: 'word', id: `w:${x.w}`, ref: x })),
+  ].filter((s) => isTrouble(s.id));
+  return cards.sort((a, b) => state.items[b.id].lapses - state.items[a.id].lapses);
+}
+
+function troubleCard() {
+  const list = troubleSteps();
+  if (!list.length) return '';
+  return `<button class="card kod trouble" id="trouble" aria-label="Drill your trouble list">
+    <span class="kod-glyph jp" aria-hidden="true">${list.slice(0, 3).map((s) => (s.kind === 'kanji' ? s.ref.k : s.ref.w[0])).join('')}</span>
+    <span class="kod-info">
+      <span class="caps">Trouble list · ${list.length}</span>
+      <strong>Forgotten ${TROUBLE}+ times</strong>
+      <span class="small muted">Relearn each one from its breakdown</span>
+    </span>
+    <span class="chev">${icons.chevron}</span>
+  </button>`;
+}
+
+// Home: the course and the kanji of the day, plus anything you keep forgetting.
 function screenToday() {
   setTop('JP Trainer');
   const next = nextUp(state, data.units);
   view.innerHTML = `
     ${courseCard(next)}
     ${kanjiOfTheDay()}
+    ${troubleCard()}
     ${backupDue() ? `<a class="nudge" href="#/settings">${icons.download}<span class="grow">Back up your progress. Safari can clear saved data.</span><span class="chev">${icons.chevron}</span></a>` : ''}`;
   view.querySelector('#cont')?.addEventListener('click', () => nextAction(next).go());
   view.querySelector('#revonly')?.addEventListener('click', startReviews);
   view.querySelector('#kodopen').onclick = () => startRun(kanjiDeck(), 'Kanji', { useSrs: true });
+  view.querySelector('#trouble')?.addEventListener('click', () => startRun(troubleSteps(), 'Trouble list', { useSrs: true }));
 }
 
 /* ---------- Listen: Radio, the listening quiz and Talk phrases ---------- */
@@ -234,7 +299,7 @@ function bindPhrases(root, list) {
       art.querySelector('.gloss').innerHTML = glossText(word.dataset.word, data.glossary[word.dataset.word]);
       return;
     }
-    if (e.target.closest('[data-play]')) speak(p.t.replace(/ /g, ''), { rate: talkRate });
+    if (e.target.closest('[data-play]')) speak(p.t, { rate: talkRate });
     if (e.target.closest('[data-show]')) {
       const open = art.classList.toggle('open');
       art.querySelector('[data-show]').textContent = open ? 'Hide' : 'Show';
@@ -462,12 +527,18 @@ function renderStep() {
     state.course.current.i = run.i;
     save(state);
   }
+  // After Previous, the count turns into a jump straight back to where you left off.
+  run.max = Math.max(run.max ?? 0, run.i);
+  const behind = run.i < run.max;
   setTop(run.title, {
     close: true,
     onClose: closeRun,
     onPrev: run.i > 0 ? goPrevious : null,
     count: run.more ? `${run.clean} / ${run.drills} right` : `${run.i + 1} / ${run.steps.length}`,
     progress: run.more ? null : (run.i / run.steps.length) * 100,
+    jump: behind ? { label: `Back to ${run.max + 1}`, go: () => { run.i = run.max; renderStep(); } } : null,
+    // A session with answers to lose asks before it closes. Browsing just closes.
+    confirm: !run.browse && run.i > 0,
   });
   view.innerHTML = '';
   // Steps reached with Previous show the answer and don't count again.
@@ -568,13 +639,17 @@ function wordRow(k, w) {
       ${sayBtn(w.y)}</div>`;
 }
 
+// A word for a kanji card: from the vocabulary, or any word the app glosses.
+const wordEntry = (w) => data.vocab.find((v) => v.w === w) || (data.glossary[w] ? { w, y: data.glossary[w].y, m: data.glossary[w].m } : null);
+
+// Breakdown first: the parts are what make a kanji stick.
 function kanjiFacts(k) {
-  const words = k.words.map((w) => data.vocab.find((v) => v.w === w)).filter(Boolean);
+  const words = k.words.map(wordEntry).filter(Boolean);
   return `<div>
       <p class="mean">${k.mean.join(', ')}</p>
       <p class="meta">${k.strokes} ${k.strokes === 1 ? 'stroke' : 'strokes'}</p>
     </div>
-    ${words.length ? `<div class="block-sec"><span class="caps">In words</span>${words.map((w) => wordRow(k, w)).join('')}</div>` : ''}
+    <div class="block-sec"><span class="caps">Breakdown</span>${partsHtml(k)}</div>
     <div class="block-sec">
       <div class="sechead"><span class="caps">All readings</span>
         <button class="info" data-info aria-label="What are On and Kun?" aria-expanded="false">${icons.info}</button></div>
@@ -584,17 +659,17 @@ function kanjiFacts(k) {
         <div class="read"><span class="caps">Kun</span>${readingLines(k.kun)}</div>
       </div>
     </div>
-    <div class="block-sec"><span class="caps">Breakdown</span>${k.parts.map((p) => `<div class="part">
-      ${p.img ? `<img src="${p.img}" alt="${p.label}">` : `<span class="pg">${p.c}</span>`}
-      <div><strong>${p.label}</strong><div class="small">${p.mn}</div></div></div>`).join('')}</div>`;
+    ${words.length ? `<div class="block-sec"><span class="caps">In words</span>${words.map((w) => wordRow(k, w)).join('')}</div>` : ''}`;
 }
 
+// A word card's answer, then each of its kanji with the breakdown.
 const wordFacts = (w) => `<div>
     <p class="mean">${w.m}</p>
     <p class="meta jp" style="font-size:18px">${w.y}</p>
     <p class="meta">${romaji(w.y)}</p>
     <div class="center">${sayBtn(w.y)}</div>
-  </div>`;
+  </div>
+  ${wordKanjiHtml(w.w, w.y)}`;
 
 const factsHtml = (step) => (step.kind === 'kanji' ? kanjiFacts(step.ref) : wordFacts(step.ref));
 
@@ -606,7 +681,7 @@ const stageChip = (rec) => {
 
 const headHtml = (title, step) => `<div class="study-head"><span class="caps">${title}</span>
   <span class="head-tags">${state.items[step.id] && !run?.browse ? stageChip(state.items[step.id]) : ''}
-  ${step.kind === 'kanji' ? `<span class="tag">N${step.ref.jlpt}</span>` : '<span class="tag">Word</span>'}</span></div>`;
+  ${step.kind === 'kanji' ? `<span class="tag">${step.ref.jlpt ? `N${step.ref.jlpt}` : 'Kanji'}</span>` : '<span class="tag">Word</span>'}</span></div>`;
 
 function renderLearn(step) {
   const title = run.browse ? 'Kanji' : `New ${step.kind === 'kanji' ? 'kanji' : 'word'}`;
@@ -639,7 +714,7 @@ function rateButtons(step, grades = GRADES) {
   const rec = state.items[step.id] || newRecord();
   const act = view.querySelector('#act');
   act.innerHTML = `<div class="rate ${grades.length < 4 ? 'three' : ''}">${grades.map((g) => `<button class="${g}" data-g="${g}">
-    ${g[0].toUpperCase() + g.slice(1)}<small>${label(rec, g)}</small></button>`).join('')}</div>`;
+    ${GRADE_NAMES[g]}<small>${label(rec, g)}</small></button>`).join('')}</div>`;
   act.onclick = (e) => {
     // Only rating buttons: the click that attached this handler bubbles here too.
     const btn = e.target.closest('[data-g]');
@@ -651,16 +726,35 @@ function finishCard(step, grade) {
   record(step.id, grade);
   run.cards++;
   step.done = true;
-  // "Again" comes back later in this session.
-  if (grade === 'again') run.steps.splice(Math.min(run.i + 4, run.steps.length), 0, { ...step, done: false });
+  // A forgotten card comes back later in this session, opening on its breakdown.
+  if (grade === 'again') run.steps.splice(Math.min(run.i + 4, run.steps.length), 0, { ...step, done: false, relearn: true });
   advance();
 }
 
 function reveal() {
   view.querySelector('#back').hidden = false;
   view.querySelector('#ask').hidden = true;
+  view.querySelector('#hint')?.remove();
   view.querySelector('#studycard').classList.add('revealed');
 }
+
+// Forgotten cards, and trouble items, open on their parts before you try again:
+// relearning through the breakdown, not just seeing the answer once more.
+const isTrouble = (id) => (state.items[id]?.lapses || 0) >= TROUBLE;
+function hintHtml(step) {
+  if (step.done || !(step.relearn || isTrouble(step.id))) return '';
+  const list = step.kind === 'kanji' ? [step.ref] : kanjiIn(step.ref.w);
+  if (!list.length) return '';
+  return `<div class="hintbd" id="hint"><span class="caps">${step.relearn ? 'You forgot this one. Rebuild it from its parts' : 'A tricky one. Start from its parts'}</span>
+    ${list.map((k) => `${list.length > 1 ? `<p class="hint-k jp">${k.k}</p>` : ''}${partsHtml(k)}`).join('')}</div>`;
+}
+
+const RATE_HELP = `<div class="block-sec">
+    <div class="sechead"><span class="caps">How to rate</span>
+      <button class="info" data-info aria-label="What do the ratings mean?" aria-expanded="false">${icons.info}</button></div>
+    <div class="explain small" hidden>${GRADES.map((g) => `<p><b>${GRADE_NAMES[g]}:</b> ${GRADE_HELP[g]}</p>`).join('')}
+      <p>Anything you forget ${TROUBLE} times goes on the Trouble list on Home.</p></div>
+  </div>`;
 
 function renderCard(step) {
   const typed = !step.done && typesReading(step);
@@ -668,12 +762,13 @@ function renderCard(step) {
     : typed ? `Type ${step.kind === 'kanji' ? 'a reading' : 'the reading'} in romaji or kana.` : 'Recall the reading and meaning, then check.';
   view.innerHTML = `<div class="card study" id="studycard">
       ${headHtml(step.label || (step.isNew ? 'Now recall it' : 'Review'), step)}${glyphHtml(step)}
+      ${hintHtml(step)}
       <p class="ask" id="ask">${ask}</p>
       ${typed ? `<form class="type-in" id="typein" autocomplete="off">
         <input id="typed" class="jp" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done" aria-label="Reading">
         <p class="small muted center" id="kana">&nbsp;</p></form>` : ''}
       <div class="fb" id="fb" role="status" hidden></div>
-      <div class="back" id="back" hidden>${factsHtml(step)}</div>
+      <div class="back" id="back" hidden>${factsHtml(step)}${run.useSrs && !step.label ? RATE_HELP : ""}</div>
     </div>
     <div class="dock" id="act">${typed
     ? '<div class="pair"><button class="btn ghost" id="dunno">Show me</button><button class="btn" id="check">Check</button></div>'
@@ -735,7 +830,7 @@ function renderLesson(step) {
       ${l.note.map((p) => `<p>${p}</p>`).join('')}
       <div class="block-sec"><span class="caps">Examples</span>${l.examples.map((e) => `<div class="example">
         <div class="stem jp">${wordLine(e.t)}</div>
-        <p class="romaji">${lineRomaji(e.t)} ${sayBtn(e.t.replace(/\s+/g, ''))}</p>
+        <p class="romaji">${lineRomaji(e.t)} ${sayBtn(e.t)}</p>
         <p class="small muted">${e.en}</p></div>`).join('')}</div>
       ${glossHtml()}
     </div>
@@ -753,15 +848,30 @@ function renderDialogue(step) {
       <p class="small muted">Listen first and see how much you catch. Then read along.</p>
       <button class="btn ghost" id="play">${icons.speaker}<span>Play conversation</span></button>
       <div class="seg mini" id="speed"><button class="on" data-r="${NORMAL}">Normal</button><button data-r="${SLOW}">Slow</button></div>
+      <p class="small muted center" id="nowline" aria-live="polite">&nbsp;</p>
       <button class="btn ghost" id="show">Show the words</button>
-      <div id="lines" hidden>${d.lines.map((l) => `<div class="dline"><span class="who">${l.s}</span><div class="grow">
+      <div id="lines" hidden>${d.lines.map((l, i) => `<div class="dline" data-i="${i}"><span class="who">${l.s}</span><div class="grow">
         <div class="stem jp">${wordLine(l.t)}</div>
-        <p class="romaji">${lineRomaji(l.t)}</p><p class="small muted">${l.en}</p></div></div>`).join('')}
+        <p class="romaji">${lineRomaji(l.t)}</p><p class="small muted">${l.en}</p></div>
+        <button class="say" data-line="${i}" aria-label="Play line ${i + 1}">${icons.speaker}</button></div>`).join('')}
         ${glossHtml()}</div>
     </div>
     <div class="dock"><button class="btn" id="next">Continue</button></div>`;
   bindGloss(view.querySelector('.gloss-zone'), data.glossary);
-  view.querySelector('#play').onclick = () => speakLines(d.lines, { rate });
+  // The line being spoken lights up, and the status says whose turn it is, words shown or not.
+  const rows = view.querySelectorAll('.dline');
+  const nowline = view.querySelector('#nowline');
+  const mark = (i) => {
+    rows.forEach((el, n) => el.classList.toggle('now', n === i));
+    nowline.innerHTML = i < 0 ? '&nbsp;' : `Speaker ${d.lines[i].s} · line ${i + 1} of ${d.lines.length}`;
+  };
+  view.querySelector('#play').onclick = () => speakLines(d.lines, { rate, onLine: mark });
+  view.querySelector('#lines').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-line]');
+    if (!b) return;
+    const i = Number(b.dataset.line);
+    speakLines([d.lines[i]], { rate, onLine: (n) => mark(n < 0 ? -1 : i) });
+  });
   view.querySelector('#speed').onclick = (e) => {
     const b = e.target.closest('[data-r]');
     if (!b) return;
@@ -938,18 +1048,30 @@ function renderSummary() {
 
 /* ---------- Other tabs ---------- */
 
-// Kanji Rush plays the kanji you have met, topped up from your level so there is always a field.
+// Kanji Rush plays the kanji you have met: N5 kanji you've studied or reached in the course,
+// and the other kanji in words from lessons you've finished. Topped up so there's always a field.
 function rushPool() {
   const seen = data.kanji.filter((k) => state.items[kanjiId(k)]);
-  const pool = [...new Set([...seen, ...levelKanji()])];
+  const doneWords = (data.units || []).flatMap((u) => u.lessons.filter((l) => state.course.done[l.id]).flatMap((l) => l.words || []));
+  const fromWords = kanjiIn(doneWords.join('')).filter((k) => !data.kanji.includes(k));
+  const pool = [...new Set([...seen, ...levelKanji(), ...fromWords])];
   return pool.length >= 8 ? pool : [...new Set([...pool, ...data.kanji])].slice(0, 8);
 }
 
+// Best scores are kept per mode and clock. The old single best was for meanings at 60 seconds.
+const rushBest = (key) => state.practice.rushBests?.[key] ?? (key === 'meaning-60' ? state.practice.rushBest || 0 : 0);
+
 function screenRush() {
   screenCleanup = startRush({
-    view, setTop, pool: rushPool(), all: data.kanji,
-    best: () => state.practice.rushBest || 0,
-    onBest: (n) => { state.practice.rushBest = n; save(state); },
+    view, setTop, pool: rushPool(), all: [...data.kanji, ...(data.kanjiMore || [])],
+    settings: state.practice.rush || {},
+    saveSettings: (s) => { state.practice.rush = s; save(state); },
+    best: rushBest,
+    onBest: (key, n) => {
+      (state.practice.rushBests ||= {})[key] = n;
+      if (key === 'meaning-60') state.practice.rushBest = n;
+      save(state);
+    },
     onExit: () => { location.hash = '#/dojo'; },
   });
 }
@@ -957,15 +1079,16 @@ function screenRush() {
 function screenDojo() {
   setTop('Dojo');
   const { cards, sets } = data.particles;
-  const best = state.practice.rushBest || 0;
+  const rush = { mode: 'meaning', secs: 60, penalty: true, ...state.practice.rush };
+  const best = rushBest(rushKey(rush));
   const action = (id, icon, name, sub) => `<button class="action" id="${id}"><span class="icbox">${icon}</span>
     <span class="grow"><strong>${name}</strong><span class="small">${sub}</span></span><span class="chev">${icons.chevron}</span></button>`;
   view.innerHTML = `
     <button class="card hero rush-tile" id="rush">
       <span class="water" aria-hidden="true">速</span>
-      <span class="caps">60 seconds · Best ${best}</span>
+      <span class="caps">${rush.secs ? `${rush.secs} seconds` : 'No clock'} · ${rush.mode === 'reading' ? 'Readings' : 'Meanings'}${best ? ` · Best ${best}` : ''}</span>
       <h2>Kanji Rush</h2>
-      <span class="sub">Match each kanji to its meaning against the clock.</span>
+      <span class="sub">Match kanji to their meanings or readings, fast. Set the clock your way.</span>
     </button>
     ${action('sent', icons.blocks, 'Sentence drill', `${LEVELS.length} levels, from short to long`)}
     ${action('part', icons.practice, 'Particle drill', 'Unlimited, with focus on what you miss')}
@@ -988,7 +1111,7 @@ function screenDojo() {
   };
 }
 
-const backTo = (hash) => ({ close: true, onClose: () => { location.hash = hash; } });
+const backTo = (hash) => ({ close: true, back: true, onClose: () => { location.hash = hash; } });
 
 function screenSentenceLevels() {
   setTop('Sentence drill', backTo('#/dojo'));
@@ -1023,7 +1146,14 @@ function screenSentenceLevels() {
 
 function startParticles(title, choice, lead = []) {
   const stats = state.practice.part;
-  const nextItem = () => ({ type: 'particle', id: 'free', ref: particleItem(data.bank, { ...choice, stats }), set: {} });
+  // The last few sentences sit out, so the same one never comes straight back.
+  const recent = [];
+  const nextItem = () => {
+    const ref = particleItem(data.bank, { ...choice, stats, recent });
+    recent.push(ref.id);
+    if (recent.length > 8) recent.shift();
+    return { type: 'particle', id: 'free', ref, set: {} };
+  };
   startRun(lead, title, {
     more: nextItem,
     onDrill: (step, clean) => {
@@ -1519,6 +1649,17 @@ async function init() {
       info.setAttribute('aria-expanded', String(!text.hidden));
     }
   });
+  // A swipe in from the left edge goes back: Previous in a session, Back on a sub-screen.
+  let swipe = null;
+  document.addEventListener('touchstart', (e) => {
+    const t = e.touches[0];
+    swipe = e.touches.length === 1 && t.clientX < 28 && swipeBack ? { x: t.clientX, y: t.clientY } : null;
+  }, { passive: true });
+  document.addEventListener('touchend', (e) => {
+    const t = e.changedTouches[0];
+    if (swipe && t.clientX - swipe.x > 80 && Math.abs(t.clientY - swipe.y) < 60) swipeBack?.();
+    swipe = null;
+  }, { passive: true });
   setTop('JP Trainer');
   tabbar.innerHTML = TABS.map(([id, text]) => `<a href="#/${id}" data-tab="${id}">${icons[id]}<span>${text}</span></a>`).join('');
   try {
@@ -1528,10 +1669,11 @@ async function init() {
       if (!r.ok) throw new Error(`${f}: ${r.status}`);
       return r.json();
     });
-    const [kanji, vocab, sentences, particles, glossary, bank, talk, stories, ...rest] = await Promise.all([
+    const [kanji, vocab, sentences, particles, glossary, bank, talk, stories, kanjiMore, ...rest] = await Promise.all([
       ...['kanji-n5', 'vocab-n5', 'sentences', 'particles', 'glossary', 'particle-bank'].map(get),
       get('talk').catch(() => ({ categories: [], lex: {} })),
       get('stories').catch(() => []),
+      get('kanji-more').catch(() => []),
       ...UNIT_FILES.map((f) => get(`course/${f}`).catch(() => [])),
       ...['exam-n5-1', 'exam-n5-2'].map((f) => get(`course/${f}`).catch(() => null)),
     ]);
@@ -1542,6 +1684,9 @@ async function init() {
     }
     data.talk = talk.categories;
     data.stories = stories;
+    // Every kanji with a breakdown, so word cards and word glosses can show each one.
+    data.kanjiMore = kanjiMore;
+    setKanji([...kanji, ...kanjiMore]);
     setReadings(glossary);
     // Lessons finished before grammar had its own reviews get their grammar item now.
     let added = false;

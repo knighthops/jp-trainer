@@ -17,7 +17,7 @@ window.__assert = {
 const stamp = Date.now();
 const base = `${location.origin}/`;
 const names = ['kanji-n5', 'vocab-n5', 'sentences', 'particles', 'glossary', 'particle-bank', 'course/exam-n5-1', 'course/exam-n5-2',
-  'course/units-01-04', 'course/units-05-08', 'course/units-09-12', 'course/units-13-16', 'course/units-17-20', 'course/units-21-24', 'dict-check', 'talk', 'stories'];
+  'course/units-01-04', 'course/units-05-08', 'course/units-09-12', 'course/units-13-16', 'course/units-17-20', 'course/units-21-24', 'dict-check', 'talk', 'stories', 'kanji-more'];
 const files = {};
 await Promise.all(names.map(async (f) => {
   const r = await fetch(`${base}data/${f}.json?${stamp}`);

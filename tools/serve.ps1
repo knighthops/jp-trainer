@@ -3,7 +3,7 @@
 param([int]$Port = 8123)
 $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $types = @{
-  '.html' = 'text/html; charset=utf-8'; '.css' = 'text/css; charset=utf-8'; '.js' = 'text/javascript; charset=utf-8'
+  '.html' = 'text/html; charset=utf-8'; '.txt' = 'text/plain; charset=utf-8'; '.css' = 'text/css; charset=utf-8'; '.js' = 'text/javascript; charset=utf-8'
   '.json' = 'application/json; charset=utf-8'; '.webmanifest' = 'application/manifest+json'; '.png' = 'image/png'
 }
 $listener = New-Object System.Net.HttpListener
@@ -16,16 +16,17 @@ while ($listener.IsListening) {
   if (-not $rel) { $rel = 'index.html' }
   $path = [IO.Path]::GetFullPath((Join-Path $root $rel))
   $res = $ctx.Response
-  # tools/dict-check.html saves its dictionary extract here. Only this page's own
-  # origin may write, and only this one file.
+  # tools/dict-check.html and tools/kanji-more.html save their output here. Only this
+  # server's own origin may write, and only these files.
+  $saves = @{ 'tools/save-dict-check' = 'data/dict-check.json'; 'tools/save-kanji-more' = 'data/kanji-more.json' }
   if ($ctx.Request.HttpMethod -eq 'POST') {
     $sameOrigin = $ctx.Request.Headers['Origin'] -eq "http://localhost:$Port"
-    if ($rel -eq 'tools/save-dict-check' -and $sameOrigin -and $ctx.Request.ContentLength64 -lt 1MB) {
+    if ($saves.ContainsKey($rel) -and $sameOrigin -and $ctx.Request.ContentLength64 -lt 1MB) {
       $reader = New-Object IO.StreamReader($ctx.Request.InputStream, [Text.Encoding]::UTF8)
       $body = $reader.ReadToEnd()
       try {
         $null = $body | ConvertFrom-Json
-        [IO.File]::WriteAllText((Join-Path $root 'data/dict-check.json'), $body, (New-Object Text.UTF8Encoding($false)))
+        [IO.File]::WriteAllText((Join-Path $root $saves[$rel]), $body, (New-Object Text.UTF8Encoding($false)))
         $res.StatusCode = 204
       } catch { $res.StatusCode = 400 }
     } else {

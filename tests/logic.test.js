@@ -476,7 +476,7 @@ test('every word and kanji matches JMdict and KANJIDIC2', () => {
   assert.deepEqual([...new Set(unchecked)], [], 'words not yet checked: run tools/dict-check.html');
 
   const kanjiIssues = [];
-  for (const k of c.kanji) {
+  for (const k of [...c.kanji, ...(optional('kanji-more') || [])]) {
     const d = dict.kanji[k.k];
     if (!d) { kanjiIssues.push(`${k.k} missing`); continue; }
     const [on, kun, strokes] = [d[0].split(' '), d[1].split(' ').map((r) => r.replace(/^-|-$/g, '')), d[2]];
@@ -690,5 +690,75 @@ test('kanji rush asks four different meanings, one of them right', () => {
     assert.equal(q.right, q.k.mean[0]);
     assert.notEqual(q.k, last, 'never the same kanji twice in a row');
     last = q.k;
+  }
+});
+
+// Every line the app speaks, with its kanji turned into kana before the voice sees it.
+// A kanji left over would be guessed by the device voice, which is how audio drifts from the text.
+function spokenLines() {
+  const merged = course();
+  const talk = optional('talk') || { categories: [], lex: {} };
+  for (const [w, [y, m]] of Object.entries(talk.lex || {})) if (!merged.glossary[w]) merged.glossary[w] = { y, m, ro: romaji(y) };
+  const out = [];
+  const add = (where, t) => { if (t) out.push([where, t]); };
+  for (const u of merged.units) {
+    for (const l of u.lessons) {
+      l.examples.forEach((e) => add(`${l.id} example`, e.t));
+      (l.drills || []).forEach((d) => add(`${l.id} drill`, d.b || (d.c && d.c.replace('___', d.a))));
+    }
+    (u.dialogue?.lines || []).forEach((l) => add(`${u.id} dialogue`, l.t));
+  }
+  merged.sentences.forEach((s) => add(`sentence ${s.id}`, s.blocks.map((b) => b.t).join(' ')));
+  for (const c of talk.categories) c.items.forEach((p) => add(`talk ${p.id}`, p.t));
+  for (const s of optional('stories') || []) s.lines.forEach((l) => add(`story ${s.unit}`, l.t));
+  for (const paper of merged.papers) {
+    for (const sec of paper.sections) for (const part of sec.parts) for (const q of part.questions) {
+      (q.play || []).forEach(([, t]) => add(`${paper.id} ${part.id}`, t));
+      if (q.ao) q.o.forEach((o) => add(`${paper.id} ${part.id} option`, o));
+    }
+  }
+  return { lines: out, glossary: merged.glossary };
+}
+
+test('every spoken line reaches the voice as kana, with no kanji left to guess', () => {
+  const { lines, glossary } = spokenLines();
+  assert.ok(lines.length > 500, `only ${lines.length} lines found`);
+  const left = lines.map(([where, t]) => [where, t, speechText(t, glossary)]).filter(([, , s]) => /[一-龯々]/.test(s));
+  assert.equal(left.length, 0, `kanji left for the voice:\n${left.slice(0, 40).map(([w, t, s]) => `${w}: ${t} → ${s}`).join('\n')}`);
+});
+
+test('何 is read なん before で, の and です, and なに elsewhere', () => {
+  const g = { 何: { y: 'なに' } };
+  assert.equal(speechText('これ は 何 です か', g), 'これはなんですか');
+  assert.equal(speechText('何 の 本', { ...g, 本: { y: 'ほん' } }), 'なんのほん');
+  assert.equal(speechText('何 を 食べます か', g), 'なにを食べますか');
+});
+
+test('every kanji in every word the app shows has a breakdown', () => {
+  const c = course();
+  const more = json('kanji-more');
+  const talk = json('talk');
+  const words = [...Object.keys(c.glossary), ...c.vocab.map((v) => v.w), ...Object.keys(talk.lex)];
+  const covered = new Set([...c.kanji, ...more].map((k) => k.k));
+  const missing = [...new Set(words.join('').match(/[一-龯]/g))].filter((k) => !covered.has(k));
+  assert.deepEqual(missing, [], 'add these to tools/kanji-parts.txt and run tools/kanji-more.html');
+  for (const k of more) {
+    assert.ok(k.parts.length && k.parts.every((p) => p.c && p.label && p.mn), `${k.k} breakdown`);
+    assert.ok(k.mean.length && k.strokes > 0, `${k.k} meaning and strokes`);
+  }
+  assert.equal(new Set(more.map((k) => k.k)).size, more.length, 'a kanji is listed twice');
+});
+
+test('every particle pair has at least 12 sentences, and recent ones never come straight back', () => {
+  const { bank } = course();
+  for (const pair of [['は', 'が'], ['に', 'で'], ['を', 'が'], ['と', 'も'], ['から', 'まで'], ['か', 'ね']]) {
+    const n = bank.frames.filter((f) => pair.includes(f.a) && f.w[pair.find((p) => p !== f.a)]).length;
+    assert.ok(n >= 12, `${pair.join('/')} has ${n}`);
+    const recent = [];
+    for (let i = 0; i < 60; i++) {
+      const it = particleItem(bank, { pair, recent });
+      assert.ok(!recent.slice(-5).includes(it.id), `${pair.join('/')} repeated ${it.id}`);
+      recent.push(it.id);
+    }
   }
 });

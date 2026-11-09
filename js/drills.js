@@ -3,6 +3,47 @@
 import { icons } from './icons.js';
 import { sayBtn } from './tts.js';
 import { romaji as kanaToRomaji } from './romaji.js';
+import { matchReading } from './readings.js';
+
+/* ---------- Kanji breakdowns, wherever a word shows up ---------- */
+
+let kanjiIndex = new Map();
+// Every kanji with a breakdown: the N5 set and the rest of the app's words.
+export const setKanji = (list) => { kanjiIndex = new Map(list.map((k) => [k.k, k])); };
+export const kanjiOf = (c) => kanjiIndex.get(c);
+// The kanji in a word, in order, once each.
+export const kanjiIn = (word) => [...new Set([...String(word)])].map((c) => kanjiIndex.get(c)).filter(Boolean);
+
+export const partsHtml = (k) => k.parts.map((p) => `<div class="part">
+    ${p.img ? `<img src="${p.img}" alt="${p.label}">` : `<span class="pg">${p.c}</span>`}
+    <div><strong>${p.label}</strong><div class="small">${p.mn}</div></div></div>`).join('');
+
+// Which reading of k this word uses, as a small On or Kun chip.
+function readingChip(k, w, y) {
+  const hit = y ? matchReading(k, { w }, y) : null;
+  if (!hit) return '<span class="rt">Special reading</span>';
+  return `<span class="rt ${hit.type}">${hit.type === 'on' ? 'On' : 'Kun'} · <span class="jp">${hit.reading}</span> ${kanaToRomaji(hit.reading)}</span>`;
+}
+
+// Each kanji of a word with its full breakdown: for word cards.
+export function wordKanjiHtml(w, y) {
+  const list = kanjiIn(w);
+  if (!list.length) return '';
+  return `<div class="block-sec wk"><span class="caps">${list.length > 1 ? `The ${list.length} kanji in this word` : 'The kanji in this word'}</span>
+    ${list.map((k) => `<div class="wk-one">
+      <div class="wk-head"><span class="wk-g jp">${k.k}</span><span class="grow"><strong>${k.mean.join(', ')}</strong><br>${readingChip(k, w, y)}</span></div>
+      ${partsHtml(k)}</div>`).join('')}</div>`;
+}
+
+// A short breakdown under a tapped word: parts in a row, then the line that ties them together.
+function glossKanji(word, y) {
+  const list = kanjiIn(word);
+  if (!list.length) return '';
+  return `<div class="gk">${list.map((k) => `<div class="gk-one">
+    <div class="gk-top"><b class="jp">${k.k}</b><span>${k.mean[0]}</span>${readingChip(k, word, y)}</div>
+    <div class="gk-parts">${k.parts.map((p) => `<span><b class="jp">${p.c}</b> ${p.label}</span>`).join('<i>+</i>')}</div>
+    <p class="small">${k.parts.at(-1).mn}</p></div>`).join('')}</div>`;
+}
 
 // Alone, these particles need respelling or speech reads は as "ha".
 const PARTICLE_SAY = { は: 'わ', へ: 'え', を: 'お' };
@@ -104,7 +145,7 @@ export function renderSentence(root, sentence, { hints, review = false, onDone }
     fb.className = 'fb';
     if (placed.length === sentence.blocks.length) {
       ans.classList.add('done');
-      ans.insertAdjacentHTML('beforeend', sayBtn(sentence.blocks.map((b) => b.t).join('')));
+      ans.insertAdjacentHTML('beforeend', sayBtn(sentence.blocks.map((b) => b.t).join(' ')));
       fb.className = 'fb good';
       fb.textContent = sentence.note || 'Correct.';
       root.querySelector('#after').innerHTML = '<button class="btn" id="cont">Continue</button>';
@@ -143,7 +184,7 @@ export function tokenize(text, glossary) {
 export function romajiLine(words, glossary, end = '.') {
   const line = words.map((w) => (w === null ? '___' : glossary[w]?.ro ?? kanaToRomaji(w))).join(' ')
     .replace(/ ?。/g, '.').replace(/ ?、/g, ',').replace(/ ?？/g, '?').replace(/ ?！/g, '!')
-    .replace(/\bnani desu/g, 'nan desu') // 何 is read なん before です.
+    .replace(/\bnani (d|t|no|na|ne)/g, 'nan $1') // 何 is read なん before d, t and n sounds, as the voice says it.
     .replace(/([.?!] )(\p{Ll})/gu, (_, gap, c) => gap + c.toUpperCase());
   const closed = /[.?!]$/.test(line) ? '' : end;
   return line[0].toUpperCase() + line.slice(1) + closed;
@@ -155,7 +196,7 @@ export const glossHtml = () => `<div class="gloss" aria-live="polite">${GLOSS_HI
 export function glossText(word, g) {
   if (!g) return word;
   const reading = g.y === word ? '' : ` <span class="jp">${g.y}</span> ·`;
-  return `<span><b class="jp">${word}</b>${reading} ${g.ro} · ${g.m}</span>${sayBtn(spoken(word, g))}`;
+  return `<span><b class="jp">${word}</b>${reading} ${g.ro} · ${g.m}</span>${sayBtn(spoken(word, g))}${glossKanji(word, g.y)}`;
 }
 
 // Tapping a [data-word] inside zone fills the zone's .gloss panel.
@@ -207,7 +248,7 @@ export function renderParticle(root, item, set, cards, { glossary, review = fals
     el.classList.add('right');
     opts.querySelectorAll('.opt').forEach((b) => { b.disabled = true; });
     root.querySelector('#line').innerHTML = line(choice);
-    root.querySelector('#romaji').innerHTML = `${romaji(choice)} ${sayBtn([...before, choice, ...after].join(''))}`;
+    root.querySelector('#romaji').innerHTML = `${romaji(choice)} ${sayBtn([...before, choice, ...after].join(' '))}`;
     const card = cards.find((c) => c.p === choice);
     fb.className = 'fb good';
     if (card) fb.textContent = item.note ? `${card.name}. ${item.note}` : `${card.name}: ${card.fn}`;
@@ -232,7 +273,7 @@ export function renderCheck(root, q, { glossary, review = false, onDone }) {
   const show = (o) => (/[A-Za-z]/.test(o) ? o : o.replace(/ +/g, ''));
   const wordHtml = (w) => (secret(w) ? `<u>${bare(w)}</u>`
     : glossary[w] ? `<button class="word" data-word="${w}">${w}</button>` : `<span>${w}</span>`);
-  const romajiRow = hasSecret ? '' : `<p class="romaji center">${romajiLine(tokens, glossary, '')} ${sayBtn(tokens.join(''))}</p>`;
+  const romajiRow = hasSecret ? '' : `<p class="romaji center">${romajiLine(tokens, glossary, '')} ${sayBtn(tokens.join(' '))}</p>`;
   root.innerHTML = `
     <div class="card gloss-zone">
       <span class="caps">Check</span>
@@ -275,7 +316,7 @@ export function particleCardHtml(c, glossary) {
     <p>${c.fn}</p>
     <div class="exrow">${c.ex.map((b) => `<button class="block ${b.r}" data-word="${b.t}">${b.t}</button>`).join('')}</div>
     <p class="center small muted">${c.en}</p>
-    <p class="romaji center">${romajiLine(c.ex.map((b) => b.t), glossary, end)} ${sayBtn(c.ex.map((b) => b.t).join(''))}</p>
+    <p class="romaji center">${romajiLine(c.ex.map((b) => b.t), glossary, end)} ${sayBtn(c.ex.map((b) => b.t).join(' '))}</p>
     ${glossHtml()}
     <p class="picture">${icons.bulb}<span><b>Picture it:</b> ${c.picture}</span></p>
   </div>`;

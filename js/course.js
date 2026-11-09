@@ -221,11 +221,15 @@ export function levelUnlocked(level, state, data) {
 const fill = (text, picks, field) => text.replace(/\{(\w+)\}/g, (_, key) => picks[key][field]);
 
 // Frames the learner missed most come up more often. `pair` limits the choice to two particles.
-export function particleItem(bank, { focus = null, pair = null, stats = {}, rng = Math.random } = {}) {
-  const pool = bank.frames.filter((f) => {
+// `recent` holds the last frame ids shown: they sit out, so nothing repeats back to back.
+export function particleItem(bank, { focus = null, pair = null, stats = {}, recent = [], rng = Math.random } = {}) {
+  const all = bank.frames.filter((f) => {
     if (pair) return pair.includes(f.a) && f.w[pair.find((p) => p !== f.a)];
     return !focus || f.a === focus;
   });
+  // Keep at least two frames in play, so a small set still varies.
+  const skip = new Set(recent.slice(-Math.max(0, all.length - 2)));
+  const pool = all.filter((f) => !skip.has(f.id));
   const weight = (f) => {
     const s = stats[f.id];
     return 1 + (s ? s.miss * 3 : 2);

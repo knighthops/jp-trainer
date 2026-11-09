@@ -4,6 +4,16 @@ const MIN_EASE = 1.3;
 const RELEARN_MS = 10 * 60 * 1000;
 
 export const GRADES = ['again', 'hard', 'good', 'easy'];
+// What each grade means, in the words on the buttons. The ids stay as they are in saved progress.
+export const GRADE_NAMES = { again: 'Forgot', hard: 'Shaky', good: 'Knew it', easy: 'Instant' };
+export const GRADE_HELP = {
+  again: "Couldn't recall it. It comes back in this session, opens on its breakdown, and is scheduled sooner from now on.",
+  hard: 'Got it, but slowly or half right. A shorter wait than Knew it.',
+  good: 'Recalled it with a little effort. The normal next step.',
+  easy: 'Knew it at a glance. Skips well ahead, so you spend time on what you don\'t know.',
+};
+// Forgotten this many times: a trouble item, listed on Home to drill on its own.
+export const TROUBLE = 3;
 
 export const newRecord = () => ({ ease: 2.5, interval: 0, reps: 0, lapses: 0, due: 0 });
 
@@ -37,7 +47,8 @@ export function rate(rec, grade, now = Date.now()) {
     interval = Math.min(good, Math.max(1, Math.round(rec.interval * 1.2)));
     ease = Math.max(MIN_EASE, ease - 0.15);
   } else if (grade === 'easy') {
-    interval = Math.max(good + 1, Math.round(good * 1.3));
+    // Instant recall earns a real jump, not a day more than Knew it.
+    interval = Math.max(good + 2, Math.round(good * 1.8));
     ease += 0.15;
   }
   return { ease, interval, reps: rec.reps + 1, lapses: rec.lapses, due: dueAfter(interval, now) };
