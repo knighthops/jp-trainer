@@ -3,6 +3,7 @@
 import { speakStep, cancel, NORMAL, SLOW } from './tts.js';
 import { shuffled } from './drills.js';
 import { icons } from './icons.js';
+import { clipPlayer, clipUrl, hasClips, itemClips, silenceId } from './clips.js';
 
 const THINK_MS = 1600; // time to understand before the English
 const GAP_MS = 1100; // between items
@@ -78,7 +79,7 @@ export function startRadio(ctx, channel) {
       <div class="row"><span class="grow small">Speed</span>${seg('radioSlow', [[false, 'Normal'], [true, 'Slow']])}</div>
       <div class="row"><span class="grow small">Text on screen</span>${seg('radioText', [[true, 'Show'], [false, 'Hide']])}</div>
     </section>
-    <p class="small muted center">Keep the screen on while listening: iPhone stops speech when it locks.</p>`;
+    <p class="small muted center">${channel.items.every(hasClips) ? 'Recorded: keeps playing when you lock the phone or switch apps.' : 'Keep the screen on while listening: iPhone stops speech when it locks.'}</p>`;
 
   const el = (id) => view.querySelector(`#${id}`);
   const show = (item, english) => {
@@ -88,11 +89,63 @@ export function startRadio(ctx, channel) {
   };
   const live = (text) => { el('rlive').textContent = text; };
 
+  // Recorded clips keep playing with the screen locked; device speech is the fallback.
+  // A recorded item plays as one chain of files (the pauses are silent files), so it
+  // never waits on a timer, which iPhone stops while locked.
+  const audio = clipPlayer();
+  const fileRate = () => (settings.radioSlow ? 0.75 : 1);
+  function playFiles(parts, done) {
+    let k = 0;
+    const step = () => {
+      if (!on) return;
+      if (k >= parts.length) { done(); return; }
+      const part = parts[k++];
+      part.show?.();
+      audio.src = clipUrl(part.id);
+      audio.defaultPlaybackRate = fileRate();
+      audio.playbackRate = fileRate();
+      audio.play().catch(() => { if (on) setPlaying(false); });
+    };
+    audio.onended = step;
+    audio.onerror = step;
+    step();
+  }
+
+  // The lock screen shows the line and offers play, pause, next and previous.
+  const session = typeof navigator !== 'undefined' ? navigator.mediaSession : null;
+  function lockScreen(item) {
+    if (!session || typeof MediaMetadata === 'undefined') return;
+    session.metadata = new MediaMetadata({
+      title: item.t.replace(/ /g, ''), artist: item.en, album: `${channel.title} · JP Trainer Radio`,
+      artwork: [{ src: 'assets/icon-512.png', sizes: '512x512', type: 'image/png' }],
+    });
+  }
+  const actions = { play: () => setPlaying(true), pause: () => setPlaying(false), nexttrack: () => next(1), previoustrack: () => next(-1) };
+  const bindSession = (bind) => {
+    if (!session) return;
+    for (const [name, fn] of Object.entries(actions)) {
+      try { session.setActionHandler(name, bind ? fn : null); } catch { /* not supported here */ }
+    }
+  };
+  bindSession(true);
+
   function play() {
     clearTimeout(timer);
     const item = order[i];
     header();
     show(item, false);
+    lockScreen(item);
+    if (audio && hasClips(item)) {
+      const c = itemClips(item);
+      playFiles([
+        { id: c.ja, show: () => live('Japanese') },
+        ...(settings.radioEnglish
+          ? [{ id: silenceId('think'), show: () => live('Think…') }, { id: c.en, show: () => { show(item, true); live('English'); } },
+            { id: silenceId('gap'), show: () => live('') }]
+          : [{ id: silenceId('long'), show: () => live('Think…') }]),
+      ], () => next());
+      return;
+    }
     live('Japanese');
     speakStep(item.t, {
       rate: rate(),
@@ -127,7 +180,8 @@ export function startRadio(ctx, channel) {
     el('rplay').innerHTML = on ? icons.pause : icons.play;
     el('rplay').setAttribute('aria-label', on ? 'Pause' : 'Play');
     el('rcard').classList.toggle('playing', on);
-    if (on) { holdScreen(); play(); } else { clearTimeout(timer); cancel(); live('Paused'); letScreenSleep(); }
+    if (session) session.playbackState = on ? 'playing' : 'paused';
+    if (on) { holdScreen(); play(); } else { clearTimeout(timer); cancel(); audio?.pause(); live('Paused'); letScreenSleep(); }
   }
 
   // dispose stops quietly (the route changed); stop also leaves the screen.
@@ -135,6 +189,9 @@ export function startRadio(ctx, channel) {
     on = false;
     clearTimeout(timer);
     cancel();
+    if (audio) { audio.onended = null; audio.onerror = null; audio.pause(); }
+    bindSession(false);
+    if (session) { session.metadata = null; session.playbackState = 'none'; }
     letScreenSleep();
   }
   function stop() {

@@ -30,30 +30,32 @@ let readings = {};
 export function setReadings(glossary) { readings = glossary || {}; }
 
 export function speechText(text, glossary = readings) {
+  return speechParts(text, glossary).map(([, spoken]) => spoken).join('');
+}
+
+// Each word as [written, spoken]. Recorded clips use this to pin every kanji word to
+// its checked reading while the voice still sees the written word.
+export function speechParts(text, glossary = readings) {
   const say = (w) => (HAS_KANJI.test(w) && glossary[w]?.y) || null;
-  // Longest known word first, so 今日 wins over 今 + 日.
   const respell = (chunk) => {
     let out = '';
     let i = 0;
     while (i < chunk.length) {
       let hit = null;
       for (let len = Math.min(10, chunk.length - i); len >= 1 && !hit; len--) {
-        const piece = chunk.slice(i, i + len);
-        const y = say(piece);
+        const y = say(chunk.slice(i, i + len));
         if (y) hit = [y, len];
       }
       if (hit) { out += hit[0]; i += hit[1]; } else { out += chunk[i]; i++; }
     }
-    // Half-respelled words read wrong (月 alone is つき, so 七月 became 七つき).
-    // If any kanji is left, the voice gets the whole word as written instead.
     return HAS_KANJI.test(out) ? chunk : out;
   };
-  const tokens = String(text).split(/\s+/);
+  const tokens = String(text).split(/\s+/).filter(Boolean);
   return tokens.map((w, i) => {
     // 何 is なん before d, t and n sounds (何 です, 何 の), and なに elsewhere.
-    if (w === '何' && /^[でだどとのなね]/.test(tokens[i + 1] || '')) return 'なん';
-    return say(w) || (HAS_KANJI.test(w) ? respell(w) : w);
-  }).join('');
+    if (w === '何' && /^[でだどとのなね]/.test(tokens[i + 1] || '')) return [w, 'なん'];
+    return [w, say(w) || (HAS_KANJI.test(w) ? respell(w) : w)];
+  });
 }
 
 // Any new playback ends a running dialogue.

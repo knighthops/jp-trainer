@@ -15,6 +15,7 @@ import {
 import { unitTest, mockExam, grade } from '../js/exam.js';
 import { checkLogin, hashPassword, userId } from '../js/lock.js';
 import { radioChannels } from '../js/radio.js';
+import { clipId, clipSsml, englishSaid } from '../js/clips.js';
 import { rushQuestion } from '../js/rush.js';
 import {
   PARTS, tripId, partSteps, nextPart, readiness, daysUntil, tripReviewSteps, sceneLines,
@@ -891,4 +892,20 @@ test('trip role-play: one variant a session, new ones first, then the most overd
   assert.equal(practice.useSrs, false);
   assert.equal(practice.steps.length, 1);
   for (const s of json('trip').scenes) assert.ok(s.play.length >= 2, `${s.id} has role-play variants`);
+});
+
+test('recorded clips: stable names, checked readings, and every radio line listed', () => {
+  assert.equal(clipId('ja', 'これ を ください 。'), clipId('ja', 'これ を ください 。'));
+  assert.notEqual(clipId('ja', 'はい 。'), clipId('en', 'はい 。'));
+  const glossary = { 今日: { y: 'きょう' }, 何: { y: 'なに' } };
+  assert.equal(clipSsml('ja', '今日 は 何 です か 。', glossary), '<sub alias="きょう">今日</sub>は<sub alias="なん">何</sub>ですか。');
+  assert.equal(clipSsml('en', 'Hello (Staff.) & bye'), 'Hello &amp; bye');
+  assert.equal(englishSaid('Yes. (Polite.)'), 'Yes.');
+  // The recorder's list has to cover every trip line, or Radio falls back to device speech.
+  const listed = new Set(json('audio-lines').map((l) => l.id));
+  for (const s of json('trip').scenes) {
+    for (const l of [...s.say, ...s.hear]) {
+      assert.ok(listed.has(clipId('ja', l.t)) && listed.has(clipId('en', englishSaid(l.en))), `${l.id} missing: open tools/audio-lines.html`);
+    }
+  }
 });

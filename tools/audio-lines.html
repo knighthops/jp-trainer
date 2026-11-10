@@ -1,0 +1,59 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Audio lines</title>
+<style>body{font:15px system-ui,sans-serif;max-width:720px;margin:24px auto;padding:0 16px;line-height:1.5}code{font-size:13px}</style>
+<h1>Audio lines</h1>
+<p>Lists every line Radio can play, as a learner who has finished the whole course would hear it,
+plus the silent pauses between lines. Saves <code>data/audio-lines.json</code>; then run
+<code>tools/make-audio.ps1</code> to record whatever is missing into <code>audio/</code>.</p>
+<div id="out">Working…</div>
+<script type="module">
+import { UNIT_FILES, mergeCourse } from '../js/course.js';
+import { radioChannels } from '../js/radio.js';
+import { romaji } from '../js/romaji.js';
+import { VOICES, SILENCE, silenceId, englishSaid, clipId, clipSsml } from '../js/clips.js';
+
+const get = (p) => fetch(`../data/${p}.json`, { cache: 'no-store' }).then((r) => (r.ok ? r.json() : Promise.reject(new Error(p))));
+const out = document.querySelector('#out');
+try {
+  const [vocab, sentences, glossary, bank, talk, stories, trip, ...units] = await Promise.all([
+    ...['vocab-n5', 'sentences', 'glossary', 'particle-bank'].map(get),
+    get('talk').catch(() => ({ lex: {} })), get('stories').catch(() => []), get('trip'),
+    ...UNIT_FILES.map((f) => get(`course/${f}`).catch(() => [])),
+  ]);
+  const data = mergeCourse({ kanji: [], vocab, sentences, particles: [], glossary, bank, papers: [] }, units);
+  for (const [w, [y, m, ro]] of [...Object.entries(bank.lex), ...Object.entries(talk.lex), ...Object.entries(trip.lex)]) {
+    if (!glossary[w]) glossary[w] = { y, m, ro: ro ?? romaji(y) };
+  }
+  data.trip = trip.scenes;
+  data.stories = stories;
+  // Everything finished and read, so every channel is on air.
+  const state = { course: { done: {}, stories: {} } };
+  for (const u of data.units) for (const l of u.lessons) state.course.done[l.id] = 1;
+  for (const s of stories) state.course.stories[s.unit] = 1;
+  const channels = radioChannels(state, data);
+
+  const lines = new Map();
+  for (const c of channels) {
+    for (const item of c.items) {
+      const ja = clipId('ja', item.t);
+      if (!lines.has(ja)) lines.set(ja, { id: ja, voice: VOICES.ja, ssml: clipSsml('ja', item.t, glossary), text: item.t });
+      const said = englishSaid(item.en);
+      const en = clipId('en', said);
+      if (!lines.has(en)) lines.set(en, { id: en, voice: VOICES.en, ssml: clipSsml('en', said), text: said });
+    }
+  }
+  for (const key of Object.keys(SILENCE)) {
+    lines.set(silenceId(key), { id: silenceId(key), voice: VOICES.en, ssml: `<break time="${SILENCE[key]}ms"/>`, text: '' });
+  }
+  const list = [...lines.values()];
+  const chars = list.reduce((n, l) => n + l.ssml.length, 0);
+  const res = await fetch('save-audio-lines', { method: 'POST', body: JSON.stringify(list, null, 0).replace(/\},\{/g, '},\n{') });
+  out.innerHTML = `<p>${res.status === 204 ? 'Saved data/audio-lines.json.' : 'Couldn\'t save: run tools/serve.ps1.'}
+    ${list.length} clips from ${channels.length} channels, about ${Math.round(chars / 1000)}k characters to record.</p>
+    <p>${channels.map((c) => `${c.title}: ${c.items.length}`).join(' · ')}</p>`;
+} catch (e) {
+  out.textContent = `Failed: ${e.message}`;
+}
+</script>

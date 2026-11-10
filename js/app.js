@@ -2,6 +2,7 @@
 import { load, save, dayStats, daysStudied, dayKey, backupJson, parseBackup } from './store.js';
 import { renderListen } from './listen.js';
 import { speak, speakLines, speakStep, cancel, sayBtn, setReadings, unlockSpeech, NORMAL, SLOW } from './tts.js';
+import { setRecorded, unlockAudio, hasClips } from './clips.js';
 import { radioChannels, startRadio } from './radio.js';
 import { startRush, bestKey as rushKey } from './rush.js';
 import {
@@ -273,7 +274,7 @@ function screenListen() {
     <section class="clist">${trip.map(chRow).join('')}</section>
     <div class="caps sect"><span><span class="jp">講座</span> Course radio</span></div>
     <section class="clist">${course.length ? course.map(chRow).join('') : '<p class="small muted pad">Finish a course lesson to tune in to what you have learned.</p>'}</section>
-    <p class="small muted center">Each line plays in Japanese, pauses, then in English. Keep the screen on while listening.</p>`;
+    <p class="small muted center">Each line plays in Japanese, pauses, then in English.${data.trip.some((s) => s.say.every(hasClips)) ? ' Recorded channels keep playing with the phone locked.' : ' Keep the screen on while listening.'}</p>`;
 }
 
 function screenRadio(id) {
@@ -1623,6 +1624,7 @@ async function init() {
   // Any listen button, on any screen.
   document.addEventListener('click', (e) => {
     unlockSpeech();
+    unlockAudio();
     const el = e.target.closest('[data-say]');
     if (el) speak(el.dataset.say);
     const info = e.target.closest('[data-info]');
@@ -1652,12 +1654,13 @@ async function init() {
       if (!r.ok) throw new Error(`${f}: ${r.status}`);
       return r.json();
     });
-    const [kanji, vocab, sentences, particles, glossary, bank, talk, stories, kanjiMore, trip, ...rest] = await Promise.all([
+    const [kanji, vocab, sentences, particles, glossary, bank, talk, stories, kanjiMore, trip, audio, ...rest] = await Promise.all([
       ...['kanji-n5', 'vocab-n5', 'sentences', 'particles', 'glossary', 'particle-bank'].map(get),
       get('talk').catch(() => ({ categories: [], lex: {} })),
       get('stories').catch(() => []),
       get('kanji-more').catch(() => []),
       get('trip').catch(() => ({ scenes: [], lex: {} })),
+      get('audio').catch(() => []),
       ...UNIT_FILES.map((f) => get(`course/${f}`).catch(() => [])),
       ...['exam-n5-1', 'exam-n5-2'].map((f) => get(`course/${f}`).catch(() => null)),
     ]);
@@ -1669,6 +1672,7 @@ async function init() {
     data.trip = trip.scenes;
     data.talk = talk.categories;
     data.stories = stories;
+    setRecorded(audio);
     // Every kanji with a breakdown, so word cards and word glosses can show each one.
     data.kanjiMore = kanjiMore;
     setKanji([...kanji, ...kanjiMore]);
