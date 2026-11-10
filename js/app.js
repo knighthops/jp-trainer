@@ -9,17 +9,21 @@ import {
 } from './srs.js';
 import { reviewSteps, kanjiId } from './session.js';
 import {
-  renderSentence, renderParticle, renderCheck, particleCardHtml, bindGloss, glossHtml, glossText, romajiLine, shuffled, setKanji, partsHtml, wordKanjiHtml, kanjiOf, kanjiIn,
+  renderSentence, renderParticle, renderCheck, particleCardHtml, bindGloss, glossHtml, glossText, romajiLine, shuffled, glued, setKanji, partsHtml, wordKanjiHtml, kanjiOf, kanjiIn,
 } from './drills.js';
 import {
   UNIT_FILES, mergeCourse, isUnlocked, unitProgress, nextUp, examUnlocked, lessonSteps, words as splitWords,
-  LEVELS, levelSentences, levelProgress, levelUnlocked, particleItem, courseSteps, rankOf, unitStrength, unitStars, grammarId,
+  LEVELS, levelSentences, levelProgress, levelUnlocked, particleItem, courseSteps, rankOf, unitStars, grammarId, passUnit,
 } from './course.js';
 import { mockExam, unitTest, startExam } from './exam.js';
 import { icons } from './icons.js';
 import { romaji, toHiragana, toKana, judgeReading } from './romaji.js';
 import { matchReading } from './readings.js';
 import { currentUser, logOut } from './lock.js';
+import {
+  PARTS, COMING, readiness, tripReadiness, partStatus, partSteps, nextPart, daysUntil, signHtml,
+  renderSign, renderSayLearn, renderSayRecall, renderHear, renderPlay,
+} from './trip.js';
 
 const view = document.getElementById('view');
 const top = document.getElementById('top');
@@ -31,7 +35,7 @@ let run = null;
 let stepCleanup = null;
 let settingsNotice = '';
 
-const TABS = [['today', 'Home'], ['course', 'Course'], ['listen', 'Listen'], ['dojo', 'Dojo']];
+const TABS = [['today', 'Home'], ['trip', 'Trip'], ['course', 'Course'], ['listen', 'Listen'], ['dojo', 'Dojo']];
 // Leaving a screen stops whatever it was doing (Radio playback, the Rush timer).
 let screenCleanup = null;
 
@@ -153,23 +157,8 @@ function kanjiDeck(now = Date.now()) {
   const unseen = rest.filter((k) => !rec(k));
   const later = rest.filter((k) => rec(k) && rec(k).due > now).sort((a, b) => rec(a).due - rec(b).due);
   return [first, ...due, ...unseen, ...later].map((k, n) => ({
-    type: 'card', kind: 'kanji', id: kanjiId(k), ref: k, label: n ? 'Guess the kanji' : 'Kanji of the day',
+    type: 'card', kind: 'kanji', id: kanjiId(k), ref: k, label: 'Guess the kanji',
   }));
-}
-
-function kanjiOfTheDay() {
-  const k = featuredKanji();
-  const pool = levelKanji();
-  const due = pool.filter((x) => state.items[kanjiId(x)]?.due <= Date.now()).length;
-  return `<button class="card kod" id="kodopen" aria-label="Guess today's kanji">
-    <span class="kod-glyph jp" aria-hidden="true">${k.k}</span>
-    <span class="kod-info">
-      <span class="caps">Kanji of the day</span>
-      <strong>What does it mean?</strong>
-      <span class="small muted">Tap to guess, then keep going through ${pool.length} kanji at your level${due ? ` · ${due} due` : ''}</span>
-    </span>
-    <span class="chev">${icons.chevron}</span>
-  </button>`;
 }
 
 function courseCard(next) {
@@ -243,169 +232,48 @@ function troubleCard() {
   </button>`;
 }
 
-// Home: the course and the kanji of the day, plus anything you keep forgetting.
+// Home: the trip, the course (reviews include kanji), plus anything you keep forgetting.
 function screenToday() {
   setTop('JP Trainer');
   const next = nextUp(state, data.units);
   view.innerHTML = `
+    ${tripCard()}
     ${courseCard(next)}
-    ${kanjiOfTheDay()}
     ${troubleCard()}
     ${backupDue() ? `<a class="nudge" href="#/settings">${icons.download}<span class="grow">Back up your progress. Safari can clear saved data.</span><span class="chev">${icons.chevron}</span></a>` : ''}`;
   view.querySelector('#cont')?.addEventListener('click', () => nextAction(next).go());
   view.querySelector('#revonly')?.addEventListener('click', startReviews);
-  view.querySelector('#kodopen').onclick = () => startRun(kanjiDeck(), 'Kanji', { useSrs: true });
+  view.querySelector('#tripgo')?.addEventListener('click', () => {
+    const go = nextPart(data.trip, state.items);
+    if (go) startPart(go.scene, go.part);
+    else location.hash = '#/trip';
+  });
   view.querySelector('#trouble')?.addEventListener('click', () => startRun(troubleSteps(), 'Trouble list', { useSrs: true }));
 }
 
-/* ---------- Listen: Radio, the listening quiz and Talk phrases ---------- */
+/* ---------- Listen: Radio ---------- */
 
 const PUNCT = /^[。、！？…]+$/;
-// A Talk phrase in the shape the listening step expects.
+// A starred Talk phrase (from before Talk moved into Trip) in the shape the listening step expects.
 const talkSentence = (p) => ({ id: p.id, en: p.en, blocks: p.t.split(' ').filter((w) => !PUNCT.test(w)).map((t) => ({ t })) });
 const lineRo = (text) => romajiLine(text.split(' '), data.glossary);
 
-let talkRate = NORMAL;
-let showText = false;
-
-// One Talk phrase. Tap it to hear it; its romaji and English stay hidden until Show,
-// so the ear does the work first.
-function phraseHtml(p) {
-  const saved = state.talk.saved;
-  const tokens = p.t.split(' ');
-  return `<article class="card phrase gloss-zone ${showText ? 'open' : ''}" data-id="${p.id}">
-    <button class="pplay" data-play aria-label="Play">
-      <span class="pline jp">${tokens.map((w) => (data.glossary[w] ? `<span class="word" data-word="${w}">${w}</span>` : `<span>${w}</span>`)).join('')}</span>
-    </button>
-    <div class="ptext"><p class="romaji">${lineRo(p.t)}</p><p class="pen">${p.en}</p>${glossHtml()}</div>
-    <div class="prow"><span class="tag ${p.c ? 'casual' : ''}">${p.c ? 'Casual' : 'Polite'}</span><span class="grow"></span>
-      <button class="chip" data-show>${showText ? 'Hide' : 'Show'}</button>
-      <button class="say" data-play aria-label="Play">${icons.speaker}</button>
-      <button class="say star ${saved[p.id] ? 'on' : ''}" data-star aria-pressed="${Boolean(saved[p.id])}" aria-label="Star">${icons.star}</button></div>
-  </article>`;
-}
-
-// Clicks inside a list of phrases: play, show, star, and word meanings once shown.
-function bindPhrases(root, list) {
-  root.addEventListener('click', (e) => {
-    const art = e.target.closest('.phrase');
-    if (!art) return;
-    const p = list().find((x) => x.id === art.dataset.id);
-    if (!p) return;
-    const word = e.target.closest('[data-word]');
-    if (word && art.classList.contains('open')) {
-      art.querySelectorAll('.sel').forEach((x) => x.classList.remove('sel'));
-      word.classList.add('sel');
-      art.querySelector('.gloss').innerHTML = glossText(word.dataset.word, data.glossary[word.dataset.word]);
-      return;
-    }
-    if (e.target.closest('[data-play]')) speak(p.t, { rate: talkRate });
-    if (e.target.closest('[data-show]')) {
-      const open = art.classList.toggle('open');
-      art.querySelector('[data-show]').textContent = open ? 'Hide' : 'Show';
-    }
-    const star = e.target.closest('[data-star]');
-    if (star) {
-      const saved = state.talk.saved;
-      if (saved[p.id]) {
-        delete saved[p.id];
-        delete state.items[`t:${p.id}`];
-      } else saved[p.id] = Date.now();
-      save(state);
-      star.classList.toggle('on', Boolean(saved[p.id]));
-      star.setAttribute('aria-pressed', String(Boolean(saved[p.id])));
-    }
-  });
-}
-
-const flat = (t) => t.replace(/ /g, '');
-const searchKey = (p) => `${flat(p.t)} ${lineRo(p.t)} ${p.en}`.toLowerCase();
-
-function listenQuiz() {
-  // Sentences from finished lessons first: they are the ones you can follow.
-  const known = data.sentences.filter((s) => s.lesson && state.course.done[s.lesson]);
-  const pool = known.length >= 8 ? known : data.sentences;
-  startRun(shuffled(pool).map((s) => ({ type: 'listen', id: s.id, ref: s })), 'Listening quiz');
-}
-
+// Hands-free listening: your trip scenes first, then what the course has taught.
 function screenListen() {
   setTop('Listen');
   const channels = radioChannels(state, data);
-  const saved = state.talk.saved;
-  const starred = data.talkPhrases.filter((p) => saved[p.id]).length;
-  const own = channels.filter((c) => !c.talk && c.id !== 'starred');
   const chRow = (c) => `<a class="crow" href="#/listen/radio/${c.id}">
       <span class="cjp jp big">${c.jp}</span>
-      <span class="grow"><strong>${c.title}</strong><span class="small muted">${c.items.length} lines</span></span>
+      <span class="grow"><strong>${c.title}</strong><span class="small muted">${c.items.length} lines · ${c.sub}</span></span>
       <span class="playdot" aria-hidden="true">${icons.play}</span></a>`;
+  const trip = channels.filter((c) => c.trip);
+  const course = channels.filter((c) => !c.trip);
   view.innerHTML = `
-    <label class="search">${icons.search}<input id="q" type="search" placeholder="Find a phrase: thank you, 駅, sumimasen" autocomplete="off"></label>
-    <div id="results" hidden></div>
-    <div id="browse" class="stack">
-      <div class="caps sect"><span><span class="jp">ラジオ</span> Radio</span><span class="muted">Hands-free</span></div>
-      <section class="clist">${own.length ? own.map(chRow).join('') : `<p class="small muted pad">Finish a course lesson to tune in to what you have learned.</p>`}</section>
-      <button class="action" id="quiz"><span class="icbox">${icons.ear}</span>
-        <span class="grow"><strong>Listening quiz</strong><span class="small">Hear a sentence and choose its meaning</span></span><span class="chev">${icons.chevron}</span></button>
-      <div class="caps sect"><span><span class="jp">会話</span> Talk</span><span class="muted">${data.talkPhrases.length} phrases</span></div>
-      <section class="clist">
-        ${starred ? `<div class="crow"><a class="grow crow-in" href="#/listen/talk/saved"><span class="cjp">${icons.star}</span>
-          <span class="grow"><strong>My phrases</strong><span class="small muted">${starred} starred · in your reviews</span></span></a>
-          <a class="playbtn" href="#/listen/radio/starred" aria-label="Play all">${icons.play}</a></div>` : ''}
-        ${data.talk.map((c) => {
-    const n = c.items.filter((p) => saved[p.id]).length;
-    return `<div class="crow"><a class="grow crow-in" href="#/listen/talk/${c.id}"><span class="cjp jp">${c.jp}</span>
-          <span class="grow"><strong>${c.title}</strong><span class="small muted">${c.items.length}${n ? ` · ${n} ★` : ''}</span></span></a>
-          <a class="playbtn" href="#/listen/radio/talk-${c.id}" aria-label="Play all ${c.title}">${icons.play}</a></div>`;
-  }).join('')}
-      </section>
-      <p class="small muted center">Talk phrases come from Tatoeba. Casual ones are for friends. Star a phrase to add it to your reviews.</p>
-    </div>`;
-  view.querySelector('#quiz').onclick = listenQuiz;
-  const results = view.querySelector('#results');
-  const browse = view.querySelector('#browse');
-  let found = [];
-  bindPhrases(results, () => found);
-  view.querySelector('#q').addEventListener('input', (e) => {
-    const q = e.target.value.trim().toLowerCase();
-    browse.hidden = Boolean(q);
-    results.hidden = !q;
-    if (!q) return;
-    found = data.talkPhrases.filter((p) => searchKey(p).includes(q)).slice(0, 30);
-    results.innerHTML = found.length ? found.map(phraseHtml).join('') : '<p class="small muted center">No phrase matches that yet.</p>';
-  });
-}
-
-function screenTalkList(catId) {
-  const cat = data.talk.find((c) => c.id === catId);
-  const saved = state.talk.saved;
-  const list = () => (catId === 'saved' ? data.talkPhrases.filter((p) => saved[p.id]) : cat?.items);
-  if (!list()) { location.hash = '#/listen'; return; }
-  setTop(cat ? cat.title : 'My phrases', backTo('#/listen'));
-  const radio = catId === 'saved' ? 'starred' : `talk-${catId}`;
-  const items = list();
-  view.innerHTML = `
-    <div class="talkbar">
-      <a class="btn small-btn" href="#/listen/radio/${radio}">${icons.play}<span>Play all</span></a>
-      <div class="seg mini" id="speed"><button class="${talkRate === NORMAL ? 'on' : ''}" data-r="${NORMAL}">Normal</button><button class="${talkRate === SLOW ? 'on' : ''}" data-r="${SLOW}">Slow</button></div>
-    </div>
-    <div class="row tight"><span class="grow small muted">Tap a phrase to hear it.</span>
-      <button class="chip" id="showall">${showText ? 'Hide all text' : 'Show all text'}</button></div>
-    <div id="plist" class="stack">${items.length ? items.map(phraseHtml).join('') : '<p class="small muted center">No starred phrases yet. Tap the star on any phrase.</p>'}</div>`;
-  bindPhrases(view.querySelector('#plist'), list);
-  view.querySelector('#speed').onclick = (e) => {
-    const sp = e.target.closest('[data-r]');
-    if (!sp) return;
-    talkRate = Number(sp.dataset.r);
-    view.querySelectorAll('#speed button').forEach((x) => x.classList.toggle('on', x === sp));
-  };
-  view.querySelector('#showall').onclick = (e) => {
-    showText = !showText;
-    e.target.textContent = showText ? 'Hide all text' : 'Show all text';
-    view.querySelectorAll('.phrase').forEach((a) => {
-      a.classList.toggle('open', showText);
-      a.querySelector('[data-show]').textContent = showText ? 'Hide' : 'Show';
-    });
-  };
+    <div class="caps sect"><span><span class="jp">旅</span> Trip radio</span><span class="muted">Hands-free</span></div>
+    <section class="clist">${trip.map(chRow).join('')}</section>
+    <div class="caps sect"><span><span class="jp">講座</span> Course radio</span></div>
+    <section class="clist">${course.length ? course.map(chRow).join('') : '<p class="small muted pad">Finish a course lesson to tune in to what you have learned.</p>'}</section>
+    <p class="small muted center">Each line plays in Japanese, pauses, then in English. Keep the screen on while listening.</p>`;
 }
 
 function screenRadio(id) {
@@ -482,7 +350,8 @@ function record(id, grade) {
   const kind = id[0];
   if (kind === 's') stats.sentences++;
   else if (kind === 'p') stats.particles++;
-  else if (kind === 't' || kind === 'g') stats.reviews++;
+  // Talk, grammar and trip items count as reviews, not as new words.
+  else if (kind === 't' || kind === 'g' || kind === 'x') stats.reviews++;
   else if (prev) stats.reviews++;
   else if (kind === 'k') stats.newK++;
   else stats.newW++;
@@ -538,7 +407,8 @@ function renderStep() {
     progress: run.more ? null : (run.i / run.steps.length) * 100,
     jump: behind ? { label: `Back to ${run.max + 1}`, go: () => { run.i = run.max; renderStep(); } } : null,
     // A session with answers to lose asks before it closes. Browsing just closes.
-    confirm: !run.browse && run.i > 0,
+    // A role-play is one long step, so it asks from its first turn.
+    confirm: !run.browse && (run.i > 0 || step.type === 'tripPlay'),
   });
   view.innerHTML = '';
   // Steps reached with Previous show the answer and don't count again.
@@ -552,6 +422,11 @@ function renderStep() {
       run.onDrill?.(step, clean);
     }
     advance();
+  };
+  // A missed sign or line comes back a few steps later in the same session.
+  const tripDone = (clean) => {
+    if (!clean && !step.done && run.useSrs) run.steps.splice(Math.min(run.i + 4, run.steps.length), 0, { ...step, done: false });
+    finishDrill(clean);
   };
   if (step.type === 'learn') renderLearn(step);
   else if (step.type === 'card') renderCard(step);
@@ -587,21 +462,37 @@ function renderStep() {
         advance();
       },
     });
-  } else if (step.type === 'listen') {
-    renderListen(view, step.ref, {
+  } else if (step.type === 'tripSign') {
+    renderSign(view, step, { signs: data.trip.flatMap((s) => s.signs), glossary: data.glossary, review, onDone: tripDone });
+  } else if (step.type === 'tripLearn') {
+    renderSayLearn(view, step, { glossary: data.glossary, onDone: advance });
+  } else if (step.type === 'tripSay') {
+    renderSayRecall(view, step, {
       glossary: data.glossary,
-      others: data.sentences.map((s) => s.en),
+      rec: state.items[step.id],
       review,
-      onDone: () => {
-        if (run.useSrs && !step.done) {
-          dayStats(state).shadow = (dayStats(state).shadow || 0) + 1;
-          state.shadow[step.id] = Date.now();
-          save(state);
+      onRate: (grade) => {
+        if (grade && !step.done) {
+          step.done = true;
+          run.drills++;
+          if (grade !== 'again') run.clean++;
+          record(step.id, grade);
+          // A forgotten line comes back later in this session.
+          if (grade === 'again' && run.useSrs) run.steps.splice(Math.min(run.i + 4, run.steps.length), 0, { ...step, done: false });
         }
-        step.done = true;
         advance();
       },
     });
+  } else if (step.type === 'tripHear') {
+    const others = step.scene.hear.map((l) => l.en);
+    renderHear(view, step, {
+      glossary: data.glossary,
+      others: others.length > 3 ? others : data.trip.flatMap((s) => s.hear.map((l) => l.en)),
+      review,
+      onDone: tripDone,
+    });
+  } else if (step.type === 'tripPlay') {
+    stepCleanup = renderPlay(view, step, { glossary: data.glossary, review, onDone: finishDrill });
   } else if (step.type === 'particleCard') {
     view.innerHTML = `${particleCardHtml(step.ref, data.glossary)}<div class="dock"><button class="btn" id="next">Continue</button></div>`;
     bindGloss(view.querySelector('.gloss-zone'), data.glossary);
@@ -642,12 +533,34 @@ function wordRow(k, w) {
 // A word for a kanji card: from the vocabulary, or any word the app glosses.
 const wordEntry = (w) => data.vocab.find((v) => v.w === w) || (data.glossary[w] ? { w, y: data.glossary[w].y, m: data.glossary[w].m } : null);
 
+// The one reading to learn first, in hiragana: the kanji as a word if it is one
+// (人 is ひと, 本 is ほん), else the reading its words use most (学 is がく from 学生
+// and 大学; 食 is たべる), else its first Chinese reading (京 is きょう, not みやこ).
+function headReading(k) {
+  const alone = wordEntry(k.k);
+  if (alone) return toHiragana(alone.y);
+  const tally = new Map();
+  for (const w of k.words.map(wordEntry).filter(Boolean)) {
+    const hit = matchReading(k, w, w.y);
+    if (hit) tally.set(toHiragana(hit.reading), (tally.get(toHiragana(hit.reading)) || 0) + 1);
+  }
+  const used = [...tally].sort((a, b) => b[1] - a[1])[0]?.[0];
+  // A verb or adjective reading reads best in full: た + べる is たべる.
+  const full = (r) => toHiragana(r.replace(/[-.]/g, ''));
+  if (used) {
+    const kun = k.kun.find((r) => toHiragana(r.split(/[-.]/)[0]) === used && /[-.]/.test(r));
+    return kun ? full(kun) : used;
+  }
+  return full(k.on[0] || k.kun[0] || '');
+}
+
 // Breakdown first: the parts are what make a kanji stick.
 function kanjiFacts(k) {
   const words = k.words.map(wordEntry).filter(Boolean);
+  const said = headReading(k);
   return `<div>
       <p class="mean">${k.mean.join(', ')}</p>
-      <p class="meta">${k.strokes} ${k.strokes === 1 ? 'stroke' : 'strokes'}</p>
+      ${said ? `<p class="head-read"><span class="jp">${said}</span> <span class="ro">${romaji(said)}</span></p>` : ''}
     </div>
     <div class="block-sec"><span class="caps">Breakdown</span>${partsHtml(k)}</div>
     <div class="block-sec">
@@ -817,8 +730,8 @@ function renderCard(step) {
 }
 
 // A row of tappable words, for text written as "word word word".
-const wordLine = (text) => splitWords(text).map((w) => (data.glossary[w]
-  ? `<button class="word" data-word="${w}">${w}</button>` : `<span>${w}</span>`)).join('');
+const wordLine = (text) => glued(splitWords(text), (w) => (data.glossary[w]
+  ? `<button class="word" data-word="${w}">${w}</button>` : `<span>${w}</span>`));
 const lineRomaji = (text) => romajiLine(splitWords(text), data.glossary);
 
 function renderLesson(step) {
@@ -984,6 +897,8 @@ function renderLessonDone() {
   const kanji = learned.filter((s) => s.kind === 'kanji').map((s) => s.ref.k);
   const words = learned.filter((s) => s.kind === 'word').length;
   const kanjiNow = kanjiKnown();
+  // After a resume, the count at the start already held some of this lesson's kanji, so "before" comes from the gain.
+  const kanjiFrom = Math.min(run.kanjiBefore, Math.max(0, kanjiNow - kanji.length));
   const steps = courseSteps(state, data.units);
   const p = unitProgress(state, unit);
   const next = nextUp(state, data.units);
@@ -1003,14 +918,12 @@ function renderLessonDone() {
     <section class="card list">
       ${run.drills ? `<div class="row"><span class="grow">Drills right first time</span><span class="num">${run.clean} / ${run.drills}</span></div>` : ''}
       ${memoryHtml()}
-      <div class="row"><span class="grow">Kanji collected</span><span class="num">${kanjiNow > run.kanjiBefore ? `${run.kanjiBefore} → ` : ''}<b>${kanjiNow}</b> / ${data.kanji.length}</span></div>
+      <div class="row"><span class="grow">Kanji collected</span><span class="num">${kanjiNow > kanjiFrom ? `${kanjiFrom} → ` : ''}<b>${kanjiNow}</b> / ${data.kanji.length}</span></div>
       <div class="row"><span class="grow">Course<div class="meter"><i style="width:${(steps.done / steps.total) * 100}%"></i></div></span><span class="num">${steps.done} / ${steps.total}</span></div>
     </section>
     <div class="dock stack">
       ${go ? `<button class="btn" id="go">${run.part ? 'Keep going: part 2' : `Next: ${go.label.replace(/^(Take the|Start|Open the) /, '')}`}</button>` : ''}
-      <button class="btn ghost" id="fin">Done for now</button>
     </div>`;
-  view.querySelector('#fin').onclick = endRun;
   view.querySelector('#go')?.addEventListener('click', () => {
     endRun();
     go.go();
@@ -1038,7 +951,6 @@ function renderSummary() {
     ${memoryHtml() ? `<section class="card list">${memoryHtml()}</section>` : ''}
     ${cards || drills ? `<section class="card list">${cards}${drills}</section>` : ''}
     <div class="dock"><button class="btn" id="fin">Finish</button></div>`;
-  view.querySelector('#fin').onclick = endRun;
   animate();
   requestAnimationFrame(() => requestAnimationFrame(() => {
     const fg = view.querySelector('#ringfg');
@@ -1061,9 +973,10 @@ function rushPool() {
 // Best scores are kept per mode and clock. The old single best was for meanings at 60 seconds.
 const rushBest = (key) => state.practice.rushBests?.[key] ?? (key === 'meaning-60' ? state.practice.rushBest || 0 : 0);
 
+const headCache = new Map();
 function screenRush() {
   screenCleanup = startRush({
-    view, setTop, pool: rushPool(), all: [...data.kanji, ...(data.kanjiMore || [])],
+    view, setTop, pool: rushPool(), all: [...data.kanji, ...(data.kanjiMore || [])], readOf: (k) => headCache.get(k) ?? headCache.set(k, headReading(k)).get(k),
     settings: state.practice.rush || {},
     saveSettings: (s) => { state.practice.rush = s; save(state); },
     best: rushBest,
@@ -1076,12 +989,113 @@ function screenRush() {
   });
 }
 
+/* ---------- Trip ---------- */
+
+const pct = (x) => `${Math.round(x * 100)}%`;
+const sceneOf = (id) => data.trip.find((s) => s.id === id);
+
+function startPart(scene, part) {
+  const { steps, useSrs } = partSteps(scene, part.key, state.items);
+  if (!steps.length) return;
+  startRun(steps, `${scene.title} · ${part.label}`, { useSrs });
+}
+
+// What a part has waiting: new items, due ones, or nothing (free practice).
+function partNote(st, key) {
+  if (st.fresh && st.due) return `${st.fresh} new · ${st.due} due`;
+  if (st.fresh && key === 'play') return st.fresh === 1 ? 'Not played yet' : `${st.fresh} to play`;
+  if (st.fresh) return st.fresh === st.total ? `${st.total} to learn` : `${st.fresh} new`;
+  if (st.due) return `${st.due} due`;
+  return 'Done for now · practice';
+}
+
+const countdown = () => {
+  const days = daysUntil(state.trip?.date);
+  if (days === null) return '';
+  if (days > 1) return `Japan in ${days} days`;
+  if (days === 1) return 'Japan tomorrow';
+  if (days === 0) return 'Japan today';
+  return 'Back from Japan';
+};
+
+// Home: the trip's next step, one tap away.
+function tripCard() {
+  if (!data.trip?.length) return '';
+  const next = nextPart(data.trip, state.items);
+  const ready = tripReadiness(data.trip, state.items);
+  return `<button class="card trip-card" id="tripgo">
+    <span class="water" aria-hidden="true">旅</span>
+    <span class="caps">${countdown() || 'Trip'} · ${pct(ready)} ready</span>
+    <strong>${next ? `${next.scene.title}: ${next.part.label}` : 'All caught up'}</strong>
+    <span class="small muted">${next ? next.part.desc : 'Practise any scene from the Trip tab'}</span>
+    <span class="bar"><i style="width:${pct(ready)}"></i></span>
+  </button>`;
+}
+
+function screenTrip() {
+  setTop('Trip');
+  const next = nextPart(data.trip, state.items);
+  const ready = tripReadiness(data.trip, state.items);
+  const date = state.trip?.date || '';
+  view.innerHTML = `
+    <section class="card hero trip-hero">
+      <span class="water" aria-hidden="true">旅</span>
+      <span class="caps">${countdown() || 'Your trip to Japan'}</span>
+      <h2>${pct(ready)} ready</h2>
+      <span class="bar"><i style="width:${pct(ready)}"></i></span>
+      <label class="trip-date"><span class="small">Trip date</span><input type="date" id="tripdate" value="${date}"></label>
+      ${next ? `<button class="btn" id="next">Next: ${next.scene.title} · ${next.part.label}</button>` : ''}
+    </section>
+    <div class="caps sect"><span>Scenes</span></div>
+    ${data.trip.map((s, n) => `<a class="scene-row card" href="#/trip/${s.id}">
+      <span class="scene-jp jp" aria-hidden="true">${s.jp}</span>
+      <span class="grow"><span class="caps">Scene ${n + 1}</span><strong>${s.title}</strong>
+        <span class="bar"><i style="width:${pct(readiness(s, state.items))}"></i></span></span>
+      <span class="num small">${pct(readiness(s, state.items))}</span><span class="chev">${icons.chevron}</span></a>`).join('')}
+    ${COMING.length ? `<p class="small muted center">On the way: ${COMING.join(', ')}.</p>` : ''}`;
+  view.querySelector('#tripdate').onchange = (e) => {
+    state.trip = { ...state.trip, date: e.target.value || null };
+    save(state);
+    screenTrip();
+  };
+  view.querySelector('#next')?.addEventListener('click', () => startPart(next.scene, next.part));
+}
+
+function screenScene(id) {
+  const scene = sceneOf(id);
+  if (!scene) { location.replace('#/trip'); return; }
+  setTop(scene.title, backTo('#/trip'));
+  const next = nextPart([scene], state.items);
+  view.innerHTML = `
+    <section class="card hero">
+      <span class="water jp" aria-hidden="true">${scene.jp}</span>
+      <span class="caps">${pct(readiness(scene, state.items))} ready</span>
+      <h2>${scene.title}</h2>
+      <span class="sub">${scene.blurb}</span>
+      <div class="sign-strip">${scene.signs.slice(0, 4).map((s) => signHtml(s)).join('')}</div>
+    </section>
+    ${PARTS.map((p) => {
+    const st = partStatus(scene, p.key, state.items);
+    const now = next?.part.key === p.key;
+    return `<button class="action part-row ${now ? 'now' : ''}" data-part="${p.key}">
+      <span class="icbox jp">${p.jp}</span>
+      <span class="grow"><strong>${p.label}</strong>
+        <span class="small">${p.key === 'play' ? scene.play.map((x) => x.title).join(' · ') : p.desc}</span>
+        <span class="small muted">${partNote(st, p.key)}</span></span>
+      <span class="num small">${pct(st.ready)}</span><span class="chev">${icons.chevron}</span></button>`;
+  }).join('')}`;
+  view.onclick = (e) => {
+    const b = e.target.closest('[data-part]');
+    if (b) startPart(scene, PARTS.find((p) => p.key === b.dataset.part));
+  };
+}
+
 function screenDojo() {
   setTop('Dojo');
-  const { cards, sets } = data.particles;
   const rush = { mode: 'meaning', secs: 60, penalty: true, ...state.practice.rush };
   const best = rushBest(rushKey(rush));
-  const action = (id, icon, name, sub) => `<button class="action" id="${id}"><span class="icbox">${icon}</span>
+  const done = courseSentences().length;
+  const action = (id, icon, name, sub, off = false) => `<button class="action" id="${id}" ${off ? 'disabled' : ''}><span class="icbox">${icon}</span>
     <span class="grow"><strong>${name}</strong><span class="small">${sub}</span></span><span class="chev">${icons.chevron}</span></button>`;
   view.innerHTML = `
     <button class="card hero rush-tile" id="rush">
@@ -1090,58 +1104,34 @@ function screenDojo() {
       <h2>Kanji Rush</h2>
       <span class="sub">Match kanji to their meanings or readings, fast. Set the clock your way.</span>
     </button>
-    ${action('sent', icons.blocks, 'Sentence drill', `${LEVELS.length} levels, from short to long`)}
-    ${action('part', icons.practice, 'Particle drill', 'Unlimited, with focus on what you miss')}
+    ${action('sent', icons.blocks, 'Sentence drill', done ? `${done} sentences from your finished lessons` : 'Finish a course lesson to fill this', !done)}
+    ${action('part', icons.practice, 'Particles', 'Guides and unlimited practice, focused on what you miss')}
     ${action('kan', icons.kanji, 'Kanji', `All ${data.kanji.length} N5 kanji, with parts, readings and words`)}
-    <p class="small muted center">Dojo practice doesn't change your review schedule.</p>
-    <div class="caps sect"><span>Particle guides</span></div>
-    <section class="pgrid" id="cards">${cards.map((c) => `<button class="ptile" data-p="${c.p}">
-      <b>${c.p}</b><small>${c.name}</small></button>`).join('')}</section>`;
+    ${action('exam', icons.exam, 'JLPT N5 mock exam', 'Only if you plan to sit the exam')}
+    <p class="small muted center">Dojo practice doesn't change your review schedule.</p>`;
   view.querySelector('#rush').onclick = () => { location.hash = '#/dojo/rush'; };
-  view.querySelector('#sent').onclick = () => { location.hash = '#/dojo/sentences'; };
+  view.querySelector('#sent').onclick = startCourseSentences;
   view.querySelector('#part').onclick = () => { location.hash = '#/dojo/particles'; };
   view.querySelector('#kan').onclick = () => { location.hash = '#/dojo/kanji'; };
-  view.querySelector('#cards').onclick = (e) => {
-    const b = e.target.closest('[data-p]');
-    if (!b) return;
-    const card = cards.find((c) => c.p === b.dataset.p);
-    const guided = sets.flatMap((set) => set.items.filter((it) => it.answer === card.p)
-      .map((it) => ({ type: 'particle', id: `p:${it.id}`, ref: it, set })));
-    startParticles(card.name, { focus: card.p }, [{ type: 'particleCard', ref: card }, ...guided]);
-  };
+  view.querySelector('#exam').onclick = () => { location.hash = '#/dojo/exam'; };
 }
 
 const backTo = (hash) => ({ close: true, back: true, onClose: () => { location.hash = hash; } });
 
-function screenSentenceLevels() {
-  setTop('Sentence drill', backTo('#/dojo'));
-  view.innerHTML = `
-    <p class="small muted">Build a sentence right the first time to clear it. Clear 80% of a level to open the next.</p>
-    ${LEVELS.map((level) => {
-    const open = levelUnlocked(level, state, data);
-    const p = levelProgress(level, state, data);
-    const empty = !p.total;
-    return `<button class="action level" data-n="${level.n}" ${open && !empty ? '' : 'disabled'}>
-        <span class="icbox">${open ? level.n : icons.lock}</span>
-        <span class="grow"><strong>${level.title}</strong><span class="small">${empty && open ? 'Finish a course lesson to fill this level' : level.sub}</span>
-          <span class="meter"><i style="width:${p.share * 100}%"></i></span></span>
-        <span class="small muted num">${p.done}/${p.total}</span></button>`;
-  }).join('')}`;
-  view.onclick = (e) => {
-    const b = e.target.closest('.level');
-    if (!b || b.disabled) return;
-    const level = LEVELS[Number(b.dataset.n) - 1];
-    const list = levelSentences(level, state, data);
-    const order = [...shuffled(list.filter((s) => !state.practice.sent[s.id])), ...shuffled(list.filter((s) => state.practice.sent[s.id]))];
-    startRun(order.map((s) => ({ type: 'sentence', id: `s:${s.id}`, ref: s })), `Level ${level.n}`, {
-      onDrill: (step, clean) => {
-        if (clean) {
-          state.practice.sent[step.ref.id] = 1;
-          save(state);
-        }
-      },
-    });
-  };
+// Sentence building from lessons you've finished: ones not yet built cleanly come first.
+const courseSentences = () => levelSentences(LEVELS.find((l) => l.course), state, data);
+function startCourseSentences() {
+  const list = courseSentences();
+  if (!list.length) return;
+  const order = [...shuffled(list.filter((s) => !state.practice.sent[s.id])), ...shuffled(list.filter((s) => state.practice.sent[s.id]))];
+  startRun(order.map((s) => ({ type: 'sentence', id: `s:${s.id}`, ref: s })), 'Sentence drill', {
+    onDrill: (step, clean) => {
+      if (clean) {
+        state.practice.sent[step.ref.id] = 1;
+        save(state);
+      }
+    },
+  });
 }
 
 function startParticles(title, choice, lead = []) {
@@ -1168,31 +1158,35 @@ function startParticles(title, choice, lead = []) {
 
 const PAIRS = [['は', 'が'], ['に', 'で'], ['を', 'が'], ['と', 'も'], ['から', 'まで'], ['か', 'ね']];
 
+// One screen for particles: practise them all, two side by side, or one with its guide first.
 function screenParticleChoice() {
-  setTop('Particle drill', backTo('#/dojo'));
-  const { cards } = data.particles;
+  setTop('Particles', backTo('#/dojo'));
+  const { cards, sets } = data.particles;
   const usable = PAIRS.filter((pair) => data.bank.frames.some((f) => pair.includes(f.a) && f.w[pair.find((p) => p !== f.a)]));
   const seen = Object.values(state.practice.part).reduce((n, s) => n + s.seen, 0);
   view.innerHTML = `
     <section class="card hero">
-      <span class="caps">Unlimited</span>
+      <span class="caps">Unlimited${seen ? ` · ${seen} answered` : ''}</span>
       <h2>All particles</h2>
-      <p class="sub">New sentences every time, for as long as you like. What you miss comes back more often. Press X to stop.</p>
+      <p class="sub">New sentences every time, for as long as you like. What you miss comes back more often. Tap Exit to stop.</p>
       <button class="btn" id="all">Start</button>
     </section>
-    <p class="small muted center">${seen} answered so far</p>
     <div class="caps sect"><span>Tell two apart</span></div>
     <section class="pgrid" id="pairs">${usable.map((pair) => `<button class="ptile short" data-pair="${pair.join(',')}"><b>${pair.join(' ')}</b><small>Compare</small></button>`).join('')}</section>
-    <div class="caps sect"><span>One particle</span></div>
-    <section class="pgrid" id="one">${cards.map((c) => `<button class="ptile short" data-p="${c.p}"><b>${c.p}</b><small>${c.name}</small></button>`).join('')}</section>`;
-  view.querySelector('#all').onclick = () => startParticles('Particle drill', {});
+    <div class="caps sect"><span>One particle</span><span class="muted">Guide, then practice</span></div>
+    <section class="pgrid" id="one">${cards.map((c) => `<button class="ptile" data-p="${c.p}"><b>${c.p}</b><small>${c.name}</small></button>`).join('')}</section>`;
+  view.querySelector('#all').onclick = () => startParticles('Particles', {});
   view.querySelector('#pairs').onclick = (e) => {
     const b = e.target.closest('[data-pair]');
-    if (b) startParticles('Particle drill', { pair: b.dataset.pair.split(',') });
+    if (b) startParticles('Particles', { pair: b.dataset.pair.split(',') });
   };
   view.querySelector('#one').onclick = (e) => {
     const b = e.target.closest('[data-p]');
-    if (b) startParticles('Particle drill', { focus: b.dataset.p });
+    if (!b) return;
+    const card = cards.find((c) => c.p === b.dataset.p);
+    const guided = sets.flatMap((set) => set.items.filter((it) => it.answer === card.p)
+      .map((it) => ({ type: 'particle', id: `p:${it.id}`, ref: it, set })));
+    startParticles(card.name, { focus: card.p }, [{ type: 'particleCard', ref: card }, ...guided]);
   };
 }
 
@@ -1202,30 +1196,24 @@ function screenCourse() {
   setTop('Course');
   const units = data.units;
   const next = nextUp(state, units);
-  const go = nextAction(next);
-  const due = reviewSteps(state, data).length;
   const passed = units.filter((u) => state.course.passed[u.id]).length;
   const steps = courseSteps(state, units);
   const rank = rankOf(passed);
-  const toRank = rank.next ? rank.next.at - passed : 0;
-  const nextLabel = next?.type === 'lesson' ? next.lesson.title
-    : next?.type === 'test' ? `Unit ${next.unit.n} test` : next?.type === 'exam' ? 'Mock exam' : 'Course';
   // Units up to two past the current one are shown; the rest fold into one row.
   const here = next?.unit ? units.indexOf(next.unit) : units.length - 1;
   const shown = units.slice(0, here + 2);
   const folded = units.length - shown.length;
+  // One signal per unit: lesson dots until it's passed, then stars for how well it's remembered.
   const node = (u) => {
     const p = unitProgress(state, u);
     const open = isUnlocked(state, units, u);
     const now = u === next?.unit;
-    const best = state.course.best?.[u.id];
-    const known = p.passed || now ? strengthLine(u) : '';
-    const sub = now ? `${p.done} of ${p.total} lessons${p.done === p.total ? ' · test ready' : ''}${known ? ` · ${known}` : ''}`
-      : p.passed ? [known, best ? `best ${Math.round(best * 100)}%` : ''].filter(Boolean).join(' · ') : open ? u.goal : 'Locked · pass its test to skip ahead';
+    const sub = p.passed ? '' : now ? `${p.done} of ${p.total} lessons${p.done === p.total ? ' · test ready' : ''}`
+      : open ? u.goal : 'Locked · pass its test to skip ahead';
     return `<a class="node ${p.passed ? 'done' : ''} ${now ? 'now' : ''} ${open ? '' : 'off'}" href="#/course/${u.id}">
         <span class="dot">${p.passed ? icons.check : open ? u.n : icons.lock}</span>
-        <span class="grow"><span class="label">${u.title}${p.passed ? `<span class="stars">${starHtml(unitStars(state, u))}</span>` : ''}</span>
-          <span class="nsub">${pips(u)}<span class="small muted">${sub}</span></span></span>
+        <span class="grow"><span class="label">${u.title}</span>
+          <span class="nsub">${p.passed ? `<span class="stars">${starHtml(unitStars(state, u))}</span>` : `${pips(u)}<span class="small muted">${sub}</span>`}</span></span>
         <span class="chev">${icons.chevron}</span></a>`;
   };
   // A unit's story chapter sits just after it on the path, open once the unit is passed.
@@ -1240,25 +1228,18 @@ function screenCourse() {
     return open ? `<a class="node story-node ${read ? 'done' : 'unread'}" href="#/course/story/${u.id}">${inner}<span class="chev">${icons.chevron}</span></a>`
       : `<div class="node story-node off">${inner}</div>`;
   };
+  // The next step starts from Home; this tab is the map.
   view.innerHTML = `
-    <section class="card hero course-hero">
-      <span class="caps">${next?.unit ? `Unit ${next.unit.n} · ` : ''}<span class="jp">${rank.jp}</span> ${rank.en}</span>
-      <h2>${nextLabel}</h2>
+    <section class="course-strip">
+      <div class="row tight"><span class="grow"><span class="jp">${rank.jp}</span> <strong>${rank.en}</strong></span>
+        <span class="small muted num">${steps.done} of ${steps.total} steps</span></div>
       <div class="meter"><i style="width:${(steps.done / steps.total) * 100}%"></i></div>
-      <span class="small hero-meta">${steps.done} of ${steps.total} steps${rank.next ? ` · ${toRank} ${toRank === 1 ? 'unit' : 'units'} to ${rank.next.en}` : ''}</span>
-      ${go ? `<button class="btn" id="go">${go.label}</button>` : ''}
-      ${due ? `<button class="btn ghost hero-ghost" id="revonly">Review only · ${due}</button>` : ''}
     </section>
     <section class="path">${shown.map((u) => node(u) + storyNode(u)).join('')}
       ${folded ? `<div class="node off fold"><span class="dot">${icons.lock}</span><span class="grow"><span class="label">Units ${shown.length + 1}–${units.length}</span>
         <span class="small muted">Open as you pass each unit</span></span></div>` : ''}
-      <a class="node ${examUnlocked(state, units) ? '' : 'off'} last" href="#/course/exam">
-        <span class="dot">${examUnlocked(state, units) ? icons.exam : icons.lock}</span>
-        <span class="grow"><span class="label">Mock exam</span><span class="small muted">The full JLPT N5 format, timed and scored</span></span>
-        <span class="chev">${icons.chevron}</span></a>
-    </section>`;
-  view.querySelector('#go')?.addEventListener('click', go.go);
-  view.querySelector('#revonly')?.addEventListener('click', startReviews);
+    </section>
+    <p class="small muted center">★ passed · ★★ most of it remembered · ★★★ mastered</p>`;
 }
 
 // A lesson left part-way picks up at the same step with the same new items.
@@ -1291,7 +1272,8 @@ function nextAction(next) {
     return { label: `Start lesson ${name}`, go: lesson };
   }
   if (next.type === 'test') return { label: `Take the Unit ${next.unit.n} test`, go: () => runUnitTest(next.unit) };
-  return { label: 'Open the mock exam', go: () => { location.hash = '#/course/exam'; } };
+  // After the last unit the course is done; the mock exam waits in Dojo for anyone who wants it.
+  return null;
 }
 
 // Reviews on their own, for a pocket of time too short for a lesson.
@@ -1303,11 +1285,6 @@ function startReviews() {
 // Three mastery stars, filled up to n.
 const starHtml = (n) => [1, 2, 3].map((i) => `<i class="${i <= n ? 'on' : ''}">★</i>`).join('');
 
-// How much of a unit is remembered well, as a short line.
-function strengthLine(unit) {
-  const s = unitStrength(state, unit);
-  return s.total ? `${s.strong} / ${s.total} strong` : '';
-}
 
 // Lesson dots and a test diamond for one unit.
 function pips(unit, justDone = null) {
@@ -1344,8 +1321,9 @@ function runUnitTest(unit) {
       const missed = exam.sections[0].questions.filter((q) => answers[q.id] !== q.a);
       state.course.best ||= {};
       state.course.best[unit.id] = Math.max(state.course.best[unit.id] || 0, result.share);
+      let cleared = [];
       if (result.pass) {
-        state.course.passed[unit.id] ||= Date.now();
+        cleared = passUnit(state, data.units, unit);
         // Passing the unit settles its old misses.
         for (const id of Object.keys(state.course.missed)) if (id.startsWith(`${unit.id}-`)) delete state.course.missed[id];
       } else if (wasOpen) {
@@ -1363,7 +1341,6 @@ function runUnitTest(unit) {
         return {
           actions: [
             ...(missed.length ? [{ label: `Drill the ${missed.length} ${missed.length === 1 ? 'miss' : 'misses'} now`, run: drill }] : []),
-            { label: 'Done for now', run: null },
           ],
         };
       }
@@ -1372,12 +1349,18 @@ function runUnitTest(unit) {
       const rose = rankOf(passedBefore).at !== rank.at;
       const next = nextUp(state, data.units);
       const go = nextAction(next);
+      // Stories unlocked by this pass: the unit's own chapter, plus any from skipped units.
+      const story = [unit, ...cleared].map((u) => storyOf(u.id)).find((s) => s && !state.course.stories?.[s.unit]);
+      const skipped = cleared.filter((u) => u !== unit);
+      const toGo = rank.next ? rank.next.at - passed : 0;
       return {
-        note: `Unit ${unit.n} cleared. ${passed} of ${data.units.length} units passed.`,
-        badge: rose ? `<div class="rankup"><span class="jp">${rank.jp}</span><span><small>New rank</small><b>${rank.en}</b></span></div>` : '',
+        note: `${skipped.length ? `Units ${skipped[0].n}–${unit.n} cleared: testing out passes the units before it too.` : `Unit ${unit.n} cleared.`} ${passed} of ${data.units.length} units passed.`,
+        badge: `<div class="rankup ${rose ? '' : 'quiet'}"><span class="jp">${rank.jp}</span><span><small>${rose ? 'New rank' : 'Rank'}</small><b>${rank.en}</b>${rank.next
+          ? `<small>${toGo} more ${toGo === 1 ? 'unit' : 'units'} to ${rank.next.en}</small>` : ''}</span></div>
+          ${story ? `<p class="unlock">${icons.story}<span><small>Story unlocked</small><b>${story.title}</b></span></p>` : ''}`,
         actions: [
           ...(go ? [{ label: next.type === 'lesson' ? `Start Unit ${next.unit.n}` : go.label, run: go.go }] : []),
-          { label: 'Done for now', run: null },
+          ...(story ? [{ label: 'Read the new story', run: () => { location.hash = `#/course/story/${story.unit}`; } }] : []),
         ],
       };
     },
@@ -1394,9 +1377,8 @@ function screenUnit(id) {
   const nextAfter = data.units[data.units.indexOf(unit) + 1];
   view.innerHTML = `
     <section class="card">
-      <div class="kod-head"><span class="caps">Unit ${unit.n}</span>${pips(unit)}</div>
+      <div class="kod-head"><span class="caps">Unit ${unit.n}</span>${p.passed ? `<span class="stars">${starHtml(unitStars(state, unit))}</span>` : pips(unit)}</div>
       <h3>${unit.title}</h3>
-      ${strengthLine(unit) ? `<div class="unit-mem"><span class="stars">${starHtml(unitStars(state, unit))}</span><span class="small muted">${strengthLine(unit)} · ★★ at 80% strong, ★★★ at 80% mastered</span></div>` : ''}
       <p class="small">By the end, you can: ${unit.goal.toLowerCase()}.</p>
       ${open ? '' : '<p class="small muted">This unit is locked. If you already know the material, pass this unit\'s test to skip ahead to it.</p>'}
     </section>
@@ -1431,7 +1413,7 @@ function runMock(paper, mode, resume = null) {
 }
 
 function screenExam() {
-  setTop('Mock exam', backTo('#/course'));
+  setTop('Mock exam', backTo('#/dojo'));
   const open = examUnlocked(state, data.units);
   const current = state.exams.current;
   const resumable = current && data.papers.find((p) => p.id === current.key);
@@ -1587,12 +1569,12 @@ async function importBackup(file) {
 
 const SCREENS = {
   today: screenToday,
+  trip: screenTrip,
   course: screenCourse,
-  'course/exam': screenExam,
   listen: screenListen,
   dojo: screenDojo,
+  'dojo/exam': screenExam,
   'dojo/rush': screenRush,
-  'dojo/sentences': screenSentenceLevels,
   'dojo/particles': screenParticleChoice,
   'dojo/kanji': screenKanji,
   settings: screenSettings,
@@ -1601,13 +1583,14 @@ const SCREENS = {
 // Screens with a parameter: [pattern, screen].
 const PARAM_SCREENS = [
   [/^course\/(u\d+)$/, (id) => screenUnit(id)],
+  [/^trip\/(\w+)$/, (id) => screenScene(id)],
   [/^course\/story\/(u\d+)$/, (id) => screenStory(id)],
-  [/^listen\/talk\/(\w+)$/, (id) => screenTalkList(id)],
   [/^listen\/radio\/([\w-]+)$/, (id) => screenRadio(id)],
 ];
 
-// Old addresses from before the tabs were reshuffled.
-const MOVED = [[/^practice(\/|$)/, 'dojo$1'], [/^talk\/(\w+)$/, 'listen/talk/$1'], [/^talk$/, 'listen'], [/^kanji$/, 'dojo/kanji']];
+// Old addresses: from before the tabs were reshuffled, and screens folded into others.
+const MOVED = [[/^practice(\/|$)/, 'dojo$1'], [/^(listen\/)?talk(\/[\w-]+)?$/, 'listen'], [/^kanji$/, 'dojo/kanji'],
+  [/^course\/exam$/, 'dojo/exam'], [/^dojo\/sentences$/, 'dojo'], [/^listen\/radio\/(starred|talk-[\w-]+)$/, 'listen']];
 
 function route() {
   if (!data || run) return;
@@ -1669,19 +1652,21 @@ async function init() {
       if (!r.ok) throw new Error(`${f}: ${r.status}`);
       return r.json();
     });
-    const [kanji, vocab, sentences, particles, glossary, bank, talk, stories, kanjiMore, ...rest] = await Promise.all([
+    const [kanji, vocab, sentences, particles, glossary, bank, talk, stories, kanjiMore, trip, ...rest] = await Promise.all([
       ...['kanji-n5', 'vocab-n5', 'sentences', 'particles', 'glossary', 'particle-bank'].map(get),
       get('talk').catch(() => ({ categories: [], lex: {} })),
       get('stories').catch(() => []),
       get('kanji-more').catch(() => []),
+      get('trip').catch(() => ({ scenes: [], lex: {} })),
       ...UNIT_FILES.map((f) => get(`course/${f}`).catch(() => [])),
       ...['exam-n5-1', 'exam-n5-2'].map((f) => get(`course/${f}`).catch(() => null)),
     ]);
     const papers = rest.slice(UNIT_FILES.length).filter(Boolean);
     data = mergeCourse({ kanji, vocab, sentences, particles, glossary, bank, papers }, rest.slice(0, UNIT_FILES.length));
-    for (const [w, [y, m, ro]] of [...Object.entries(bank.lex), ...Object.entries(talk.lex)]) {
+    for (const [w, [y, m, ro]] of [...Object.entries(bank.lex), ...Object.entries(talk.lex), ...Object.entries(trip.lex)]) {
       if (!glossary[w]) glossary[w] = { y, m, ro: ro ?? romaji(y) };
     }
+    data.trip = trip.scenes;
     data.talk = talk.categories;
     data.stories = stories;
     // Every kanji with a breakdown, so word cards and word glosses can show each one.

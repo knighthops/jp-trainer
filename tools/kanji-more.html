@@ -15,9 +15,9 @@ import { toHiragana } from '../js/romaji.js';
 const out = document.getElementById('out');
 const get = (p) => fetch(p, { cache: 'no-store' }).then((r) => { if (!r.ok) throw new Error(`${p}: ${r.status}`); return r; });
 try {
-  const [src, kd, kanji, vocab, glossary, bank, talk, ...units] = await Promise.all([
+  const [src, kd, kanji, vocab, glossary, bank, talk, trip, ...units] = await Promise.all([
     get('kanji-parts.txt').then((r) => r.text()), get('../.dict/kanjidic2-en-3.6.2.json').then((r) => r.json()),
-    ...['kanji-n5', 'vocab-n5', 'glossary', 'particle-bank', 'talk'].map((f) => get(`../data/${f}.json`).then((r) => r.json())),
+    ...['kanji-n5', 'vocab-n5', 'glossary', 'particle-bank', 'talk', 'trip'].map((f) => get(`../data/${f}.json`).then((r) => r.json())),
     ...UNIT_FILES.map((f) => get(`../data/course/${f}.json`).then((r) => r.json())),
   ]);
   const data = { kanji, vocab, glossary, bank, sentences: [], particles: {}, papers: [] };
@@ -29,6 +29,7 @@ try {
   Object.entries(data.glossary).forEach(([w, g]) => note(w, g.y));
   Object.entries(bank.lex).forEach(([w, [y]]) => note(w, y));
   Object.entries(talk.lex).forEach(([w, [y]]) => note(w, y));
+  Object.entries(trip.lex).forEach(([w, [y]]) => note(w, y));
 
   const kmap = new Map(kd.characters.map((c) => [c.literal, c]));
   const have = new Set(kanji.map((k) => k.k));

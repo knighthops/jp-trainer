@@ -114,13 +114,16 @@ export function startExam(ctx, exam, { mode = 'exam', resume = null } = {}) {
   const section = () => exam.sections[st.sec];
   const leave = () => { stop(); ctx.onExit(); };
 
-  const header = () => {
+  const header = (onPrev = null) => {
     const q = section().questions;
     setTop(section().title, {
       close: true,
       onClose: leave,
+      onPrev,
       count: timed && st.endAt ? clock(st.endAt - Date.now()) : `${st.i + 1} / ${q.length}`,
       progress: (st.i / q.length) * 100,
+      // A test can't be resumed, so Exit asks for a second tap.
+      confirm: true,
     });
     if (timed && st.endAt && !tick) {
       tick = setInterval(() => {
@@ -163,16 +166,19 @@ export function startExam(ctx, exam, { mode = 'exam', resume = null } = {}) {
     window.scrollTo(0, 0);
     const list = section().questions;
     const q = list[st.i];
-    header();
+    const back = () => { cancel(); st.i--; save(); question(); };
+    header(st.i > 0 ? back : null);
     // The underlined word is what's being tested, so help never gives it away.
     const secret = (w) => w.startsWith('[');
     const tokens = (q.q || '').split(/ +/).filter(Boolean);
+    // A lone word ("What does this mean? 人") is the question itself: shown big, never tappable.
+    const lone = tokens.length === 1 && !q.p && !q.play;
     const romajiOf = () => {
-      if (!help || tokens.every(secret)) return '';
+      if (!help || lone || tokens.every(secret)) return '';
       return `<p class="romaji">${romajiLine(tokens.map((w) => (secret(w) ? null : plain(w)[0])), glossary, '')}</p>`;
     };
-    const tappable = help && !q.ao;
-    const stem = q.q ? (tappable
+    const tappable = help && !q.ao && !lone && tokens.some((w) => !secret(w) && glossary[w]);
+    const stem = lone ? `<div class="stem lone jp">${display(q.q)}</div>` : q.q ? (tappable
       ? `<div class="stem jp">${tokens.map((w) => (secret(w) ? display(w)
         : glossary[w] ? `<button class="word" data-word="${w}">${w}</button>` : `<span>${w}</span>`)).join('')}</div>`
       : `<div class="stem flow jp">${display(q.q)}</div>`) : '';
@@ -189,12 +195,10 @@ export function startExam(ctx, exam, { mode = 'exam', resume = null } = {}) {
         ${romajiOf()}
         ${tappable ? glossHtml() : ''}
       </div>
-      <div class="choices" id="opts">${q.o.map((o, i) => `<button class="choice jp ${st.answers[q.id] === i ? 'picked' : ''}" data-i="${i}">
-        <span class="cnum">${i + 1}</span><span class="grow">${hideOptions ? '' : display(o)}${!hideOptions && help && /[ぁ-ヶ一-龯]/.test(o) ? `<small class="ro">${romajiLine(plain(o), glossary, '')}</small>` : ''}</span></button>`).join('')}</div>
-      <div class="dock"><div class="pair">
-        <button class="btn ghost" id="prev" ${st.i === 0 ? 'disabled' : ''}>Previous</button>
-        <button class="btn" id="next">${st.i === list.length - 1 ? 'Review' : 'Next'}</button>
-      </div><button class="link" id="map">All questions</button></div>`;
+      <div class="reach"><div class="choices" id="opts">${q.o.map((o, i) => `<button class="choice jp ${st.answers[q.id] === i ? 'picked' : ''}" data-i="${i}">
+        <span class="cnum">${i + 1}</span><span class="grow">${hideOptions ? '' : display(o)}${!hideOptions && help && /[ぁ-ヶ一-龯]/.test(o) ? `<small class="ro">${romajiLine(plain(o), glossary, '')}</small>` : ''}</span></button>`).join('')}</div></div>
+      <div class="dock"><button class="btn" id="next">${st.i === list.length - 1 ? 'Review' : 'Next'}</button>
+        <button class="link" id="map">All questions</button></div>`;
     if (tappable) bindGloss(view.querySelector('.gloss-zone'), glossary);
 
     let rate = NORMAL;
@@ -231,7 +235,6 @@ export function startExam(ctx, exam, { mode = 'exam', resume = null } = {}) {
       save();
       view.querySelectorAll('.choice').forEach((x) => x.classList.toggle('picked', x === b));
     };
-    view.querySelector('#prev').onclick = () => { cancel(); st.i--; save(); question(); };
     view.querySelector('#next').onclick = () => {
       cancel();
       if (st.i === list.length - 1) overview();

@@ -62,8 +62,9 @@ const overlaps = (mine, theirs) => {
 
 try {
   const [jm, kd] = await Promise.all([dictFile('jmdict-eng').then(get), dictFile('kanjidic2-en').then(get)]);
-  const [kanjiN5, more, vocab, glossary, bank, talk, ...unitFiles] = await Promise.all([
+  const [kanjiN5, more, vocab, glossary, bank, talk, trip, ...unitFiles] = await Promise.all([
     get('../data/kanji-n5.json'), get('../data/kanji-more.json').catch(() => []), get('../data/vocab-n5.json'), get('../data/glossary.json'), get('../data/particle-bank.json'), get('../data/talk.json'),
+    get('../data/trip.json').catch(() => ({ lex: {} })),
     ...UNIT_FILES.map((f) => get(`../data/course/${f}.json`)),
   ]);
   const kanji = [...kanjiN5, ...more];
@@ -144,6 +145,7 @@ try {
   for (const [w, [y, m]] of Object.entries(bank.lex || {})) note(w, y, m, 'particle bank');
   for (const u of unitFiles.flat()) for (const [w, [y, m]] of Object.entries(u.lex || {})) note(w, y, m, u.id);
   for (const [w, [y, m]] of Object.entries(talk.lex)) note(w, y, m, 'talk');
+  for (const [w, [y, m]] of Object.entries(trip.lex)) note(w, y, m, 'trip');
 
   const report = { readingMismatch: [], unreadable: [], meaning: [], conflicts: [], kanji: [], notInDictionary: 0, checked: 0 };
   const subset = { source: 'JMdict and KANJIDIC2 (EDRDG, CC BY-SA 4.0), via jmdict-simplified', words: {}, built: {}, kanji: {} };

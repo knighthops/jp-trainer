@@ -112,12 +112,14 @@ export function renderSentence(root, sentence, { hints, review = false, onDone }
       <p class="en">${sentence.en}</p>
       <div class="answer" id="ans" aria-live="polite">${'<i class="slot"></i>'.repeat(sentence.blocks.length)}</div>
     </div>
-    <div class="pool" id="pool">${pool.map((b) => blockHtml(b)).join('')}</div>
-    <div class="fb" id="fb" role="status"></div>
-    <div class="legend">
-      <span class="topic"><i></i>topic</span><span class="subject"><i></i>subject</span>
-      <span class="object"><i></i>object</span><span class="verb"><i></i>verb</span>
-      <span class="particle"><i></i>particle</span><span><i></i>other</span>
+    <div class="reach">
+      <div class="fb" id="fb" role="status"></div>
+      <div class="pool" id="pool">${pool.map((b) => blockHtml(b)).join('')}</div>
+      <div class="legend">
+        <span class="topic"><i></i>topic</span><span class="subject"><i></i>subject</span>
+        <span class="object"><i></i>object</span><span class="verb"><i></i>verb</span>
+        <span class="particle"><i></i>particle</span><span><i></i>other</span>
+      </div>
     </div>
     <div class="dock" id="after"></div>`;
   const fb = root.querySelector('#fb');
@@ -190,7 +192,18 @@ export function romajiLine(words, glossary, end = '.') {
   return line[0].toUpperCase() + line.slice(1) + closed;
 }
 
-const GLOSS_HINT = '<span class="muted small">Tap a word for its reading and meaning.</span>';
+// Renders words in a wrapping row, keeping 。、？！ on the same line as the word before them.
+const MARK = /^[。、？！]$/;
+export function glued(tokens, render) {
+  const out = [];
+  for (const w of tokens) {
+    if (MARK.test(w) && out.length) out[out.length - 1] = `<span class="glue">${out[out.length - 1]}<span>${w}</span></span>`;
+    else out.push(render(w));
+  }
+  return out.join('');
+}
+
+const GLOSS_HINT ='<span class="muted small">Tap a word for its reading and meaning.</span>';
 export const glossHtml = () => `<div class="gloss" aria-live="polite">${GLOSS_HINT}</div>`;
 
 export function glossText(word, g) {
@@ -227,8 +240,10 @@ export function renderParticle(root, item, set, cards, { glossary, review = fals
       <p class="romaji center" id="romaji">${romaji(null)}</p>
       ${glossHtml()}
     </div>
-    <div class="opts ${item.options.some((o) => o.length > 3) ? 'long' : ''}" id="opts">${item.options.map((o) => `<button class="opt" data-o="${o}">${o}</button>`).join('')}</div>
-    <div class="fb" id="fb" role="status"></div>
+    <div class="reach">
+      <div class="fb" id="fb" role="status"></div>
+      <div class="opts ${item.options.some((o) => o.length > 3) ? 'long' : ''}" id="opts">${item.options.map((o) => `<button class="opt" data-o="${o}">${o}</button>`).join('')}</div>
+    </div>
     <div class="dock" id="after"></div>`;
   bindGloss(root.querySelector('.gloss-zone'), glossary);
   const fb = root.querySelector('#fb');
@@ -282,8 +297,10 @@ export function renderCheck(root, q, { glossary, review = false, onDone }) {
       ${romajiRow}
       ${tokens.some((w) => !secret(w) && glossary[w]) ? glossHtml() : ''}`}
     </div>
-    <div class="choices" id="opts">${options.map((o) => `<button class="choice" data-o="${o}">${show(o)}</button>`).join('')}</div>
-    <div class="fb" id="fb" role="status"></div>
+    <div class="reach">
+      <div class="fb" id="fb" role="status"></div>
+      <div class="choices" id="opts">${options.map((o) => `<button class="choice" data-o="${o}">${show(o)}</button>`).join('')}</div>
+    </div>
     <div class="dock" id="after"></div>`;
   bindGloss(root.querySelector('.gloss-zone'), glossary);
   const fb = root.querySelector('#fb');

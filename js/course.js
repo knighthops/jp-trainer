@@ -104,6 +104,14 @@ const lastPassed = (state, units) => units.reduce((best, u) => (state.course.pas
 
 export const isUnlocked = (state, units, unit) => unit.n <= lastPassed(state, units) + 1;
 
+// Passing a unit's test passes it, and testing out of a later unit passes every unit
+// before it too: the course never leaves a gap behind you. Returns the units newly passed.
+export function passUnit(state, units, unit, now = Date.now()) {
+  const fresh = units.filter((u) => u.n <= unit.n && !state.course.passed[u.id]);
+  for (const u of fresh) state.course.passed[u.id] = now;
+  return fresh;
+}
+
 export function unitProgress(state, unit) {
   const done = unit.lessons.filter((l) => state.course.done[l.id]).length;
   return { done, total: unit.lessons.length, passed: Boolean(state.course.passed[unit.id]) };

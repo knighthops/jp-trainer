@@ -10,12 +10,15 @@ import { matchReading } from '../js/readings.js';
 import { reviewSteps, kanjiId, talkId } from '../js/session.js';
 import {
   UNIT_FILES, mergeCourse, nextUp, isUnlocked, examUnlocked, lessonSteps, LEVELS, levelUnlocked, toBlocks, autoAlts, words, particleItem,
-  courseSteps, rankOf, LESSON_NEW, unitStars, unitItems, grammarId,
+  courseSteps, rankOf, LESSON_NEW, unitStars, unitItems, grammarId, passUnit,
 } from '../js/course.js';
 import { unitTest, mockExam, grade } from '../js/exam.js';
 import { checkLogin, hashPassword, userId } from '../js/lock.js';
 import { radioChannels } from '../js/radio.js';
 import { rushQuestion } from '../js/rush.js';
+import {
+  PARTS, tripId, partSteps, nextPart, readiness, daysUntil, tripReviewSteps, sceneLines,
+} from '../js/trip.js';
 
 const json = (f) => JSON.parse(readFileSync(new URL(`../data/${f}.json`, import.meta.url)));
 const data = {
@@ -463,6 +466,7 @@ test('every word and kanji matches JMdict and KANJIDIC2', () => {
     ...c.vocab.map((v) => [v.w, v.y]),
     ...c.units.flatMap((u) => Object.entries(u.lex || {}).map(([w, [y]]) => [w, y])),
     ...Object.entries(json('talk').lex).map(([w, [y]]) => [w, y]),
+    ...Object.entries(json('trip').lex).map(([w, [y]]) => [w, y]),
   ].filter(([w]) => !/[\sA-Za-z]/.test(w) && /[぀-ヿ一-龯]/.test(w));
   const wrong = [];
   const unchecked = [];
@@ -659,23 +663,39 @@ test('story chapters use only words taught up to their unit', () => {
   for (const s of stories) assert.ok(merged.units.some((u) => u.id === s.unit), `${s.unit} is a unit`);
 });
 
-test('radio channels open with finished lessons and read stories', () => {
+test('radio plays trip scenes, then finished lessons and read stories', () => {
   const merged = course();
-  merged.talk = [{ id: 'greet', jp: '挨拶', title: 'Greetings', items: [{ id: 'g1', t: 'こんにちは 。', en: 'Hello.' }] }];
-  merged.talkPhrases = merged.talk[0].items;
+  merged.trip = json('trip').scenes;
   merged.stories = json('stories');
   const state = blank();
-  state.talk = { saved: {} };
-  assert.deepEqual(radioChannels(state, merged).map((c) => c.id), ['talk-greet']);
+  const sceneIds = merged.trip.map((s) => `trip-${s.id}`);
+  assert.deepEqual(radioChannels(state, merged).map((c) => c.id), ['trip', ...sceneIds]);
   const [unit] = merged.units;
   state.course.done[unit.lessons[0].id] = 1;
   state.course.stories = { [unit.id]: 1 };
-  state.talk.saved.g1 = 1;
   const ids = radioChannels(state, merged).map((c) => c.id);
-  assert.deepEqual(ids, ['course', 'unit', 'stories', 'starred', 'talk-greet']);
-  const ch = radioChannels(state, merged)[0];
-  assert.ok(ch.items.every((x) => x.t && x.en));
-  assert.equal(new Set(ch.items.map((x) => x.t)).size, ch.items.length, 'no line twice');
+  assert.deepEqual(ids, ['trip', ...sceneIds, 'course', 'unit', 'stories']);
+  for (const ch of radioChannels(state, merged)) {
+    assert.ok(ch.items.every((x) => x.t && x.en), ch.id);
+    assert.equal(new Set(ch.items.map((x) => x.t)).size, ch.items.length, `${ch.id}: no line twice`);
+  }
+});
+
+test('kanji rush reading asks four different hiragana readings, one of them right', () => {
+  const all = json('kanji-n5');
+  const pool = all.slice(0, 8);
+  const readOf = (k) => toHiragana((k.kun[0] || k.on[0]).replace(/[-.]/g, ''));
+  let last = null;
+  for (let n = 0; n < 50; n++) {
+    const q = rushQuestion(pool, all, Math.random, last, 'reading', readOf);
+    assert.equal(q.options.length, 4);
+    assert.equal(new Set(q.options).size, 4);
+    assert.equal(q.right, readOf(q.k));
+    assert.ok(q.options.every((o) => !/[ァ-ヶ]/.test(o)), 'all hiragana');
+    const own = [...q.k.on, ...q.k.kun].map((r) => toHiragana(r.replace(/[-.]/g, '')));
+    assert.ok(q.options.filter((o) => own.includes(o)).length === 1, 'only one option fits the kanji');
+    last = q.k;
+  }
 });
 
 test('kanji rush asks four different meanings, one of them right', () => {
@@ -711,6 +731,12 @@ function spokenLines() {
   merged.sentences.forEach((s) => add(`sentence ${s.id}`, s.blocks.map((b) => b.t).join(' ')));
   for (const c of talk.categories) c.items.forEach((p) => add(`talk ${p.id}`, p.t));
   for (const s of optional('stories') || []) s.lines.forEach((l) => add(`story ${s.unit}`, l.t));
+  const trip = optional('trip') || { scenes: [], lex: {} };
+  for (const [w, [y, m]] of Object.entries(trip.lex)) if (!merged.glossary[w]) merged.glossary[w] = { y, m, ro: romaji(y) };
+  for (const s of trip.scenes) {
+    sceneLines(s).forEach((t) => add(`trip ${s.id}`, t));
+    s.signs.forEach((x) => add(`trip ${s.id} sign`, x.y || x.t));
+  }
   for (const paper of merged.papers) {
     for (const sec of paper.sections) for (const part of sec.parts) for (const q of part.questions) {
       (q.play || []).forEach(([, t]) => add(`${paper.id} ${part.id}`, t));
@@ -738,7 +764,7 @@ test('every kanji in every word the app shows has a breakdown', () => {
   const c = course();
   const more = json('kanji-more');
   const talk = json('talk');
-  const words = [...Object.keys(c.glossary), ...c.vocab.map((v) => v.w), ...Object.keys(talk.lex)];
+  const words = [...Object.keys(c.glossary), ...c.vocab.map((v) => v.w), ...Object.keys(talk.lex), ...Object.keys(json('trip').lex)];
   const covered = new Set([...c.kanji, ...more].map((k) => k.k));
   const missing = [...new Set(words.join('').match(/[一-龯]/g))].filter((k) => !covered.has(k));
   assert.deepEqual(missing, [], 'add these to tools/kanji-parts.txt and run tools/kanji-more.html');
@@ -761,4 +787,108 @@ test('every particle pair has at least 12 sentences, and recent ones never come 
       recent.push(it.id);
     }
   }
+});
+
+test('trip scenes: every part is filled, ids are unique, and every word can be tapped', () => {
+  const trip = json('trip');
+  const { glossary } = course();
+  for (const [w, [y, m]] of Object.entries(trip.lex)) if (!glossary[w]) glossary[w] = { y, m, ro: romaji(y) };
+  const ids = [];
+  for (const s of trip.scenes) {
+    for (const p of PARTS) assert.ok(s[p.key]?.length, `${s.id} has no ${p.key}`);
+    assert.ok(s.signs.length >= 10 && s.say.length >= 6 && s.hear.length >= 8, `${s.id} is too small`);
+    for (const p of PARTS) ids.push(...s[p.key].map((x) => x.id));
+    for (const x of s.signs) assert.ok(x.m && (x.y || glossary[x.t]?.y), `sign ${x.id} needs a meaning and a reading`);
+    for (const t of sceneLines(s)) {
+      for (const w of t.split(' ').filter((w) => !/^[。、？！]$/.test(w))) assert.ok(glossary[w], `${s.id}: ${w} in "${t}" has no gloss`);
+    }
+    for (const play of s.play) {
+      for (const turn of play.turns) {
+        if (turn.who === 'staff') { assert.ok(turn.t && turn.en, `${play.id} staff line`); continue; }
+        assert.ok(turn.who === 'you' || turn.who === 'check', `${play.id} turn ${turn.who}`);
+        assert.equal(turn.options.filter((o) => o.ok).length, 1, `${play.id}: one right option`);
+        for (const o of turn.options.filter((x) => !x.ok)) assert.ok(o.why, `${play.id}: wrong option explained`);
+      }
+    }
+  }
+  assert.equal(new Set(ids).size, ids.length, 'a trip id is used twice');
+});
+
+test('trip parts: new and due first, then free practice that leaves the schedule alone', () => {
+  const [scene] = json('trip').scenes;
+  const fresh = partSteps(scene, 'signs', {}, NOW, () => 0.5);
+  assert.ok(fresh.useSrs && fresh.steps.length === 8 && fresh.steps.every((s) => s.type === 'tripSign'));
+  const say = partSteps(scene, 'say', {}, NOW, () => 0.5);
+  const learn = say.steps.filter((s) => s.type === 'tripLearn');
+  assert.equal(learn.length, 5, 'five new lines are taught');
+  assert.equal(say.steps.filter((s) => s.type === 'tripSay').length, 5, 'then recalled');
+  assert.ok(say.steps.indexOf(learn.at(-1)) < say.steps.findIndex((s) => s.type === 'tripSay'), 'taught before recalled');
+  // Everything known and not due: practice only.
+  const items = {};
+  for (const p of PARTS) for (const x of scene[p.key]) items[tripId(x)] = rate(rate(newRecord(), 'good', NOW), 'good', NOW);
+  const later = partSteps(scene, 'hear', items, NOW);
+  assert.equal(later.useSrs, false);
+  assert.ok(later.steps.length > 0);
+  assert.equal(readiness(scene, items), 1, 'strong everywhere is fully ready');
+  assert.equal(readiness(scene, {}), 0);
+});
+
+test('trip: due parts come first, then new ones in scene order; due items join reviews', () => {
+  const { scenes } = json('trip');
+  assert.equal(nextPart(scenes, {}, NOW).scene.id, scenes[0].id);
+  assert.equal(nextPart(scenes, {}, NOW).part.key, 'signs');
+  const learnt = {};
+  for (const x of scenes[0].signs) learnt[tripId(x)] = { ...newRecord(), reps: 1, interval: 1, due: NOW + DAY };
+  assert.equal(nextPart(scenes, learnt, NOW).part.key, 'say', 'signs learnt and not due, so say is next');
+  const items = {};
+  for (const x of scenes[0].signs) items[tripId(x)] = { ...newRecord(), reps: 1, interval: 1, due: NOW - 1 };
+  for (const x of scenes[1].hear.slice(0, 2)) items[tripId(x)] = { ...newRecord(), reps: 1, interval: 1, due: NOW - 1 };
+  const go = nextPart(scenes, items, NOW);
+  assert.equal(`${go.scene.id} ${go.part.key}`, `${scenes[0].id} signs`, 'the part with the most due comes before anything new');
+  // A miss never raises readiness.
+  const missed = Object.fromEntries(scenes[0].signs.map((x) => [tripId(x), rate(newRecord(), 'again', NOW)]));
+  assert.equal(readiness(scenes[0], missed), 0);
+  const due = tripReviewSteps(scenes, items, NOW, 5);
+  assert.equal(due.length, 5);
+  assert.ok(due.every((s) => s.type === 'tripSign'));
+  const state = { ...blank(), items };
+  const steps = reviewSteps(state, { ...data, trip: scenes }, NOW);
+  assert.ok(steps.some((s) => s.type === 'tripSign'), 'trip items appear in the daily review');
+});
+
+test('trip countdown counts whole days from local midnight', () => {
+  const now = new Date(2026, 10, 10, 23, 30).getTime();
+  assert.equal(daysUntil('2026-11-11', now), 1);
+  assert.equal(daysUntil('2026-11-10', now), 0);
+  assert.equal(daysUntil('2027-05-10', now), 181);
+  assert.equal(daysUntil(null, now), null);
+});
+
+test('testing out of a later unit passes the units before it, so none is left behind', () => {
+  const { units } = course();
+  const state = blank();
+  passUnit(state, units, units[0]);
+  const cleared = passUnit(state, units, units[2]);
+  assert.deepEqual(cleared.map((u) => u.n), [2, 3], 'unit 2 is passed along with unit 3');
+  assert.ok(units.slice(0, 3).every((u) => state.course.passed[u.id]));
+  assert.equal(nextUp(state, units).unit.n, 4);
+  assert.deepEqual(passUnit(state, units, units[1]), [], 'a retake changes nothing');
+});
+
+test('trip role-play: one variant a session, new ones first, then the most overdue', () => {
+  const scene = json('trip').scenes.find((s) => s.play.length >= 2);
+  const [a, b] = scene.play;
+  const first = partSteps(scene, 'play', {}, NOW);
+  assert.equal(first.steps.length, 1);
+  assert.equal(first.steps[0].ref.id, a.id);
+  const items = {};
+  for (const p of scene.play) items[tripId(p)] = { ...newRecord(), reps: 1, interval: 1, due: NOW + DAY };
+  items[tripId(b)].due = NOW - 2 * DAY;
+  items[tripId(a)].due = NOW - DAY;
+  assert.equal(partSteps(scene, 'play', items, NOW).steps[0].ref.id, b.id, 'the most overdue first');
+  for (const p of scene.play) items[tripId(p)].due = NOW + DAY;
+  const practice = partSteps(scene, 'play', items, NOW, () => 0);
+  assert.equal(practice.useSrs, false);
+  assert.equal(practice.steps.length, 1);
+  for (const s of json('trip').scenes) assert.ok(s.play.length >= 2, `${s.id} has role-play variants`);
 });

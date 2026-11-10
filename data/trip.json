@@ -1,0 +1,1320 @@
+{
+"about": "Travel scenes for the Trip tab. Each scene has signs to recognise, lines to say, lines you will hear from staff or announcements, and a role-play. Spaces mark word breaks; every word is in lex or the glossary.",
+"scenes": [
+{
+  "id": "konbini", "title": "Convenience store", "jp": "コンビニ",
+  "blurb": "Buying food and drinks, and the questions the cashier always asks.",
+  "signs": [
+    {"id": "k-s1", "t": "営業中", "style": "shop", "m": "Open", "note": "Hung on shop and restaurant doors."},
+    {"id": "k-s2", "t": "準備中", "style": "curtain", "m": "Not open yet", "note": "Common on restaurants before opening and between lunch and dinner."},
+    {"id": "k-s3", "t": "入口", "style": "notice", "m": "Entrance", "note": "Its partner is 出口, exit. 口 is mouth, an opening."},
+    {"id": "k-s4", "t": "出口", "style": "exit", "m": "Exit", "note": "Everywhere: shops, stations, car parks."},
+    {"id": "k-s5", "t": "押", "y": "おす", "style": "notice", "m": "Push", "note": "On doors, often as a small sticker by the handle."},
+    {"id": "k-s6", "t": "引", "y": "ひく", "style": "notice", "m": "Pull", "note": "The other side of the door from 押."},
+    {"id": "k-s7", "t": "お会計", "style": "notice", "m": "Pay here", "note": "Above the till. Also what you say to ask for the bill in a restaurant."},
+    {"id": "k-s8", "t": "税込", "style": "price", "m": "Tax included", "note": "On price tags. This is what you actually pay."},
+    {"id": "k-s9", "t": "税抜", "style": "price", "m": "Before tax", "note": "The smaller price: you pay about 10% more at the till."},
+    {"id": "k-s10", "t": "割引", "style": "price", "m": "Discount", "note": "Often with a number: 3割引 is 30% off."},
+    {"id": "k-s11", "t": "半額", "style": "price", "m": "Half price", "note": "Stickers on bento and bread late in the evening."},
+    {"id": "k-s12", "t": "お手洗い", "style": "green", "m": "Restrooms", "note": "Also written トイレ."}
+  ],
+  "say": [
+    {"id": "k-y1", "t": "これ を ください 。", "en": "This one, please.", "when": "Pointing at something on a shelf or menu."},
+    {"id": "k-y2", "t": "袋 を ください 。", "en": "A bag, please.", "when": "Bags cost a few yen, so you ask for one."},
+    {"id": "k-y3", "t": "はい 、 お願いします 。", "en": "Yes, please.", "when": "The answer to almost any offer: heating, chopsticks, a bag."},
+    {"id": "k-y4", "t": "いいえ 、 大丈夫 です 。", "en": "No, I'm fine.", "when": "The polite no thanks."},
+    {"id": "k-y5", "t": "カード で お願いします 。", "en": "By card, please.", "when": "When they ask how you'll pay."},
+    {"id": "k-y6", "t": "温めて ください 。", "en": "Please heat it up.", "when": "For a bento, if they don't offer."},
+    {"id": "k-y7", "t": "お箸 を ください 。", "en": "Chopsticks, please.", "when": "If none went in the bag."},
+    {"id": "k-y8", "t": "トイレ は どこ です か 。", "en": "Where is the toilet?", "when": "Many convenience stores have one for customers."}
+  ],
+  "hear": [
+    {"id": "k-h1", "t": "いらっしゃいませ 。", "en": "Welcome!", "tip": "Called out as you walk in. Nobody answers it: just walk in."},
+    {"id": "k-h2", "t": "温めます か 。", "en": "Shall I heat it up?", "r": "はい 、 お願いします 。"},
+    {"id": "k-h3", "t": "袋 は ご利用 です か 。", "en": "Do you need a bag?", "r": "いいえ 、 大丈夫 です 。"},
+    {"id": "k-h4", "t": "お箸 は お付け します か 。", "en": "Would you like chopsticks?", "r": "はい 、 お願いします 。"},
+    {"id": "k-h5", "t": "ポイントカード は お持ち です か 。", "en": "Do you have a point card?", "r": "いいえ 。", "tip": "Asked at almost every shop. いいえ is all you need."},
+    {"id": "k-h6", "t": "お支払い は どう なさいます か 。", "en": "How would you like to pay?", "r": "カード で お願いします 。"},
+    {"id": "k-h7", "t": "店内 で お召し上がり です か 。", "en": "Will you eat it here in the store?", "tip": "Eating in is taxed differently, so they ask. いいえ means you're taking it away."},
+    {"id": "k-h8", "t": "少々 お待ち ください 。", "en": "Just a moment, please."},
+    {"id": "k-h9", "t": "年齢 確認 ボタン を 押して ください 。", "en": "Please press the age check button.", "tip": "For alcohol or cigarettes: tap the button on the screen facing you."},
+    {"id": "k-h10", "t": "合計 で 五百円 です 。", "en": "That's 500 yen in total.", "tip": "The total also shows on the screen by the till."},
+    {"id": "k-h11", "t": "ありがとうございました 。", "en": "Thank you very much.", "tip": "Said as you leave. A small nod is a fine reply."}
+  ],
+  "play": [
+    {"id": "k-p1", "title": "Buying a bento", "setup": "You've picked a bento and you're at the till. You have your own bag and you'll pay by card.", "turns": [
+      {"who": "staff", "t": "いらっしゃいませ 。", "en": "Welcome!"},
+      {"who": "you", "goal": "The cashier calls out as you come to the till.", "options": [
+        {"act": "Just smile or nod", "ok": true, "why": "Right. It's a greeting, not a question, and customers don't answer it."},
+        {"t": "いらっしゃいませ 。", "en": "Welcome!", "why": "That's the staff's line. Customers don't say it."}]},
+      {"who": "staff", "t": "温めます か 。", "en": "Shall I heat it up?"},
+      {"who": "you", "goal": "You want your bento hot.", "options": [
+        {"t": "はい 、 お願いします 。", "en": "Yes, please.", "ok": true},
+        {"t": "いいえ 、 大丈夫 です 。", "en": "No, I'm fine.", "why": "That's no thanks, so your bento stays cold."},
+        {"t": "これ を ください 。", "en": "This one, please.", "why": "That asks for an item. They asked about heating it."}]},
+      {"who": "staff", "t": "お箸 は お付け します か 。", "en": "Would you like chopsticks?"},
+      {"who": "you", "goal": "You need chopsticks.", "options": [
+        {"t": "はい 、 お願いします 。", "en": "Yes, please.", "ok": true},
+        {"t": "トイレ は どこ です か 。", "en": "Where is the toilet?", "why": "That asks for the toilet. They asked about chopsticks."}]},
+      {"who": "staff", "t": "袋 は ご利用 です か 。", "en": "Do you need a bag?"},
+      {"who": "you", "goal": "You brought your own bag.", "options": [
+        {"t": "いいえ 、 大丈夫 です 。", "en": "No, I'm fine.", "ok": true},
+        {"t": "袋 を ください 。", "en": "A bag, please.", "why": "That asks for a bag, and you'd pay for it."}]},
+      {"who": "staff", "t": "ポイントカード は お持ち です か 。", "en": "Do you have a point card?"},
+      {"who": "you", "goal": "You don't have their point card.", "options": [
+        {"t": "いいえ 。", "en": "No.", "ok": true},
+        {"t": "はい 、 お願いします 。", "en": "Yes, please.", "why": "That's yes, so they'll wait for you to show a card."}]},
+      {"who": "staff", "t": "合計 で 五百円 です 。", "en": "That's 500 yen in total."},
+      {"who": "check", "q": "How much do you pay?", "options": [
+        {"en": "500 yen", "ok": true},
+        {"en": "5,000 yen", "why": "5,000 would be 五千円, ごせんえん. 百 is hundred."},
+        {"en": "50 yen", "why": "50 would be 五十円, ごじゅうえん. 百 is hundred."}]},
+      {"who": "staff", "t": "お支払い は どう なさいます か 。", "en": "How would you like to pay?"},
+      {"who": "you", "goal": "You'll pay by card.", "options": [
+        {"t": "カード で お願いします 。", "en": "By card, please.", "ok": true},
+        {"t": "温めて ください 。", "en": "Please heat it up.", "why": "That asks them to heat it. They asked how you'll pay."}]},
+      {"who": "staff", "t": "ありがとうございました 。", "en": "Thank you very much."}
+    ]}
+    ,
+    {"id": "k-p2", "title": "Eating in", "setup": "You're having an onigiri and a drink in the store's seating area. You need a bag for the rest, and you'll pay by card.", "turns": [
+      {"who": "staff", "t": "袋 は ご利用 です か 。", "en": "Do you need a bag?"},
+      {"who": "you", "goal": "Yes, you need a bag.", "options": [
+        {"t": "はい 、 お願いします 。", "en": "Yes, please.", "ok": true},
+        {"t": "いいえ 、 大丈夫 です 。", "en": "No, I'm fine.", "why": "That's no thanks, so you'd get no bag."}]},
+      {"who": "staff", "t": "店内 で お召し上がり です か 。", "en": "Will you eat it here in the store?"},
+      {"who": "you", "goal": "Yes, you'll eat here.", "options": [
+        {"t": "はい 。", "en": "Yes.", "ok": true},
+        {"t": "いいえ 。", "en": "No.", "why": "That's no, so it's rung up as takeaway."}]},
+      {"who": "staff", "t": "温めます か 。", "en": "Shall I heat it up?"},
+      {"who": "you", "goal": "An onigiri is fine cold.", "options": [
+        {"t": "いいえ 、 大丈夫 です 。", "en": "No, I'm fine.", "ok": true},
+        {"t": "温めて ください 。", "en": "Please heat it up.", "why": "That asks them to heat it."}]},
+      {"who": "staff", "t": "少々 お待ち ください 。", "en": "Just a moment, please."},
+      {"who": "check", "q": "What did they say?", "options": [
+        {"en": "Just a moment", "ok": true},
+        {"en": "That's everything", "why": "少々 お待ち ください: please wait a little."}]},
+      {"who": "staff", "t": "お支払い は どう なさいます か 。", "en": "How would you like to pay?"},
+      {"who": "you", "goal": "By card.", "options": [
+        {"t": "カード で お願いします 。", "en": "By card, please.", "ok": true},
+        {"t": "袋 を ください 。", "en": "A bag, please.", "why": "That asks for a bag. They asked how you'll pay."}]},
+      {"who": "staff", "t": "ありがとうございました 。", "en": "Thank you very much."}
+    ]},
+    {"id": "k-p3", "title": "A can of beer", "setup": "You're buying a can of beer. The till has a touch screen facing you. You have no point card and no need for a bag.", "turns": [
+      {"who": "staff", "t": "いらっしゃいませ 。", "en": "Welcome!"},
+      {"who": "staff", "t": "年齢 確認 ボタン を 押して ください 。", "en": "Please press the age check button."},
+      {"who": "check", "q": "What do they want you to do?", "options": [
+        {"en": "Tap the age check button on the screen", "ok": true},
+        {"en": "Show your passport", "why": "年齢 確認 is age check: just tap the button facing you."}]},
+      {"who": "staff", "t": "ポイントカード は お持ち です か 。", "en": "Do you have a point card?"},
+      {"who": "you", "goal": "You don't have one.", "options": [
+        {"t": "いいえ 。", "en": "No.", "ok": true},
+        {"t": "はい 、 お願いします 。", "en": "Yes, please.", "why": "That's yes, so they'll wait for a card."}]},
+      {"who": "staff", "t": "袋 は ご利用 です か 。", "en": "Do you need a bag?"},
+      {"who": "you", "goal": "No bag.", "options": [
+        {"t": "いいえ 、 大丈夫 です 。", "en": "No, I'm fine.", "ok": true},
+        {"t": "袋 を ください 。", "en": "A bag, please.", "why": "That asks for one, and it costs a few yen."}]},
+      {"who": "staff", "t": "お支払い は どう なさいます か 。", "en": "How would you like to pay?"},
+      {"who": "you", "goal": "By card.", "options": [
+        {"t": "カード で お願いします 。", "en": "By card, please.", "ok": true},
+        {"t": "これ を ください 。", "en": "This one, please.", "why": "That asks for an item."}]},
+      {"who": "staff", "t": "ありがとうございました 。", "en": "Thank you very much."}
+    ]}
+  ]
+},
+{
+  "id": "train", "title": "Trains", "jp": "電車",
+  "blurb": "Tickets, platforms, transfers and the announcements on board.",
+  "signs": [
+    {"id": "t-s1", "t": "駅", "style": "station", "m": "Station", "note": "On signs pointing the way, and after station names: 新宿駅 is Shinjuku Station."},
+    {"id": "t-s2", "t": "改札", "style": "station", "m": "Ticket gates", "note": "Where you tap your IC card in and out."},
+    {"id": "t-s3", "t": "切符売り場", "style": "station", "m": "Ticket machines", "note": "Where you buy tickets or top up an IC card."},
+    {"id": "t-s4", "t": "乗り換え", "style": "station", "m": "Transfer", "note": "Signs to other lines. Often orange or with the line's colour."},
+    {"id": "t-s5", "t": "番線", "style": "station", "m": "Platform", "note": "Shown after a number: 3番線 is platform 3."},
+    {"id": "t-s6", "t": "各駅停車", "style": "board", "m": "Local train", "note": "Stops at every station. Sometimes shortened to 各停 or 普通."},
+    {"id": "t-s7", "t": "快速", "style": "board", "m": "Rapid train", "note": "Skips some smaller stations. Check it stops at yours."},
+    {"id": "t-s8", "t": "急行", "style": "board", "m": "Express train", "note": "Skips more stations than 快速 on most lines."},
+    {"id": "t-s9", "t": "終電", "style": "board", "m": "Last train", "note": "Usually around midnight. Miss it and it's a taxi."},
+    {"id": "t-s10", "t": "東口", "style": "exit", "m": "East exit", "note": "Big stations have many exits. 西口 is the west exit."},
+    {"id": "t-s11", "t": "優先席", "style": "notice", "m": "Priority seats", "note": "For elderly, pregnant or injured people. Phones on silent here."},
+    {"id": "t-s12", "t": "精算機", "style": "station", "m": "Fare adjustment machine", "note": "By the gates. Pay the difference if your ticket or card is short."}
+  ],
+  "say": [
+    {"id": "t-y1", "t": "新宿 まで いくら です か 。", "en": "How much is it to Shinjuku?", "when": "Swap in any station name."},
+    {"id": "t-y2", "t": "この 電車 は 新宿 に 行きます か 。", "en": "Does this train go to Shinjuku?", "when": "On the platform, before you get on."},
+    {"id": "t-y3", "t": "何番線 です か 。", "en": "Which platform is it?", "when": "After asking which train to take."},
+    {"id": "t-y4", "t": "乗り換え は どこ です か 。", "en": "Where do I change trains?", "when": "In a big station, to find your next line."},
+    {"id": "t-y5", "t": "東口 は どこ です か 。", "en": "Where is the east exit?", "when": "Swap 東 for 西 (にし, west), 南 (みなみ, south) or 北 (きた, north)."},
+    {"id": "t-y6", "t": "すみません 、 降ります 。", "en": "Excuse me, I'm getting off.", "when": "On a crowded train, to get to the door."},
+    {"id": "t-y7", "t": "切符 を なくしました 。", "en": "I lost my ticket.", "when": "At the staffed window by the gates."},
+    {"id": "t-y8", "t": "この 席 、 空いて います か 。", "en": "Is this seat free?", "when": "Before sitting next to someone's bag."}
+  ],
+  "hear": [
+    {"id": "t-h1", "t": "まもなく 、 電車 が 参ります 。", "en": "A train will arrive shortly.", "tip": "Platform announcement. Stand in the marked queue lines."},
+    {"id": "t-h2", "t": "黄色い 線 の 内側 まで お下がり ください 。", "en": "Please stand behind the yellow line.", "tip": "Heard with almost every arriving train."},
+    {"id": "t-h3", "t": "ドア が 閉まります 。", "en": "The doors are closing.", "tip": "Don't run for it: another train comes soon."},
+    {"id": "t-h4", "t": "次 は 新宿 です 。", "en": "The next stop is Shinjuku.", "tip": "Listen for your station's name after 次 は."},
+    {"id": "t-h5", "t": "お出口 は 右側 です 。", "en": "The doors on the right will open.", "tip": "Literally: the exit is on the right side."},
+    {"id": "t-h6", "t": "三番線 です 。", "en": "It's platform 3.", "tip": "The answer to 何番線 です か."},
+    {"id": "t-h7", "t": "隣 の ホーム です 。", "en": "It's the next platform over."},
+    {"id": "t-h8", "t": "電車 が 遅れて おります 。", "en": "The train is running late."},
+    {"id": "t-h9", "t": "この 電車 は 各駅停車 です 。", "en": "This train stops at every station."},
+    {"id": "t-h10", "t": "二つ目 の 駅 です 。", "en": "It's the second station from here."},
+    {"id": "t-h11", "t": "改札 を 出て 、 右 です 。", "en": "Go out through the ticket gates, then it's on the right."}
+  ],
+  "play": [
+    {"id": "t-p1", "title": "Finding your train", "setup": "You're on a platform and want to get to Shinjuku. A station worker is nearby.", "turns": [
+      {"who": "you", "goal": "Get the station worker's attention.", "options": [
+        {"t": "すみません 。", "en": "Excuse me.", "ok": true, "why": "The way to start any question to a stranger."},
+        {"t": "いらっしゃいませ 。", "en": "Welcome!", "why": "That's what shop staff call out. It isn't for getting attention."}]},
+      {"who": "staff", "t": "はい 。", "en": "Yes?"},
+      {"who": "you", "goal": "Ask if this train goes to Shinjuku.", "options": [
+        {"t": "この 電車 は 新宿 に 行きます か 。", "en": "Does this train go to Shinjuku?", "ok": true},
+        {"t": "新宿 まで いくら です か 。", "en": "How much is it to Shinjuku?", "why": "That asks the fare, not whether this train goes there."}]},
+      {"who": "staff", "t": "いいえ 、 隣 の ホーム です 。", "en": "No, it's the next platform over."},
+      {"who": "check", "q": "Where do you need to go?", "options": [
+        {"en": "The next platform over", "ok": true},
+        {"en": "Stay on this platform", "why": "They started with いいえ: this train doesn't go there."},
+        {"en": "Out through the ticket gates", "why": "That would be 改札 を 出て. They said 隣 の ホーム, the platform next door."}]},
+      {"who": "you", "goal": "Ask which platform number it is.", "options": [
+        {"t": "何番線 です か 。", "en": "Which platform is it?", "ok": true},
+        {"t": "乗り換え は どこ です か 。", "en": "Where do I change trains?", "why": "That asks where to change lines."}]},
+      {"who": "staff", "t": "三番線 です 。", "en": "It's platform 3."},
+      {"who": "check", "q": "Which platform?", "options": [
+        {"en": "Platform 3", "ok": true},
+        {"en": "Platform 2", "why": "2 would be 二番線, にばんせん. 三 is three."},
+        {"en": "Platform 13", "why": "13 would be 十三番線, じゅうさんばんせん."}]},
+      {"who": "you", "goal": "Thank them.", "options": [
+        {"t": "ありがとうございます 。", "en": "Thank you.", "ok": true},
+        {"t": "すみません 、 降ります 。", "en": "Excuse me, I'm getting off.", "why": "That's for getting off a crowded train."}]}
+    ]}
+    ,
+    {"id": "t-p2", "title": "A lost ticket", "setup": "At the exit gates you realise you've lost your ticket. You got on at Shinjuku. You go to the staffed window.", "turns": [
+      {"who": "you", "goal": "Get the station worker's attention.", "options": [
+        {"t": "すみません 。", "en": "Excuse me.", "ok": true},
+        {"t": "すみません 、 降ります 。", "en": "Excuse me, I'm getting off.", "why": "That's for getting off a crowded train."}]},
+      {"who": "staff", "t": "はい 、 どう しました か 。", "en": "Yes, what happened?"},
+      {"who": "you", "goal": "Say you lost your ticket.", "options": [
+        {"t": "切符 を なくしました 。", "en": "I lost my ticket.", "ok": true},
+        {"t": "乗り換え は どこ です か 。", "en": "Where do I change trains?", "why": "That asks where to change lines."}]},
+      {"who": "staff", "t": "どこ から 乗りました か 。", "en": "Where did you get on?"},
+      {"who": "check", "q": "What are they asking?", "options": [
+        {"en": "Which station you got on at", "ok": true},
+        {"en": "Where you're going", "why": "から is from, and 乗りました is got on."}]},
+      {"who": "you", "goal": "From Shinjuku.", "options": [
+        {"t": "新宿 から です 。", "en": "From Shinjuku.", "ok": true},
+        {"t": "新宿 まで いくら です か 。", "en": "How much is it to Shinjuku?", "why": "That asks the fare to Shinjuku. They asked where you got on."}]},
+      {"who": "staff", "t": "精算機 で 払って ください 。", "en": "Please pay at the fare adjustment machine."},
+      {"who": "check", "q": "What now?", "options": [
+        {"en": "Pay at the fare adjustment machine", "ok": true},
+        {"en": "Buy a new ticket outside", "why": "精算機 is the fare adjustment machine by the gates."}]}
+    ]},
+    {"id": "t-p3", "title": "Getting off", "setup": "You're on a packed train to Shinjuku, standing far from the doors.", "turns": [
+      {"who": "staff", "t": "次 は 新宿 です 。", "en": "The next stop is Shinjuku."},
+      {"who": "check", "q": "What did the announcement say?", "options": [
+        {"en": "Next stop: Shinjuku", "ok": true},
+        {"en": "This train doesn't stop at Shinjuku", "why": "次 は means the next one is."}]},
+      {"who": "staff", "t": "お出口 は 右側 です 。", "en": "The doors on the right will open."},
+      {"who": "check", "q": "Which doors open?", "options": [
+        {"en": "The right side", "ok": true},
+        {"en": "The left side", "why": "右側 is the right side. Left is 左側."}]},
+      {"who": "you", "goal": "Get through the crowd to the doors.", "options": [
+        {"t": "すみません 、 降ります 。", "en": "Excuse me, I'm getting off.", "ok": true},
+        {"t": "この 席 、 空いて います か 。", "en": "Is this seat free?", "why": "That asks about a seat."}]},
+      {"who": "staff", "t": "ドア が 閉まります 。", "en": "The doors are closing."},
+      {"who": "check", "q": "What's happening?", "options": [
+        {"en": "The doors are closing", "ok": true},
+        {"en": "The doors are opening", "why": "閉まります is closing. Opening is 開きます."}]}
+    ]}
+  ]
+}
+,
+{
+  "id": "eat", "title": "Eating out", "jp": "外食",
+  "blurb": "Getting a table, ordering, and paying on the way out.",
+  "signs": [
+    {"id": "r-s1", "t": "禁煙", "style": "notice", "m": "No smoking", "note": "On doors and tables. 喫煙 means smoking is allowed."},
+    {"id": "r-s2", "t": "喫煙所", "style": "notice", "m": "Smoking area", "note": "Smoking is often only allowed in these marked areas."},
+    {"id": "r-s3", "t": "定食", "style": "board", "m": "Set meal", "note": "A main dish with rice, miso soup and pickles. Usually the best value at lunch."},
+    {"id": "r-s4", "t": "食券", "style": "notice", "m": "Meal ticket", "note": "Buy a ticket at the machine by the door, then hand it over. Common in ramen and noodle shops."},
+    {"id": "r-s5", "t": "大盛り", "style": "board", "m": "Large portion", "note": "Often free or about ¥100 more."},
+    {"id": "r-s6", "t": "満席", "style": "notice", "m": "Full", "note": "Every seat is taken. Wait, or come back later."},
+    {"id": "r-s7", "t": "予約席", "style": "notice", "m": "Reserved", "note": "On a card on the table. Don't sit there."},
+    {"id": "r-s8", "t": "持ち帰り", "style": "board", "m": "Takeaway", "note": "Also written テイクアウト."},
+    {"id": "r-s9", "t": "食べ放題", "style": "board", "m": "All you can eat", "note": "Usually with a time limit, often 90 minutes."},
+    {"id": "r-s10", "t": "飲み放題", "style": "board", "m": "All you can drink", "note": "Common at izakaya, often as part of a set course."},
+    {"id": "r-s11", "t": "現金のみ", "y": "げんきんのみ", "style": "notice", "m": "Cash only", "note": "Still common in small restaurants. Carry some yen."},
+    {"id": "r-s12", "t": "本日のおすすめ", "y": "ほんじつのおすすめ", "style": "board", "m": "Today's special", "note": "On a board by the door or at the counter."}
+  ],
+  "say": [
+    {"id": "r-y1", "t": "二人 です 。", "en": "Two people.", "when": "When staff ask how many. 一人 (ひとり) is one, 三人 (さんにん) is three."},
+    {"id": "r-y2", "t": "メニュー を ください 。", "en": "The menu, please."},
+    {"id": "r-y3", "t": "英語 の メニュー は あります か 。", "en": "Do you have an English menu?", "when": "Many places have one, or a menu with pictures."},
+    {"id": "r-y4", "t": "これ を 二つ ください 。", "en": "Two of these, please.", "when": "Pointing at the menu. 一つ (ひとつ) is one."},
+    {"id": "r-y5", "t": "おすすめ は 何 です か 。", "en": "What do you recommend?"},
+    {"id": "r-y6", "t": "お水 を ください 。", "en": "Water, please.", "when": "Water and tea are free in most restaurants."},
+    {"id": "r-y7", "t": "お会計 を お願いします 。", "en": "The bill, please.", "when": "In many places you then pay at the till by the door, not at the table."},
+    {"id": "r-y8", "t": "ごちそうさま でした 。", "en": "Thank you for the meal.", "when": "Said to staff as you leave. It always goes down well."}
+  ],
+  "hear": [
+    {"id": "r-h1", "t": "何名様 です か 。", "en": "How many people?", "r": "二人 です 。", "tip": "Holding up fingers works too."},
+    {"id": "r-h2", "t": "お好き な 席 へ どうぞ 。", "en": "Sit wherever you like."},
+    {"id": "r-h3", "t": "ご注文 は お決まり です か 。", "en": "Are you ready to order?", "tip": "If you need more time, a smile and a shake of the head is fine."},
+    {"id": "r-h4", "t": "お飲み物 は いかが です か 。", "en": "Would you like something to drink?", "r": "お水 を ください 。"},
+    {"id": "r-h5", "t": "只今 満席 です 。", "en": "We're full right now.", "tip": "They may offer the counter or a short wait."},
+    {"id": "r-h6", "t": "カウンター 席 でも よろしい です か 。", "en": "Is the counter all right?", "r": "はい 、 大丈夫 です 。"},
+    {"id": "r-h7", "t": "お待たせ しました 。", "en": "Sorry to keep you waiting.", "tip": "Said when food arrives, even when it came quickly."},
+    {"id": "r-h8", "t": "ご注文 は 以上 で よろしい です か 。", "en": "Will that be all?", "r": "はい 。"},
+    {"id": "r-h9", "t": "お会計 は レジ で お願いします 。", "en": "Please pay at the register.", "tip": "The register is usually by the door. Take the bill with you."},
+    {"id": "r-h10", "t": "ラストオーダー です 。", "en": "It's last orders.", "tip": "The kitchen is about to close. Order now if you want more."}
+  ],
+  "play": [
+    {"id": "r-p1", "title": "Lunch for two", "setup": "You and a friend walk into a small restaurant at lunchtime. You both want the set meal, and water to drink.", "turns": [
+      {"who": "staff", "t": "いらっしゃいませ 。 何名様 です か 。", "en": "Welcome! How many people?"},
+      {"who": "you", "goal": "Tell them there are two of you.", "options": [
+        {"t": "二人 です 。", "en": "Two people.", "ok": true},
+        {"t": "一人 です 。", "en": "One person.", "why": "That's one person. There are two of you: 二人, ふたり."},
+        {"t": "これ を 二つ ください 。", "en": "Two of these, please.", "why": "二つ counts things, not people. People are 二人."}]},
+      {"who": "staff", "t": "お好き な 席 へ どうぞ 。", "en": "Sit wherever you like."},
+      {"who": "staff", "t": "ご注文 は お決まり です か 。", "en": "Are you ready to order?"},
+      {"who": "you", "goal": "Order the set meal you're pointing at, one each.", "options": [
+        {"t": "これ を 二つ ください 。", "en": "Two of these, please.", "ok": true},
+        {"t": "お会計 を お願いします 。", "en": "The bill, please.", "why": "That asks for the bill. You haven't eaten yet."},
+        {"t": "おすすめ は 何 です か 。", "en": "What do you recommend?", "why": "That asks what's good. You already know what you want."}]},
+      {"who": "staff", "t": "お飲み物 は いかが です か 。", "en": "Would you like something to drink?"},
+      {"who": "you", "goal": "Just water.", "options": [
+        {"t": "お水 を ください 。", "en": "Water, please.", "ok": true},
+        {"t": "ビール を ください 。", "en": "A beer, please.", "why": "That's beer. Water is お水."}]},
+      {"who": "staff", "t": "お待たせ しました 。", "en": "Sorry to keep you waiting."},
+      {"who": "check", "q": "What's happening?", "options": [
+        {"en": "Your food has arrived", "ok": true},
+        {"en": "They're asking you to wait", "why": "お待たせ しました means the wait is over. Please wait would be 少々 お待ち ください."}]},
+      {"who": "you", "goal": "You've finished. Ask for the bill.", "options": [
+        {"t": "お会計 を お願いします 。", "en": "The bill, please.", "ok": true},
+        {"t": "ごちそうさま でした 。", "en": "Thank you for the meal.", "why": "That's thanks as you leave. It doesn't ask for the bill."}]},
+      {"who": "staff", "t": "お会計 は レジ で お願いします 。", "en": "Please pay at the register."},
+      {"who": "check", "q": "Where do you pay?", "options": [
+        {"en": "At the register", "ok": true},
+        {"en": "At your table", "why": "レジ is the register, usually by the door."}]},
+      {"who": "you", "goal": "Thank them as you leave.", "options": [
+        {"t": "ごちそうさま でした 。", "en": "Thank you for the meal.", "ok": true},
+        {"t": "いただきます 。", "en": "Let's eat.", "why": "That's said before eating, not after."}]}
+    ]},
+    {"id": "r-p2", "title": "Ramen at the counter", "setup": "A busy ramen shop. You've bought a ticket at the machine by the door, and you'd like a large portion.", "turns": [
+      {"who": "staff", "t": "いらっしゃいませ 。 食券 を お願いします 。", "en": "Welcome! Your meal ticket, please."},
+      {"who": "check", "q": "What do they want?", "options": [
+        {"en": "The ticket from the machine", "ok": true},
+        {"en": "Your order, said out loud", "why": "食券 is the meal ticket. You ordered at the machine."},
+        {"en": "Cash", "why": "You already paid at the machine. They want the ticket it gave you."}]},
+      {"who": "staff", "t": "大盛り に します か 。", "en": "Would you like a large portion?"},
+      {"who": "you", "goal": "Yes, make it large.", "options": [
+        {"t": "はい 、 お願いします 。", "en": "Yes, please.", "ok": true},
+        {"t": "いいえ 、 大丈夫 です 。", "en": "No, I'm fine.", "why": "That's no thanks, so you'd get the regular size."}]},
+      {"who": "staff", "t": "カウンター 席 でも よろしい です か 。", "en": "Is the counter all right?"},
+      {"who": "you", "goal": "The counter is fine.", "options": [
+        {"t": "はい 、 大丈夫 です 。", "en": "Yes, that's fine.", "ok": true},
+        {"t": "二人 です 。", "en": "Two people.", "why": "They asked about the counter, not how many you are."}]},
+      {"who": "staff", "t": "お待たせ しました 。", "en": "Sorry to keep you waiting."},
+      {"who": "you", "goal": "Your ramen is here. What do you say before eating?", "options": [
+        {"t": "いただきます 。", "en": "Let's eat.", "ok": true, "why": "Said before eating, to nobody in particular."},
+        {"t": "ごちそうさま でした 。", "en": "Thank you for the meal.", "why": "That's for after the meal."}]},
+      {"who": "staff", "t": "ありがとうございました 。", "en": "Thank you very much."}
+    ]}
+  ]
+},
+{
+  "id": "hotel", "title": "Hotel", "jp": "ホテル",
+  "blurb": "Checking in and out, leaving bags, and finding the bath and breakfast.",
+  "signs": [
+    {"id": "h-s1", "t": "受付", "style": "notice", "m": "Reception", "note": "In hotels, hospitals and museums: the desk to go to first."},
+    {"id": "h-s2", "t": "大浴場", "style": "notice", "m": "Large public bath", "note": "A shared hot bath. Wash at the showers first, and keep your towel out of the water."},
+    {"id": "h-s3", "t": "男湯", "style": "curtain", "m": "Men's bath", "note": "Usually a blue curtain. Baths sometimes swap sides by day, so check each time."},
+    {"id": "h-s4", "t": "女湯", "style": "curtain", "m": "Women's bath", "note": "Usually a red curtain."},
+    {"id": "h-s5", "t": "露天風呂", "style": "notice", "m": "Outdoor bath", "note": "An open-air hot bath, often the best part of a ryokan."},
+    {"id": "h-s6", "t": "朝食会場", "style": "notice", "m": "Breakfast room", "note": "Signs point the way. Bring your room key or breakfast ticket."},
+    {"id": "h-s7", "t": "客室", "style": "notice", "m": "Guest rooms", "note": "On lift signs pointing to the room floors."},
+    {"id": "h-s8", "t": "貴重品", "style": "notice", "m": "Valuables", "note": "On safes and lockers: keep valuables here."},
+    {"id": "h-s9", "t": "禁煙室", "style": "notice", "m": "Non-smoking room", "note": "On key cards and room doors."},
+    {"id": "h-s10", "t": "清掃中", "style": "notice", "m": "Cleaning in progress", "note": "On a door or at the bath. Come back later."},
+    {"id": "h-s11", "t": "浴衣", "style": "notice", "m": "Yukata", "note": "The light cotton robe in your room. Fine to wear around the hotel; wrap left over right."},
+    {"id": "h-s12", "t": "階", "y": "かい", "style": "notice", "m": "Floor", "note": "After a number: 3階 is the third floor. 地下 is the basement."}
+  ],
+  "say": [
+    {"id": "h-y1", "t": "チェックイン を お願いします 。", "en": "Check in, please."},
+    {"id": "h-y2", "t": "予約 して います 。", "en": "I have a reservation."},
+    {"id": "h-y3", "t": "名前 は スミス です 。", "en": "My name is Smith.", "when": "Swap in your own name."},
+    {"id": "h-y4", "t": "荷物 を 預けて も いい です か 。", "en": "Can I leave my luggage here?", "when": "Before check-in, or after check-out."},
+    {"id": "h-y5", "t": "朝食 は 何時 から です か 。", "en": "What time does breakfast start?"},
+    {"id": "h-y6", "t": "ワイファイ の パスワード は 何 です か 。", "en": "What's the Wi-Fi password?"},
+    {"id": "h-y7", "t": "タオル を もう 一枚 ください 。", "en": "One more towel, please."},
+    {"id": "h-y8", "t": "チェックアウト を お願いします 。", "en": "Check out, please."}
+  ],
+  "hear": [
+    {"id": "h-h1", "t": "ご予約 の お名前 を お願いします 。", "en": "The name on the reservation, please.", "r": "名前 は スミス です 。"},
+    {"id": "h-h2", "t": "パスポート を お願いします 。", "en": "Your passport, please.", "tip": "Hotels must copy foreign guests' passports."},
+    {"id": "h-h3", "t": "こちら に ご記入 ください 。", "en": "Please fill this in."},
+    {"id": "h-h4", "t": "お部屋 は 五階 です 。", "en": "Your room is on the fifth floor."},
+    {"id": "h-h5", "t": "朝食 は 七時 から です 。", "en": "Breakfast is from seven."},
+    {"id": "h-h6", "t": "チェックアウト は 十時 です 。", "en": "Check-out is at ten."},
+    {"id": "h-h7", "t": "エレベーター は あちら です 。", "en": "The lift is over there."},
+    {"id": "h-h8", "t": "お荷物 を お預かり します 。", "en": "We'll look after your luggage.", "tip": "They'll often give you a numbered tag to bring back."},
+    {"id": "h-h9", "t": "ごゆっくり どうぞ 。", "en": "Enjoy your stay.", "tip": "Literally: take your time. Said as staff leave you."},
+    {"id": "h-h10", "t": "お部屋 の 鍵 です 。", "en": "Here's your room key."}
+  ],
+  "play": [
+    {"id": "h-p1", "title": "Checking in", "setup": "You arrive at your hotel in the afternoon. You booked under the name Smith.", "turns": [
+      {"who": "staff", "t": "いらっしゃいませ 。", "en": "Welcome!"},
+      {"who": "you", "goal": "Say you'd like to check in.", "options": [
+        {"t": "チェックイン を お願いします 。", "en": "Check in, please.", "ok": true},
+        {"t": "チェックアウト を お願いします 。", "en": "Check out, please.", "why": "That's check-out, for when you leave."}]},
+      {"who": "staff", "t": "ご予約 の お名前 を お願いします 。", "en": "The name on the reservation, please."},
+      {"who": "you", "goal": "Give your name.", "options": [
+        {"t": "名前 は スミス です 。", "en": "My name is Smith.", "ok": true},
+        {"t": "予約 して います 。", "en": "I have a reservation.", "why": "True, but they asked for the name it's under."}]},
+      {"who": "staff", "t": "パスポート を お願いします 。", "en": "Your passport, please."},
+      {"who": "check", "q": "What do they need?", "options": [
+        {"en": "Your passport", "ok": true},
+        {"en": "Your credit card", "why": "パスポート is passport."}]},
+      {"who": "staff", "t": "お部屋 は 五階 です 。 朝食 は 七時 から です 。", "en": "Your room is on the fifth floor. Breakfast is from seven."},
+      {"who": "check", "q": "Which floor is your room on?", "options": [
+        {"en": "The 5th floor", "ok": true},
+        {"en": "The 7th floor", "why": "七時 is seven o'clock, breakfast time. 五階 is the fifth floor."}]},
+      {"who": "staff", "t": "お部屋 の 鍵 です 。 ごゆっくり どうぞ 。", "en": "Here's your room key. Enjoy your stay."},
+      {"who": "you", "goal": "Thank them.", "options": [
+        {"t": "ありがとうございます 。", "en": "Thank you.", "ok": true},
+        {"t": "いただきます 。", "en": "Let's eat.", "why": "That's said before eating."}]}
+    ]},
+    {"id": "h-p2", "title": "Leaving your bags", "setup": "It's checkout morning. Your flight is in the evening, so you want to leave your bags at the hotel.", "turns": [
+      {"who": "you", "goal": "Say you're checking out.", "options": [
+        {"t": "チェックアウト を お願いします 。", "en": "Check out, please.", "ok": true},
+        {"t": "チェックイン を お願いします 。", "en": "Check in, please.", "why": "That's for when you arrive."}]},
+      {"who": "staff", "t": "お部屋 の 鍵 を お願いします 。", "en": "Your room key, please."},
+      {"who": "check", "q": "What do they want?", "options": [
+        {"en": "Your room key", "ok": true},
+        {"en": "Your room number", "why": "鍵 is key."}]},
+      {"who": "you", "goal": "Ask if you can leave your luggage.", "options": [
+        {"t": "荷物 を 預けて も いい です か 。", "en": "Can I leave my luggage here?", "ok": true},
+        {"t": "タオル を もう 一枚 ください 。", "en": "One more towel, please.", "why": "That asks for a towel."}]},
+      {"who": "staff", "t": "はい 、 お荷物 を お預かり します 。", "en": "Yes, we'll look after your luggage."},
+      {"who": "staff", "t": "こちら に ご記入 ください 。", "en": "Please fill this in."},
+      {"who": "check", "q": "What should you do?", "options": [
+        {"en": "Fill in a form", "ok": true},
+        {"en": "Show your passport", "why": "ご記入 ください means please fill it in."}]},
+      {"who": "staff", "t": "ありがとうございました 。", "en": "Thank you very much."}
+    ]}
+  ]
+},
+{
+  "id": "shop", "title": "Shopping", "jp": "買い物",
+  "blurb": "Asking prices and sizes, trying things on, and tax-free.",
+  "signs": [
+    {"id": "s-s1", "t": "免税", "style": "shop", "m": "Tax-free", "note": "Show your passport when you pay. There's a minimum spend, usually ¥5,000 in one shop."},
+    {"id": "s-s2", "t": "試着室", "style": "notice", "m": "Fitting room", "note": "Take your shoes off before stepping in."},
+    {"id": "s-s3", "t": "売り切れ", "style": "price", "m": "Sold out", "note": "On vending machines too, lit up in red."},
+    {"id": "s-s4", "t": "新商品", "style": "price", "m": "New product", "note": "On shelf cards in shops and convenience stores."},
+    {"id": "s-s5", "t": "人気", "style": "price", "m": "Popular", "note": "人気 No.1 on a shelf card is the best seller."},
+    {"id": "s-s6", "t": "限定", "style": "price", "m": "Limited", "note": "Seasonal or local only: 東京限定 is only sold in Tokyo."},
+    {"id": "s-s7", "t": "均一", "style": "price", "m": "All one price", "note": "100円均一: everything ¥100. The 100-yen shop is 百均."},
+    {"id": "s-s8", "t": "婦人服", "style": "notice", "m": "Women's clothing", "note": "On department store floor guides."},
+    {"id": "s-s9", "t": "紳士服", "style": "notice", "m": "Men's clothing", "note": "On department store floor guides."},
+    {"id": "s-s10", "t": "食品", "style": "notice", "m": "Food", "note": "Department stores sell food in the basement: good for gifts and bento."},
+    {"id": "s-s11", "t": "地下", "style": "notice", "m": "Basement", "note": "地下1階 is the first basement floor, often B1 on the lift."},
+    {"id": "s-s12", "t": "閉店", "style": "shop", "m": "Closed", "note": "Also closing time. 閉店セール is a closing-down sale."}
+  ],
+  "say": [
+    {"id": "s-y1", "t": "これ は いくら です か 。", "en": "How much is this?"},
+    {"id": "s-y2", "t": "見て いる だけ です 。", "en": "I'm just looking."},
+    {"id": "s-y3", "t": "試着 して も いい です か 。", "en": "Can I try it on?"},
+    {"id": "s-y4", "t": "もっと 大きい の は あります か 。", "en": "Do you have a bigger one?", "when": "小さい (ちいさい) is smaller."},
+    {"id": "s-y5", "t": "他 の 色 は あります か 。", "en": "Do you have other colours?"},
+    {"id": "s-y6", "t": "これ に します 。", "en": "I'll take this one."},
+    {"id": "s-y7", "t": "免税 で お願いします 。", "en": "Tax-free, please.", "when": "Before they ring it up. Have your passport ready."},
+    {"id": "s-y8", "t": "袋 は いりません 。", "en": "I don't need a bag."}
+  ],
+  "hear": [
+    {"id": "s-h1", "t": "何 か お探し です か 。", "en": "Are you looking for something?", "r": "見て いる だけ です 。"},
+    {"id": "s-h2", "t": "試着室 は こちら です 。", "en": "The fitting room is this way."},
+    {"id": "s-h3", "t": "サイズ は いかが です か 。", "en": "How's the size?"},
+    {"id": "s-h4", "t": "申し訳 ございません 、 売り切れ です 。", "en": "I'm very sorry, it's sold out."},
+    {"id": "s-h5", "t": "こちら は いかが です か 。", "en": "How about this one?"},
+    {"id": "s-h6", "t": "パスポート を お見せ ください 。", "en": "Please show your passport.", "tip": "For tax-free shopping."},
+    {"id": "s-h7", "t": "プレゼント 用 です か 。", "en": "Is it a gift?", "tip": "Say はい and they'll wrap it nicely, often for free."},
+    {"id": "s-h8", "t": "袋 に お入れ します か 。", "en": "Shall I put it in a bag?", "r": "いいえ 、 大丈夫 です 。"},
+    {"id": "s-h9", "t": "一万円 から お預かり します 。", "en": "Out of 10,000 yen.", "tip": "Said as you hand over a note: they're confirming what you gave."},
+    {"id": "s-h10", "t": "お釣り です 。", "en": "Here's your change."}
+  ],
+  "play": [
+    {"id": "s-p1", "title": "Trying on a jacket", "setup": "In a clothes shop, a jacket catches your eye, but it looks a little small.", "turns": [
+      {"who": "staff", "t": "いらっしゃいませ 。 何 か お探し です か 。", "en": "Welcome! Are you looking for something?"},
+      {"who": "you", "goal": "You're only looking for now.", "options": [
+        {"t": "見て いる だけ です 。", "en": "I'm just looking.", "ok": true},
+        {"t": "これ に します 。", "en": "I'll take this one.", "why": "That says you'll buy it."}]},
+      {"who": "you", "goal": "You've found the jacket. Ask to try it on.", "options": [
+        {"t": "試着 して も いい です か 。", "en": "Can I try it on?", "ok": true},
+        {"t": "これ は いくら です か 。", "en": "How much is this?", "why": "That asks the price."}]},
+      {"who": "staff", "t": "はい 、 試着室 は こちら です 。", "en": "Yes, the fitting room is this way."},
+      {"who": "staff", "t": "サイズ は いかが です か 。", "en": "How's the size?"},
+      {"who": "you", "goal": "It's too small. Ask for a bigger one.", "options": [
+        {"t": "もっと 大きい の は あります か 。", "en": "Do you have a bigger one?", "ok": true},
+        {"t": "他 の 色 は あります か 。", "en": "Do you have other colours?", "why": "That asks for other colours, not sizes."}]},
+      {"who": "staff", "t": "申し訳 ございません 、 売り切れ です 。", "en": "I'm very sorry, it's sold out."},
+      {"who": "check", "q": "What did they say?", "options": [
+        {"en": "The bigger size is sold out", "ok": true},
+        {"en": "They'll bring one from the back", "why": "売り切れ is sold out."}]},
+      {"who": "you", "goal": "Leave it, politely.", "options": [
+        {"t": "大丈夫 です 。 ありがとうございます 。", "en": "That's fine. Thank you.", "ok": true},
+        {"t": "これ に します 。", "en": "I'll take this one.", "why": "That says you'll buy it, but it doesn't fit."}]}
+    ]},
+    {"id": "s-p2", "title": "A gift, tax-free", "setup": "You're buying a gift in a department store, and you've spent enough for tax-free.", "turns": [
+      {"who": "you", "goal": "Say you'll take this one.", "options": [
+        {"t": "これ に します 。", "en": "I'll take this one.", "ok": true},
+        {"t": "見て いる だけ です 。", "en": "I'm just looking.", "why": "That says you're only looking."}]},
+      {"who": "staff", "t": "プレゼント 用 です か 。", "en": "Is it a gift?"},
+      {"who": "you", "goal": "Yes, it's a gift.", "options": [
+        {"t": "はい 、 お願いします 。", "en": "Yes, please.", "ok": true},
+        {"t": "いいえ 、 大丈夫 です 。", "en": "No, I'm fine.", "why": "That's no, so it won't be gift-wrapped."}]},
+      {"who": "you", "goal": "Ask for tax-free.", "options": [
+        {"t": "免税 で お願いします 。", "en": "Tax-free, please.", "ok": true},
+        {"t": "カード で お願いします 。", "en": "By card, please.", "why": "That's how you'll pay. It doesn't ask for tax-free."}]},
+      {"who": "staff", "t": "パスポート を お見せ ください 。", "en": "Please show your passport."},
+      {"who": "check", "q": "What do you hand over?", "options": [
+        {"en": "Your passport", "ok": true},
+        {"en": "Your receipt", "why": "パスポート is passport. Tax-free needs it."}]},
+      {"who": "staff", "t": "一万円 から お預かり します 。", "en": "Out of 10,000 yen."},
+      {"who": "staff", "t": "お釣り です 。 ありがとうございました 。", "en": "Here's your change. Thank you very much."},
+      {"who": "check", "q": "What are they giving you?", "options": [
+        {"en": "Your change", "ok": true},
+        {"en": "A discount coupon", "why": "お釣り is change."}]}
+    ]}
+  ]
+},
+{
+  "id": "way", "title": "Directions", "jp": "道案内",
+  "blurb": "Asking the way and following the answer: straight, left, right.",
+  "signs": [
+    {"id": "d-s1", "t": "交番", "style": "notice", "m": "Police box", "note": "Small police posts on street corners. Officers happily give directions."},
+    {"id": "d-s2", "t": "駐車場", "style": "notice", "m": "Car park", "note": "Often with a big P."},
+    {"id": "d-s3", "t": "案内所", "style": "notice", "m": "Information desk", "note": "観光案内所 is a tourist information centre, usually with English maps."},
+    {"id": "d-s4", "t": "現在地", "style": "notice", "m": "You are here", "note": "Next to the red dot on street maps."},
+    {"id": "d-s5", "t": "北", "y": "きた", "style": "exit", "m": "North", "note": "北口 is the north exit."},
+    {"id": "d-s6", "t": "南", "y": "みなみ", "style": "exit", "m": "South", "note": "南口 is the south exit."},
+    {"id": "d-s7", "t": "地図", "style": "notice", "m": "Map", "note": "On street maps and in phone apps."},
+    {"id": "d-s8", "t": "通行止め", "style": "notice", "m": "Road closed", "note": "Also for footpaths. Look for the detour sign."},
+    {"id": "d-s9", "t": "工事中", "style": "notice", "m": "Under construction", "note": "Roadworks and building work."},
+    {"id": "d-s10", "t": "公園", "style": "notice", "m": "Park", "note": "Many parks have clean public toilets."},
+    {"id": "d-s11", "t": "郵便局", "style": "notice", "m": "Post office", "note": "Marked 〒. Many have ATMs that take foreign cards."},
+    {"id": "d-s12", "t": "横断歩道", "style": "notice", "m": "Pedestrian crossing", "note": "Wait for the green light, even on an empty street."}
+  ],
+  "say": [
+    {"id": "d-y1", "t": "すみません 、 駅 は どこ です か 。", "en": "Excuse me, where is the station?", "when": "Swap 駅 for any place."},
+    {"id": "d-y2", "t": "ここ から 遠い です か 。", "en": "Is it far from here?"},
+    {"id": "d-y3", "t": "歩いて 行けます か 。", "en": "Can I walk there?"},
+    {"id": "d-y4", "t": "地図 で 教えて ください 。", "en": "Please show me on the map.", "when": "Hold out your phone's map."},
+    {"id": "d-y5", "t": "まっすぐ です か 。", "en": "Is it straight ahead?"},
+    {"id": "d-y6", "t": "この 近く に コンビニ は あります か 。", "en": "Is there a convenience store near here?"},
+    {"id": "d-y7", "t": "もう 一度 お願いします 。", "en": "Once more, please."},
+    {"id": "d-y8", "t": "ゆっくり お願いします 。", "en": "Slowly, please."}
+  ],
+  "hear": [
+    {"id": "d-h1", "t": "まっすぐ 行って ください 。", "en": "Go straight on."},
+    {"id": "d-h2", "t": "二つ目 の 角 を 右 です 。", "en": "Turn right at the second corner."},
+    {"id": "d-h3", "t": "信号 を 左 に 曲がって ください 。", "en": "Turn left at the traffic lights."},
+    {"id": "d-h4", "t": "すぐ そこ です 。", "en": "It's just over there."},
+    {"id": "d-h5", "t": "歩いて 五分 ぐらい です 。", "en": "It's about five minutes on foot."},
+    {"id": "d-h6", "t": "ちょっと 遠い です 。", "en": "It's a bit far.", "tip": "A polite hint to take a train or a taxi."},
+    {"id": "d-h7", "t": "あの 建物 の 隣 です 。", "en": "It's next to that building."},
+    {"id": "d-h8", "t": "突き当たり を 左 です 。", "en": "Turn left at the end of the street."},
+    {"id": "d-h9", "t": "橋 を 渡って ください 。", "en": "Cross the bridge."},
+    {"id": "d-h10", "t": "すみません 、 わかりません 。", "en": "Sorry, I don't know.", "tip": "Thank them and ask someone else, or find a 交番."}
+  ],
+  "play": [
+    {"id": "d-p1", "title": "Finding the station", "setup": "You're walking in a quiet neighbourhood and need to find the station.", "turns": [
+      {"who": "you", "goal": "Get a passer-by's attention.", "options": [
+        {"t": "すみません 。", "en": "Excuse me.", "ok": true},
+        {"t": "いらっしゃいませ 。", "en": "Welcome!", "why": "That's what shop staff call out."}]},
+      {"who": "staff", "t": "はい 。", "en": "Yes?"},
+      {"who": "you", "goal": "Ask where the station is.", "options": [
+        {"t": "駅 は どこ です か 。", "en": "Where is the station?", "ok": true},
+        {"t": "駅 まで いくら です か 。", "en": "How much is it to the station?", "why": "That asks the fare."}]},
+      {"who": "staff", "t": "まっすぐ 行って 、 二つ目 の 角 を 右 です 。", "en": "Go straight on, then right at the second corner."},
+      {"who": "check", "q": "Which way?", "options": [
+        {"en": "Straight, then right at the second corner", "ok": true},
+        {"en": "Right at the first corner", "why": "二つ目 is the second."},
+        {"en": "Straight, then left at the second corner", "why": "右 is right. Left is 左."}]},
+      {"who": "you", "goal": "Ask if it's far.", "options": [
+        {"t": "ここ から 遠い です か 。", "en": "Is it far from here?", "ok": true},
+        {"t": "ゆっくり お願いします 。", "en": "Slowly, please.", "why": "That asks them to speak slowly."}]},
+      {"who": "staff", "t": "いいえ 、 歩いて 五分 ぐらい です 。", "en": "No, it's about five minutes on foot."},
+      {"who": "check", "q": "How long is the walk?", "options": [
+        {"en": "About 5 minutes", "ok": true},
+        {"en": "About 15 minutes", "why": "五分 is five minutes. Fifteen is 十五分."}]},
+      {"who": "you", "goal": "Thank them.", "options": [
+        {"t": "ありがとうございます 。", "en": "Thank you.", "ok": true},
+        {"t": "ごちそうさま でした 。", "en": "Thank you for the meal.", "why": "That's thanks for a meal."}]}
+    ]},
+    {"id": "d-p2", "title": "Once more, please", "setup": "You ask a shopkeeper the way to a park, but they speak fast.", "turns": [
+      {"who": "you", "goal": "Ask if there's a park near here.", "options": [
+        {"t": "この 近く に 公園 は あります か 。", "en": "Is there a park near here?", "ok": true},
+        {"t": "この 近く に コンビニ は あります か 。", "en": "Is there a convenience store near here?", "why": "That asks for a convenience store. Park is 公園."}]},
+      {"who": "staff", "t": "信号 を 左 に 曲がって 、 橋 を 渡って ください 。", "en": "Turn left at the lights and cross the bridge."},
+      {"who": "you", "goal": "That was fast. Ask them to say it again.", "options": [
+        {"t": "もう 一度 お願いします 。", "en": "Once more, please.", "ok": true},
+        {"t": "すみません 、 わかりません 。", "en": "Sorry, I don't know.", "why": "That's what you say when someone asks you the way."}]},
+      {"who": "staff", "t": "信号 を 左 に 曲がって ください 。", "en": "Turn left at the traffic lights."},
+      {"who": "check", "q": "What first?", "options": [
+        {"en": "Turn left at the lights", "ok": true},
+        {"en": "Turn right at the lights", "why": "左 is left."}]},
+      {"who": "staff", "t": "橋 を 渡って ください 。", "en": "Cross the bridge."},
+      {"who": "check", "q": "And then?", "options": [
+        {"en": "Cross the bridge", "ok": true},
+        {"en": "Turn back at the bridge", "why": "渡って means cross over."}]},
+      {"who": "you", "goal": "Ask them to show you on your map.", "options": [
+        {"t": "地図 で 教えて ください 。", "en": "Please show me on the map.", "ok": true},
+        {"t": "まっすぐ です か 。", "en": "Is it straight ahead?", "why": "That asks if it's straight ahead."}]},
+      {"who": "staff", "t": "すぐ そこ です 。", "en": "It's just over there."}
+    ]}
+  ]
+},
+{
+  "id": "cafe", "title": "Café", "jp": "カフェ",
+  "blurb": "Ordering a drink your way: hot or iced, size, here or to go.",
+  "signs": [
+    {"id": "c-s1", "t": "喫茶店", "style": "shop", "m": "Coffee shop", "note": "The older, classic kind of café, often with a set breakfast."},
+    {"id": "c-s2", "t": "本日のコーヒー", "y": "ほんじつのコーヒー", "style": "board", "m": "Today's coffee", "note": "The day's filter coffee, usually the cheapest."},
+    {"id": "c-s3", "t": "店内", "style": "board", "m": "Eat in", "note": "Prices can differ: tax is 10% to eat in, 8% to take away."},
+    {"id": "c-s4", "t": "ご注文はこちら", "y": "ごちゅうもんはこちら", "style": "notice", "m": "Order here", "note": "Queue here first."},
+    {"id": "c-s5", "t": "受取", "style": "notice", "m": "Pick up here", "note": "Wait here for your drink."},
+    {"id": "c-s6", "t": "返却口", "style": "notice", "m": "Return trays here", "note": "Bring your tray and cup here when you leave."},
+    {"id": "c-s7", "t": "砂糖", "style": "notice", "m": "Sugar", "note": "Often in a little stick, by the milk."},
+    {"id": "c-s8", "t": "氷", "y": "こおり", "style": "curtain", "m": "Shaved ice", "note": "A flag with this outside means かき氷, shaved ice with syrup, a summer treat."},
+    {"id": "c-s9", "t": "抹茶", "style": "board", "m": "Matcha", "note": "Powdered green tea, also in lattes and ice cream."},
+    {"id": "c-s10", "t": "紅茶", "style": "board", "m": "Black tea", "note": "Literally red tea. Green tea is 緑茶."},
+    {"id": "c-s11", "t": "期間限定", "style": "price", "m": "For a limited time", "note": "Seasonal drinks: sakura in spring, chestnut in autumn."},
+    {"id": "c-s12", "t": "甘味処", "style": "curtain", "m": "Japanese sweets café", "note": "Traditional sweets like anmitsu and mochi, with green tea."}
+  ],
+  "say": [
+    {"id": "c-y1", "t": "店内 で お願いします 。", "en": "To have here, please."},
+    {"id": "c-y2", "t": "持ち帰り で お願いします 。", "en": "To take away, please."},
+    {"id": "c-y3", "t": "コーヒー を 一つ ください 。", "en": "One coffee, please."},
+    {"id": "c-y4", "t": "アイス で お願いします 。", "en": "Iced, please.", "when": "ホット is hot."},
+    {"id": "c-y5", "t": "小さい サイズ で お願いします 。", "en": "Small, please."},
+    {"id": "c-y6", "t": "ミルク は いりません 。", "en": "No milk, thanks."},
+    {"id": "c-y7", "t": "ワイファイ は あります か 。", "en": "Is there Wi-Fi?"},
+    {"id": "c-y8", "t": "この 席 、 空いて います か 。", "en": "Is this seat free?"}
+  ],
+  "hear": [
+    {"id": "c-h1", "t": "店内 で お召し上がり です か 。", "en": "Will you have it here?", "r": "持ち帰り で お願いします 。"},
+    {"id": "c-h2", "t": "サイズ は いかが なさいます か 。", "en": "What size would you like?", "r": "小さい サイズ で お願いします 。"},
+    {"id": "c-h3", "t": "ホット と アイス 、 どちら に なさいます か 。", "en": "Hot or iced?", "r": "アイス で お願いします 。"},
+    {"id": "c-h4", "t": "ミルク と お砂糖 は お使い です か 。", "en": "Do you take milk and sugar?", "r": "ミルク は いりません 。"},
+    {"id": "c-h5", "t": "あちら で お待ち ください 。", "en": "Please wait over there.", "tip": "Usually by a lamp or a sign that says 受取."},
+    {"id": "c-h6", "t": "番号 で お呼び します 。", "en": "We'll call your number.", "tip": "Your number is on the receipt."},
+    {"id": "c-h7", "t": "お席 を 先 に お取り ください 。", "en": "Please find a seat first.", "tip": "Busy cafés ask you to save a seat before you queue."},
+    {"id": "c-h8", "t": "以上 で よろしい です か 。", "en": "Will that be all?", "r": "はい 。"},
+    {"id": "c-h9", "t": "お待たせ しました 、 ホット コーヒー です 。", "en": "Thanks for waiting: one hot coffee."},
+    {"id": "c-h10", "t": "ごゆっくり どうぞ 。", "en": "Enjoy.", "tip": "Literally: take your time."}
+  ],
+  "play": [
+    {"id": "c-p1", "title": "Coffee to go", "setup": "You want a small iced coffee to take away, with no milk.", "turns": [
+      {"who": "staff", "t": "いらっしゃいませ 。 店内 で お召し上がり です か 。", "en": "Welcome! Will you have it here?"},
+      {"who": "you", "goal": "It's to take away.", "options": [
+        {"t": "持ち帰り で お願いします 。", "en": "To take away, please.", "ok": true},
+        {"t": "店内 で お願いします 。", "en": "To have here, please.", "why": "That's for drinking it here."}]},
+      {"who": "you", "goal": "Order a coffee.", "options": [
+        {"t": "コーヒー を 一つ ください 。", "en": "One coffee, please.", "ok": true},
+        {"t": "紅茶 を 一つ ください 。", "en": "One black tea, please.", "why": "紅茶 is black tea."}]},
+      {"who": "staff", "t": "ホット と アイス 、 どちら に なさいます か 。", "en": "Hot or iced?"},
+      {"who": "you", "goal": "Iced.", "options": [
+        {"t": "アイス で お願いします 。", "en": "Iced, please.", "ok": true},
+        {"t": "ホット で お願いします 。", "en": "Hot, please.", "why": "ホット is hot."}]},
+      {"who": "staff", "t": "サイズ は いかが なさいます か 。", "en": "What size would you like?"},
+      {"who": "you", "goal": "Small.", "options": [
+        {"t": "小さい サイズ で お願いします 。", "en": "Small, please.", "ok": true},
+        {"t": "もっと 大きい の は あります か 。", "en": "Do you have a bigger one?", "why": "That asks for a bigger one."}]},
+      {"who": "staff", "t": "ミルク と お砂糖 は お使い です か 。", "en": "Do you take milk and sugar?"},
+      {"who": "you", "goal": "No milk.", "options": [
+        {"t": "ミルク は いりません 。", "en": "No milk, thanks.", "ok": true},
+        {"t": "はい 、 お願いします 。", "en": "Yes, please.", "why": "That's yes, so you'd get milk."}]},
+      {"who": "staff", "t": "あちら で お待ち ください 。", "en": "Please wait over there."},
+      {"who": "check", "q": "What do you do now?", "options": [
+        {"en": "Wait over there for the drink", "ok": true},
+        {"en": "Sit anywhere and they'll bring it", "why": "あちら で お待ち ください: please wait over there."}]}
+    ]},
+    {"id": "c-p2", "title": "A busy café", "setup": "A busy café at lunchtime. You want a black tea to have there.", "turns": [
+      {"who": "staff", "t": "いらっしゃいませ 。 お席 を 先 に お取り ください 。", "en": "Welcome! Please find a seat first."},
+      {"who": "check", "q": "What should you do first?", "options": [
+        {"en": "Find a seat", "ok": true},
+        {"en": "Order at the till", "why": "先 に means first: save a seat, then order."}]},
+      {"who": "you", "goal": "Ask the person at the table if this seat is free.", "options": [
+        {"t": "この 席 、 空いて います か 。", "en": "Is this seat free?", "ok": true},
+        {"t": "ワイファイ は あります か 。", "en": "Is there Wi-Fi?", "why": "That asks about Wi-Fi."}]},
+      {"who": "staff", "t": "はい 、 どうぞ 。", "en": "Yes, go ahead."},
+      {"who": "you", "goal": "At the till, order a black tea.", "options": [
+        {"t": "紅茶 を 一つ ください 。", "en": "One black tea, please.", "ok": true},
+        {"t": "抹茶 を 一つ ください 。", "en": "One matcha, please.", "why": "抹茶 is matcha. Black tea is 紅茶."}]},
+      {"who": "staff", "t": "店内 で お召し上がり です か 。", "en": "Will you have it here?"},
+      {"who": "you", "goal": "Yes, here.", "options": [
+        {"t": "はい 。", "en": "Yes.", "ok": true},
+        {"t": "いいえ 。", "en": "No.", "why": "That's no, so it'd come in a takeaway cup."}]},
+      {"who": "staff", "t": "番号 で お呼び します 。", "en": "We'll call your number."},
+      {"who": "check", "q": "How will you know it's ready?", "options": [
+        {"en": "They'll call your number", "ok": true},
+        {"en": "They'll bring it to your seat", "why": "番号 で お呼び します: they'll call your number."}]}
+    ]}
+  ]
+},
+{
+  "id": "pharm", "title": "Pharmacy", "jp": "薬局",
+  "blurb": "Explaining what's wrong and understanding how to take it.",
+  "signs": [
+    {"id": "p-s1", "t": "薬局", "style": "shop", "m": "Pharmacy", "note": "Also ドラッグストア, which sells snacks and cosmetics too."},
+    {"id": "p-s2", "t": "薬", "y": "くすり", "style": "shop", "m": "Medicine", "note": "Often a big sign on its own outside the shop."},
+    {"id": "p-s3", "t": "処方箋", "style": "notice", "m": "Prescriptions", "note": "For a doctor's prescription. Everyday medicine is on the shelves."},
+    {"id": "p-s4", "t": "風邪薬", "style": "price", "m": "Cold medicine", "note": "On shelf labels."},
+    {"id": "p-s5", "t": "頭痛薬", "style": "price", "m": "Headache medicine", "note": "On shelf labels."},
+    {"id": "p-s6", "t": "胃腸薬", "style": "price", "m": "Stomach medicine", "note": "For an upset stomach."},
+    {"id": "p-s7", "t": "目薬", "style": "price", "m": "Eye drops", "note": "Very popular in Japan, in many strengths."},
+    {"id": "p-s8", "t": "化粧品", "style": "notice", "m": "Cosmetics", "note": "Usually the front of a drugstore."},
+    {"id": "p-s9", "t": "日焼け止め", "style": "price", "m": "Sunscreen", "note": "Look for SPF and PA+++ on the bottle."},
+    {"id": "p-s10", "t": "食後", "style": "notice", "m": "After meals", "note": "On packets: take it after eating. 食前 is before meals."},
+    {"id": "p-s11", "t": "一日三回", "y": "いちにちさんかい", "style": "notice", "m": "Three times a day", "note": "On packets: how often to take it."},
+    {"id": "p-s12", "t": "病院", "style": "notice", "m": "Hospital", "note": "Small clinics are often 医院 or クリニック."}
+  ],
+  "say": [
+    {"id": "p-y1", "t": "風邪薬 は あります か 。", "en": "Do you have cold medicine?"},
+    {"id": "p-y2", "t": "頭 が 痛い です 。", "en": "I have a headache."},
+    {"id": "p-y3", "t": "熱 が あります 。", "en": "I have a fever."},
+    {"id": "p-y4", "t": "お腹 が 痛い です 。", "en": "I have a stomach ache."},
+    {"id": "p-y5", "t": "喉 が 痛い です 。", "en": "I have a sore throat."},
+    {"id": "p-y6", "t": "一日 何回 飲みます か 。", "en": "How many times a day do I take it?", "when": "Medicine is drunk, 飲みます, in Japanese."},
+    {"id": "p-y7", "t": "アレルギー が あります 。", "en": "I have an allergy.", "when": "Show the name written down if you can."},
+    {"id": "p-y8", "t": "近く に 病院 は あります か 。", "en": "Is there a hospital nearby?"}
+  ],
+  "hear": [
+    {"id": "p-h1", "t": "どう されました か 。", "en": "What seems to be the problem?", "r": "頭 が 痛い です 。"},
+    {"id": "p-h2", "t": "熱 は あります か 。", "en": "Do you have a fever?"},
+    {"id": "p-h3", "t": "いつ から です か 。", "en": "Since when?", "tip": "昨日 から: since yesterday."},
+    {"id": "p-h4", "t": "アレルギー は あります か 。", "en": "Do you have any allergies?", "r": "アレルギー が あります 。"},
+    {"id": "p-h5", "t": "一日 三回 、 食後 に 飲んで ください 。", "en": "Take it three times a day, after meals."},
+    {"id": "p-h6", "t": "こちら が おすすめ です 。", "en": "I recommend this one."},
+    {"id": "p-h7", "t": "眠く なります 。", "en": "It can make you drowsy."},
+    {"id": "p-h8", "t": "お大事 に 。", "en": "Take care of yourself.", "tip": "Said to anyone who's unwell. A nod and thanks is the reply."},
+    {"id": "p-h9", "t": "他 に 薬 を 飲んで います か 。", "en": "Are you taking any other medicine?", "r": "いいえ 。"},
+    {"id": "p-h10", "t": "病院 に 行って ください 。", "en": "Please go to a hospital."}
+  ],
+  "play": [
+    {"id": "p-p1", "title": "A headache", "setup": "You have a headache and go into a pharmacy.", "turns": [
+      {"who": "you", "goal": "Get the pharmacist's attention.", "options": [
+        {"t": "すみません 。", "en": "Excuse me.", "ok": true},
+        {"t": "お大事 に 。", "en": "Take care of yourself.", "why": "That's what you say to someone who's ill."}]},
+      {"who": "staff", "t": "はい 、 どう されました か 。", "en": "Yes, what seems to be the problem?"},
+      {"who": "you", "goal": "Say you have a headache.", "options": [
+        {"t": "頭 が 痛い です 。", "en": "I have a headache.", "ok": true},
+        {"t": "お腹 が 痛い です 。", "en": "I have a stomach ache.", "why": "お腹 is stomach. Head is 頭."}]},
+      {"who": "staff", "t": "熱 は あります か 。", "en": "Do you have a fever?"},
+      {"who": "you", "goal": "No fever.", "options": [
+        {"t": "いいえ 。", "en": "No.", "ok": true},
+        {"t": "熱 が あります 。", "en": "I have a fever.", "why": "That says you do have a fever."}]},
+      {"who": "staff", "t": "こちら が おすすめ です 。 一日 三回 、 食後 に 飲んで ください 。", "en": "I recommend this one. Take it three times a day, after meals."},
+      {"who": "check", "q": "How should you take it?", "options": [
+        {"en": "Three times a day, after meals", "ok": true},
+        {"en": "Once a day, before bed", "why": "三回 is three times. 食後 is after meals."},
+        {"en": "Three times a day, before meals", "why": "食後 is after meals. Before is 食前."}]},
+      {"who": "staff", "t": "お大事 に 。", "en": "Take care of yourself."},
+      {"who": "you", "goal": "Thank them.", "options": [
+        {"t": "ありがとうございます 。", "en": "Thank you.", "ok": true},
+        {"t": "いらっしゃいませ 。", "en": "Welcome!", "why": "That's what shop staff call out."}]}
+    ]},
+    {"id": "p-p2", "title": "Something for a cold", "setup": "You've caught a cold with a sore throat. You're allergic to some medicines.", "turns": [
+      {"who": "you", "goal": "Ask if they have cold medicine.", "options": [
+        {"t": "風邪薬 は あります か 。", "en": "Do you have cold medicine?", "ok": true},
+        {"t": "近く に 病院 は あります か 。", "en": "Is there a hospital nearby?", "why": "That asks for a hospital."}]},
+      {"who": "staff", "t": "はい 。 アレルギー は あります か 。", "en": "Yes. Do you have any allergies?"},
+      {"who": "you", "goal": "Yes, you do.", "options": [
+        {"t": "アレルギー が あります 。", "en": "I have an allergy.", "ok": true},
+        {"t": "いいえ 。", "en": "No.", "why": "That says no allergies. Better to tell them."}]},
+      {"who": "staff", "t": "他 に 薬 を 飲んで います か 。", "en": "Are you taking any other medicine?"},
+      {"who": "you", "goal": "No other medicine.", "options": [
+        {"t": "いいえ 。", "en": "No.", "ok": true},
+        {"t": "はい 、 お願いします 。", "en": "Yes, please.", "why": "That accepts an offer. They asked a question."}]},
+      {"who": "staff", "t": "こちら が おすすめ です 。 眠く なります 。", "en": "I recommend this one. It can make you drowsy."},
+      {"who": "check", "q": "What's the warning?", "options": [
+        {"en": "It can make you drowsy", "ok": true},
+        {"en": "Don't take it with food", "why": "眠く なります: you may get sleepy."}]},
+      {"who": "you", "goal": "Ask how many times a day to take it.", "options": [
+        {"t": "一日 何回 飲みます か 。", "en": "How many times a day do I take it?", "ok": true},
+        {"t": "喉 が 痛い です 。", "en": "I have a sore throat.", "why": "That describes how you feel."}]},
+      {"who": "staff", "t": "一日 三回 、 食後 に 飲んで ください 。 お大事 に 。", "en": "Three times a day, after meals. Take care of yourself."}
+    ]}
+  ]
+},
+{
+  "id": "taxi", "title": "Taxi", "jp": "タクシー",
+  "blurb": "Spotting a free taxi, giving the destination, and paying.",
+  "signs": [
+    {"id": "x-s1", "t": "空車", "style": "price", "m": "Available", "note": "Lit red in the windscreen: the taxi is free. Raise a hand."},
+    {"id": "x-s2", "t": "賃走", "style": "price", "m": "Occupied", "note": "Someone's riding. Some taxis show 実車 instead."},
+    {"id": "x-s3", "t": "迎車", "style": "price", "m": "On the way to a booking", "note": "Booked by someone else. Don't wave it down."},
+    {"id": "x-s4", "t": "回送", "style": "board", "m": "Out of service", "note": "On taxis, buses and trains: not taking passengers."},
+    {"id": "x-s5", "t": "割増", "style": "price", "m": "Night surcharge", "note": "Late at night fares go up by about 20%."},
+    {"id": "x-s6", "t": "乗り場", "style": "station", "m": "Stand, boarding point", "note": "タクシー乗り場 is the taxi stand. Queue there at stations."},
+    {"id": "x-s7", "t": "料金", "style": "price", "m": "Fare", "note": "On the meter and on price lists."},
+    {"id": "x-s8", "t": "初乗り", "style": "price", "m": "Starting fare", "note": "What the meter starts at."},
+    {"id": "x-s9", "t": "自動ドア", "style": "notice", "m": "Automatic door", "note": "Taxi back doors open and close by themselves. Leave them to the driver."},
+    {"id": "x-s10", "t": "領収書", "style": "notice", "m": "Receipt", "note": "Ask for one if you need it."},
+    {"id": "x-s11", "t": "禁煙車", "style": "notice", "m": "Non-smoking car", "note": "Nearly every taxi is now non-smoking."},
+    {"id": "x-s12", "t": "一方通行", "style": "exit", "m": "One way", "note": "Why your taxi sometimes goes the long way round."}
+  ],
+  "say": [
+    {"id": "x-y1", "t": "ここ まで お願いします 。", "en": "Here, please.", "when": "Show the address or a map on your phone."},
+    {"id": "x-y2", "t": "新宿駅 まで お願いします 。", "en": "To Shinjuku Station, please.", "when": "Swap in any place."},
+    {"id": "x-y3", "t": "どのくらい かかります か 。", "en": "How long will it take?"},
+    {"id": "x-y4", "t": "いくら ぐらい です か 。", "en": "About how much will it be?"},
+    {"id": "x-y5", "t": "ここ で 止めて ください 。", "en": "Please stop here."},
+    {"id": "x-y6", "t": "カード で 払えます か 。", "en": "Can I pay by card?"},
+    {"id": "x-y7", "t": "領収書 を ください 。", "en": "A receipt, please."},
+    {"id": "x-y8", "t": "トランク を 開けて ください 。", "en": "Please open the boot."}
+  ],
+  "hear": [
+    {"id": "x-h1", "t": "どちら まで です か 。", "en": "Where to?", "r": "ここ まで お願いします 。"},
+    {"id": "x-h2", "t": "シートベルト を お締め ください 。", "en": "Please fasten your seatbelt."},
+    {"id": "x-h3", "t": "三十分 ぐらい かかります 。", "en": "It takes about 30 minutes."},
+    {"id": "x-h4", "t": "二千円 ぐらい です 。", "en": "About 2,000 yen."},
+    {"id": "x-h5", "t": "この 辺 で よろしい です か 。", "en": "Is around here all right?", "r": "はい 、 大丈夫 です 。"},
+    {"id": "x-h6", "t": "着きました 。", "en": "We're here."},
+    {"id": "x-h7", "t": "料金 は 二千円 です 。", "en": "The fare is 2,000 yen."},
+    {"id": "x-h8", "t": "ドア が 開きます 。", "en": "The door is opening.", "tip": "Stand clear: it opens by itself."},
+    {"id": "x-h9", "t": "道 が 混んで います 。", "en": "The roads are busy."},
+    {"id": "x-h10", "t": "お忘れ物 の ない よう に 。", "en": "Don't leave anything behind."}
+  ],
+  "play": [
+    {"id": "x-p1", "title": "To the station", "setup": "You get into a taxi and want to go to Shinjuku Station. You'd like to pay by card.", "turns": [
+      {"who": "staff", "t": "どちら まで です か 。", "en": "Where to?"},
+      {"who": "you", "goal": "Shinjuku Station.", "options": [
+        {"t": "新宿駅 まで お願いします 。", "en": "To Shinjuku Station, please.", "ok": true},
+        {"t": "ここ で 止めて ください 。", "en": "Please stop here.", "why": "That asks them to stop."}]},
+      {"who": "staff", "t": "シートベルト を お締め ください 。", "en": "Please fasten your seatbelt."},
+      {"who": "check", "q": "What should you do?", "options": [
+        {"en": "Fasten your seatbelt", "ok": true},
+        {"en": "Close the door", "why": "The door closes by itself. シートベルト is seatbelt."}]},
+      {"who": "you", "goal": "Ask how long it'll take.", "options": [
+        {"t": "どのくらい かかります か 。", "en": "How long will it take?", "ok": true},
+        {"t": "いくら ぐらい です か 。", "en": "About how much will it be?", "why": "That asks the price, not the time."}]},
+      {"who": "staff", "t": "道 が 混んで います 。 三十分 ぐらい かかります 。", "en": "The roads are busy. It takes about 30 minutes."},
+      {"who": "check", "q": "How long?", "options": [
+        {"en": "About 30 minutes", "ok": true},
+        {"en": "About 3 minutes", "why": "三十分 is thirty minutes."}]},
+      {"who": "you", "goal": "Ask if you can pay by card.", "options": [
+        {"t": "カード で 払えます か 。", "en": "Can I pay by card?", "ok": true},
+        {"t": "領収書 を ください 。", "en": "A receipt, please.", "why": "That asks for a receipt."}]},
+      {"who": "staff", "t": "はい 、 大丈夫 です 。", "en": "Yes, that's fine."},
+      {"who": "staff", "t": "着きました 。 料金 は 二千円 です 。", "en": "We're here. The fare is 2,000 yen."},
+      {"who": "check", "q": "How much is it?", "options": [
+        {"en": "2,000 yen", "ok": true},
+        {"en": "20,000 yen", "why": "二千 is two thousand. Twenty thousand would be 二万."}]}
+    ]},
+    {"id": "x-p2", "title": "Stopping short", "setup": "You show the driver a map on your phone. You'll get out a little early, and you need a receipt.", "turns": [
+      {"who": "staff", "t": "どちら まで です か 。", "en": "Where to?"},
+      {"who": "you", "goal": "Show the map: here.", "options": [
+        {"t": "ここ まで お願いします 。", "en": "Here, please.", "ok": true},
+        {"t": "新宿駅 まで お願いします 。", "en": "To Shinjuku Station, please.", "why": "That's Shinjuku Station, not the place on your map."}]},
+      {"who": "staff", "t": "この 辺 で よろしい です か 。", "en": "Is around here all right?"},
+      {"who": "you", "goal": "Yes, here's fine.", "options": [
+        {"t": "はい 、 大丈夫 です 。", "en": "Yes, that's fine.", "ok": true},
+        {"t": "いいえ 。", "en": "No.", "why": "That's no, so they'd keep driving."}]},
+      {"who": "you", "goal": "Ask for a receipt.", "options": [
+        {"t": "領収書 を ください 。", "en": "A receipt, please.", "ok": true},
+        {"t": "トランク を 開けて ください 。", "en": "Please open the boot.", "why": "That asks them to open the boot."}]},
+      {"who": "staff", "t": "ドア が 開きます 。 お忘れ物 の ない よう に 。", "en": "The door is opening. Don't leave anything behind."},
+      {"who": "check", "q": "What did they remind you?", "options": [
+        {"en": "Not to leave anything behind", "ok": true},
+        {"en": "To close the door", "why": "お忘れ物 is something left behind. The door is automatic."}]}
+    ]}
+  ]
+},
+{
+  "id": "help", "title": "Help", "jp": "緊急",
+  "blurb": "Lost things, getting lost, and asking for help when it matters.",
+  "signs": [
+    {"id": "e-s1", "t": "非常口", "style": "green", "m": "Emergency exit", "note": "Green, with a running figure. Check where it is in your hotel."},
+    {"id": "e-s2", "t": "危険", "style": "notice", "m": "Danger", "note": "Often in red or yellow."},
+    {"id": "e-s3", "t": "立入禁止", "style": "notice", "m": "No entry", "note": "Keep out. Common at building sites and temples."},
+    {"id": "e-s4", "t": "注意", "style": "notice", "m": "Caution", "note": "Read what follows: 足元注意 is watch your step."},
+    {"id": "e-s5", "t": "避難場所", "style": "green", "m": "Evacuation area", "note": "Where to go after an earthquake: usually a park or a school."},
+    {"id": "e-s6", "t": "消火器", "style": "notice", "m": "Fire extinguisher", "note": "In red boxes along corridors and stations."},
+    {"id": "e-s7", "t": "救急", "style": "notice", "m": "Emergency (medical)", "note": "救急車 is an ambulance: call 119."},
+    {"id": "e-s8", "t": "警察", "style": "notice", "m": "Police", "note": "Call 110."},
+    {"id": "e-s9", "t": "落とし物", "style": "notice", "m": "Lost property", "note": "Lost things are often handed in: check the station or a 交番."},
+    {"id": "e-s10", "t": "足元注意", "style": "notice", "m": "Watch your step", "note": "On stairs, platforms and uneven floors."},
+    {"id": "e-s11", "t": "故障中", "style": "notice", "m": "Out of order", "note": "On machines, lifts and toilets."},
+    {"id": "e-s12", "t": "非常ボタン", "y": "ひじょうボタン", "style": "notice", "m": "Emergency button", "note": "On platforms, in lifts and in toilets. Press it if someone is in trouble."}
+  ],
+  "say": [
+    {"id": "e-y1", "t": "助けて ください 。", "en": "Please help me."},
+    {"id": "e-y2", "t": "救急車 を 呼んで ください 。", "en": "Please call an ambulance."},
+    {"id": "e-y3", "t": "警察 を 呼んで ください 。", "en": "Please call the police."},
+    {"id": "e-y4", "t": "財布 を なくしました 。", "en": "I lost my wallet.", "when": "Swap 財布 for スマホ (phone) or パスポート."},
+    {"id": "e-y5", "t": "道 に 迷いました 。", "en": "I'm lost."},
+    {"id": "e-y6", "t": "英語 を 話せる 人 は います か 。", "en": "Is there anyone who speaks English?"},
+    {"id": "e-y7", "t": "日本語 が わかりません 。", "en": "I don't understand Japanese."},
+    {"id": "e-y8", "t": "けが を しました 。", "en": "I'm hurt."}
+  ],
+  "hear": [
+    {"id": "e-h1", "t": "大丈夫 です か 。", "en": "Are you all right?"},
+    {"id": "e-h2", "t": "どう しました か 。", "en": "What happened?"},
+    {"id": "e-h3", "t": "何 を なくしました か 。", "en": "What did you lose?", "r": "財布 を なくしました 。"},
+    {"id": "e-h4", "t": "どこ で なくしました か 。", "en": "Where did you lose it?"},
+    {"id": "e-h5", "t": "こちら に 連絡先 を 書いて ください 。", "en": "Please write your contact details here."},
+    {"id": "e-h6", "t": "落ち着いて ください 。", "en": "Please stay calm."},
+    {"id": "e-h7", "t": "地震 です 。", "en": "It's an earthquake.", "tip": "Get under a table, away from windows, until the shaking stops."},
+    {"id": "e-h8", "t": "ここ で 待って いて ください 。", "en": "Please wait here."},
+    {"id": "e-h9", "t": "交番 に 行って ください 。", "en": "Please go to the police box."},
+    {"id": "e-h10", "t": "見つかったら 連絡 します 。", "en": "We'll contact you if it turns up."}
+  ],
+  "play": [
+    {"id": "e-p1", "title": "A lost wallet", "setup": "You've lost your wallet near a station and go to a police box.", "turns": [
+      {"who": "you", "goal": "Get the officer's attention.", "options": [
+        {"t": "すみません 。", "en": "Excuse me.", "ok": true},
+        {"t": "すみません 、 降ります 。", "en": "Excuse me, I'm getting off.", "why": "That's for getting off a crowded train."}]},
+      {"who": "staff", "t": "はい 、 どう しました か 。", "en": "Yes, what happened?"},
+      {"who": "you", "goal": "Say you lost your wallet.", "options": [
+        {"t": "財布 を なくしました 。", "en": "I lost my wallet.", "ok": true},
+        {"t": "道 に 迷いました 。", "en": "I'm lost.", "why": "That says you've lost your way."}]},
+      {"who": "staff", "t": "どこ で なくしました か 。", "en": "Where did you lose it?"},
+      {"who": "check", "q": "What are they asking?", "options": [
+        {"en": "Where you lost it", "ok": true},
+        {"en": "When you lost it", "why": "どこ is where. When would be いつ."}]},
+      {"who": "you", "goal": "You can't explain in Japanese.", "options": [
+        {"t": "日本語 が わかりません 。", "en": "I don't understand Japanese.", "ok": true},
+        {"t": "けが を しました 。", "en": "I'm hurt.", "why": "That says you're injured."}]},
+      {"who": "staff", "t": "こちら に 連絡先 を 書いて ください 。", "en": "Please write your contact details here."},
+      {"who": "check", "q": "What should you do?", "options": [
+        {"en": "Write your contact details", "ok": true},
+        {"en": "Wait outside", "why": "書いて ください is please write. 連絡先 is contact details."}]},
+      {"who": "staff", "t": "見つかったら 連絡 します 。", "en": "We'll contact you if it turns up."},
+      {"who": "check", "q": "What will they do?", "options": [
+        {"en": "Contact you if it's found", "ok": true},
+        {"en": "Lend you some money", "why": "見つかったら: if it's found. 連絡 します: we'll contact you."}]}
+    ]},
+    {"id": "e-p2", "title": "Someone's hurt", "setup": "Your friend has fallen in the street and hurt their leg badly.", "turns": [
+      {"who": "you", "goal": "Call out for help.", "options": [
+        {"t": "助けて ください 。", "en": "Please help me.", "ok": true},
+        {"t": "もう 一度 お願いします 。", "en": "Once more, please.", "why": "That asks someone to repeat themselves."}]},
+      {"who": "staff", "t": "大丈夫 です か 。", "en": "Are you all right?"},
+      {"who": "you", "goal": "Ask them to call an ambulance.", "options": [
+        {"t": "救急車 を 呼んで ください 。", "en": "Please call an ambulance.", "ok": true},
+        {"t": "警察 を 呼んで ください 。", "en": "Please call the police.", "why": "That's the police. An ambulance is 救急車."}]},
+      {"who": "staff", "t": "落ち着いて ください 。 ここ で 待って いて ください 。", "en": "Please stay calm. Please wait here."},
+      {"who": "check", "q": "What did they tell you?", "options": [
+        {"en": "Stay calm and wait here", "ok": true},
+        {"en": "Go to the hospital yourselves", "why": "待って いて ください: please wait."}]},
+      {"who": "you", "goal": "Ask if anyone speaks English.", "options": [
+        {"t": "英語 を 話せる 人 は います か 。", "en": "Is there anyone who speaks English?", "ok": true},
+        {"t": "日本語 が わかりません 。", "en": "I don't understand Japanese.", "why": "True, but it doesn't find someone who speaks English."}]}
+    ]}
+  ]
+},
+{
+  "id": "sights", "title": "Sightseeing", "jp": "観光",
+  "blurb": "Temples, tickets and photos, and chatting with friendly locals.",
+  "signs": [
+    {"id": "m-s1", "t": "神社", "style": "shop", "m": "Shrine", "note": "Shinto. Bow once at the torii gate on the way in."},
+    {"id": "m-s2", "t": "寺", "y": "てら", "style": "shop", "m": "Temple", "note": "Buddhist. In names it's read じ: 金閣寺 is Kinkaku-ji."},
+    {"id": "m-s3", "t": "撮影禁止", "style": "notice", "m": "No photos", "note": "Common inside temple halls and museums."},
+    {"id": "m-s4", "t": "土足厳禁", "style": "notice", "m": "No shoes", "note": "Take your shoes off here. Bags or shelves are usually provided."},
+    {"id": "m-s5", "t": "拝観料", "style": "price", "m": "Entry fee", "note": "At temples and gardens."},
+    {"id": "m-s6", "t": "順路", "style": "notice", "m": "This way round", "note": "Arrows showing the route to follow."},
+    {"id": "m-s7", "t": "開館時間", "style": "notice", "m": "Opening hours", "note": "Last entry is often 30 minutes before closing."},
+    {"id": "m-s8", "t": "休館日", "style": "notice", "m": "Closed day", "note": "Many museums close on Mondays."},
+    {"id": "m-s9", "t": "お守り", "style": "board", "m": "Charms", "note": "Sold at shrines and temples, for luck, health, study or safe travel."},
+    {"id": "m-s10", "t": "入場無料", "style": "price", "m": "Free entry", "note": "無料 alone means free of charge."},
+    {"id": "m-s11", "t": "展望台", "style": "notice", "m": "Observation deck", "note": "On towers and hills, for the view."},
+    {"id": "m-s12", "t": "大人", "style": "price", "m": "Adult", "note": "On ticket prices. 子供 is child."}
+  ],
+  "say": [
+    {"id": "m-y1", "t": "写真 を 撮って も いい です か 。", "en": "May I take a photo?"},
+    {"id": "m-y2", "t": "写真 を 撮って いただけません か 。", "en": "Could you take a photo of us?"},
+    {"id": "m-y3", "t": "大人 二枚 ください 。", "en": "Two adult tickets, please."},
+    {"id": "m-y4", "t": "アメリカ から 来ました 。", "en": "I'm from America.", "when": "Swap in your country: イギリス (UK), カナダ, オーストラリア."},
+    {"id": "m-y5", "t": "日本 は 初めて です 。", "en": "It's my first time in Japan."},
+    {"id": "m-y6", "t": "とても きれい です ね 。", "en": "It's beautiful, isn't it?"},
+    {"id": "m-y7", "t": "少し だけ 話せます 。", "en": "I only speak a little.", "when": "When someone compliments your Japanese."},
+    {"id": "m-y8", "t": "二週間 います 。", "en": "I'm here for two weeks."}
+  ],
+  "hear": [
+    {"id": "m-h1", "t": "どちら から いらっしゃいました か 。", "en": "Where are you from?", "r": "アメリカ から 来ました 。"},
+    {"id": "m-h2", "t": "日本 は 初めて です か 。", "en": "Is this your first time in Japan?", "r": "日本 は 初めて です 。"},
+    {"id": "m-h3", "t": "日本語 が 上手 です ね 。", "en": "Your Japanese is good!", "r": "少し だけ 話せます 。", "tip": "A kind compliment. Play it down rather than agree."},
+    {"id": "m-h4", "t": "どのくらい 日本 に います か 。", "en": "How long are you in Japan?", "r": "二週間 います 。"},
+    {"id": "m-h5", "t": "ここ で 靴 を 脱いで ください 。", "en": "Please take off your shoes here."},
+    {"id": "m-h6", "t": "写真 は ご遠慮 ください 。", "en": "Please don't take photos.", "tip": "ご遠慮 ください is a polite no."},
+    {"id": "m-h7", "t": "楽しんで ください 。", "en": "Enjoy yourself!"},
+    {"id": "m-h8", "t": "お一人 五百円 です 。", "en": "It's 500 yen per person."},
+    {"id": "m-h9", "t": "撮りましょう か 。", "en": "Shall I take one for you?", "r": "はい 、 お願いします 。", "tip": "Hand them your phone with a smile."},
+    {"id": "m-h10", "t": "気 を つけて 。", "en": "Take care.", "tip": "Said as you part ways."}
+  ],
+  "play": [
+    {"id": "m-p1", "title": "At the temple", "setup": "You're at a temple gate with a friend. You both need adult tickets.", "turns": [
+      {"who": "you", "goal": "Buy two adult tickets.", "options": [
+        {"t": "大人 二枚 ください 。", "en": "Two adult tickets, please.", "ok": true},
+        {"t": "写真 を 撮って も いい です か 。", "en": "May I take a photo?", "why": "That asks about photos."}]},
+      {"who": "staff", "t": "お一人 五百円 です 。", "en": "It's 500 yen per person."},
+      {"who": "check", "q": "How much for the two of you?", "options": [
+        {"en": "1,000 yen", "ok": true},
+        {"en": "500 yen", "why": "お一人 is per person, so two of you is 1,000."}]},
+      {"who": "staff", "t": "ここ で 靴 を 脱いで ください 。", "en": "Please take off your shoes here."},
+      {"who": "check", "q": "What should you do?", "options": [
+        {"en": "Take your shoes off", "ok": true},
+        {"en": "Leave your bag here", "why": "靴 is shoes. 脱いで is take off."}]},
+      {"who": "you", "goal": "Inside the hall, ask if photos are OK.", "options": [
+        {"t": "写真 を 撮って も いい です か 。", "en": "May I take a photo?", "ok": true},
+        {"t": "写真 を 撮って いただけません か 。", "en": "Could you take a photo of us?", "why": "That asks them to take a photo of you."}]},
+      {"who": "staff", "t": "写真 は ご遠慮 ください 。", "en": "Please don't take photos."},
+      {"who": "check", "q": "Can you take photos?", "options": [
+        {"en": "No", "ok": true},
+        {"en": "Yes, without flash", "why": "ご遠慮 ください is a polite no."}]}
+    ]},
+    {"id": "m-p2", "title": "A chat at the viewpoint", "setup": "At a viewpoint, a friendly older man starts chatting.", "turns": [
+      {"who": "staff", "t": "こんにちは 。 どちら から いらっしゃいました か 。", "en": "Hello. Where are you from?"},
+      {"who": "you", "goal": "You're from America.", "options": [
+        {"t": "アメリカ から 来ました 。", "en": "I'm from America.", "ok": true},
+        {"t": "二週間 います 。", "en": "I'm here for two weeks.", "why": "That says how long you're staying."}]},
+      {"who": "staff", "t": "日本 は 初めて です か 。", "en": "Is this your first time in Japan?"},
+      {"who": "you", "goal": "Yes, it's your first time.", "options": [
+        {"t": "日本 は 初めて です 。", "en": "It's my first time in Japan.", "ok": true},
+        {"t": "いいえ 。", "en": "No.", "why": "That says you've been before."}]},
+      {"who": "staff", "t": "日本語 が 上手 です ね 。", "en": "Your Japanese is good!"},
+      {"who": "you", "goal": "Be modest.", "options": [
+        {"t": "少し だけ 話せます 。", "en": "I only speak a little.", "ok": true},
+        {"t": "とても きれい です ね 。", "en": "It's beautiful, isn't it?", "why": "That's about the view, not your Japanese."}]},
+      {"who": "staff", "t": "撮りましょう か 。", "en": "Shall I take one for you?"},
+      {"who": "you", "goal": "Yes, please.", "options": [
+        {"t": "はい 、 お願いします 。", "en": "Yes, please.", "ok": true},
+        {"t": "いいえ 、 大丈夫 です 。", "en": "No, I'm fine.", "why": "That's no thanks."}]},
+      {"who": "staff", "t": "楽しんで ください 。 気 を つけて 。", "en": "Enjoy yourself. Take care."},
+      {"who": "you", "goal": "Thank him.", "options": [
+        {"t": "ありがとうございます 。", "en": "Thank you.", "ok": true},
+        {"t": "ごちそうさま でした 。", "en": "Thank you for the meal.", "why": "That's thanks for a meal."}]}
+    ]}
+  ]
+}
+],
+"lex": {
+  "乗りました": ["のりました", "got on (a train)"],
+  "払って": ["はらって", "pay (and)"],
+  "メニュー": ["メニュー", "menu", "menyū"],
+  "おすすめ": ["おすすめ", "recommendation"],
+  "お水": ["おみず", "water (polite)"],
+  "ごちそうさま": ["ごちそうさま", "thanks for the meal"],
+  "何名様": ["なんめいさま", "how many people (polite)"],
+  "お好き": ["おすき", "as you like (polite)"],
+  "ご注文": ["ごちゅうもん", "your order (polite)"],
+  "お決まり": ["おきまり", "decided (polite)"],
+  "お飲み物": ["おのみもの", "drink (polite)"],
+  "いかが": ["いかが", "how about"],
+  "只今": ["ただいま", "right now"],
+  "満席": ["まんせき", "full, no seats"],
+  "カウンター": ["カウンター", "counter", "kauntā"],
+  "よろしい": ["よろしい", "all right (polite)"],
+  "お待たせ": ["おまたせ", "keeping you waiting"],
+  "以上": ["いじょう", "that's all; or more"],
+  "レジ": ["レジ", "register, till"],
+  "ラストオーダー": ["ラストオーダー", "last orders", "rasuto ōdā"],
+  "いただきます": ["いただきます", "said before eating"],
+  "食券": ["しょっけん", "meal ticket"],
+  "大盛り": ["おおもり", "large portion"],
+  "チェックイン": ["チェックイン", "check-in"],
+  "予約": ["よやく", "reservation"],
+  "スミス": ["スミス", "Smith"],
+  "荷物": ["にもつ", "luggage"],
+  "預けて": ["あずけて", "leave (in someone's care)"],
+  "朝食": ["ちょうしょく", "breakfast"],
+  "ワイファイ": ["ワイファイ", "Wi-Fi"],
+  "パスワード": ["パスワード", "password", "pasuwādo"],
+  "タオル": ["タオル", "towel"],
+  "チェックアウト": ["チェックアウト", "check-out"],
+  "ご予約": ["ごよやく", "reservation (polite)"],
+  "パスポート": ["パスポート", "passport", "pasupōto"],
+  "こちら": ["こちら", "here, this way (polite)"],
+  "ご記入": ["ごきにゅう", "filling in (polite)"],
+  "お部屋": ["おへや", "room (polite)"],
+  "五階": ["ごかい", "fifth floor"],
+  "エレベーター": ["エレベーター", "lift, elevator", "erebētā"],
+  "あちら": ["あちら", "over there (polite)"],
+  "お荷物": ["おにもつ", "luggage (polite)"],
+  "お預かり": ["おあずかり", "looking after (polite)"],
+  "ごゆっくり": ["ごゆっくり", "take your time"],
+  "鍵": ["かぎ", "key"],
+  "いる": ["いる", "be (doing)"],
+  "試着": ["しちゃく", "trying on"],
+  "もっと": ["もっと", "more"],
+  "他": ["ほか", "other"],
+  "色": ["いろ", "colour"],
+  "免税": ["めんぜい", "tax-free"],
+  "いりません": ["いりません", "don't need"],
+  "お探し": ["おさがし", "looking for (polite)"],
+  "試着室": ["しちゃくしつ", "fitting room"],
+  "サイズ": ["サイズ", "size"],
+  "申し訳": ["もうしわけ", "excuse (in: I'm very sorry)"],
+  "ございません": ["ございません", "there is not (very polite)"],
+  "売り切れ": ["うりきれ", "sold out"],
+  "お見せ": ["おみせ", "showing (polite)"],
+  "プレゼント": ["プレゼント", "present, gift"],
+  "用": ["よう", "for (a purpose)"],
+  "お入れ": ["おいれ", "putting in (polite)"],
+  "お釣り": ["おつり", "change (money)"],
+  "行けます": ["いけます", "can go"],
+  "地図": ["ちず", "map"],
+  "まっすぐ": ["まっすぐ", "straight on"],
+  "コンビニ": ["コンビニ", "convenience store"],
+  "一度": ["いちど", "once"],
+  "角": ["かど", "corner"],
+  "信号": ["しんごう", "traffic lights"],
+  "曲がって": ["まがって", "turn (and)"],
+  "すぐ": ["すぐ", "right, soon"],
+  "建物": ["たてもの", "building"],
+  "突き当たり": ["つきあたり", "end of the street"],
+  "橋": ["はし", "bridge"],
+  "渡って": ["わたって", "cross (and)"],
+  "わかりません": ["わかりません", "don't understand, don't know"],
+  "持ち帰り": ["もちかえり", "takeaway"],
+  "アイス": ["アイス", "iced; ice cream"],
+  "ミルク": ["ミルク", "milk"],
+  "ホット": ["ホット", "hot (drink)"],
+  "お砂糖": ["おさとう", "sugar (polite)"],
+  "お使い": ["おつかい", "using (polite)"],
+  "番号": ["ばんごう", "number"],
+  "お呼び": ["および", "calling (polite)"],
+  "お席": ["おせき", "seat (polite)"],
+  "先": ["さき", "first, ahead"],
+  "お取り": ["おとり", "taking (polite)"],
+  "紅茶": ["こうちゃ", "black tea"],
+  "抹茶": ["まっちゃ", "matcha"],
+  "風邪薬": ["かぜぐすり", "cold medicine"],
+  "喉": ["のど", "throat"],
+  "一日": ["いちにち", "a day"],
+  "何回": ["なんかい", "how many times"],
+  "アレルギー": ["アレルギー", "allergy", "arerugī"],
+  "されました": ["されました", "did (polite)"],
+  "三回": ["さんかい", "three times"],
+  "食後": ["しょくご", "after meals"],
+  "眠く": ["ねむく", "sleepy"],
+  "なります": ["なります", "become"],
+  "お大事": ["おだいじ", "take care (in: お大事 に)"],
+  "新宿駅": ["しんじゅくえき", "Shinjuku Station"],
+  "どのくらい": ["どのくらい", "how long, how much"],
+  "かかります": ["かかります", "takes (time, money)"],
+  "止めて": ["とめて", "stop (it)"],
+  "払えます": ["はらえます", "can pay"],
+  "領収書": ["りょうしゅうしょ", "receipt"],
+  "トランク": ["トランク", "boot, trunk"],
+  "シートベルト": ["シートベルト", "seatbelt", "shītoberuto"],
+  "お締め": ["おしめ", "fastening (polite)"],
+  "三十分": ["さんじゅっぷん", "thirty minutes"],
+  "辺": ["へん", "area, around"],
+  "着きました": ["つきました", "arrived"],
+  "料金": ["りょうきん", "fare, fee"],
+  "開きます": ["あきます", "opens"],
+  "混んで": ["こんで", "crowded"],
+  "お忘れ物": ["おわすれもの", "something left behind (polite)"],
+  "よう": ["よう", "so that (in: ない よう に)"],
+  "助けて": ["たすけて", "help"],
+  "救急車": ["きゅうきゅうしゃ", "ambulance"],
+  "呼んで": ["よんで", "call (someone)"],
+  "警察": ["けいさつ", "police"],
+  "財布": ["さいふ", "wallet"],
+  "迷いました": ["まよいました", "got lost"],
+  "話せる": ["はなせる", "can speak"],
+  "けが": ["けが", "injury"],
+  "連絡先": ["れんらくさき", "contact details"],
+  "落ち着いて": ["おちついて", "calm down"],
+  "地震": ["じしん", "earthquake"],
+  "いて": ["いて", "be (and stay)"],
+  "交番": ["こうばん", "police box"],
+  "見つかったら": ["みつかったら", "if (it) is found"],
+  "連絡": ["れんらく", "contact"],
+  "撮って": ["とって", "take (a photo)"],
+  "いただけません": ["いただけません", "could you (very polite)"],
+  "話せます": ["はなせます", "can speak"],
+  "二週間": ["にしゅうかん", "two weeks"],
+  "いらっしゃいました": ["いらっしゃいました", "came (honorific)"],
+  "靴": ["くつ", "shoes"],
+  "脱いで": ["ぬいで", "take off (clothes, shoes)"],
+  "ご遠慮": ["ごえんりょ", "refraining (polite)"],
+  "楽しんで": ["たのしんで", "enjoy"],
+  "お一人": ["おひとり", "one person (polite)"],
+  "撮りましょう": ["とりましょう", "shall (I) take (a photo)"],
+  "気": ["き", "care, mind"],
+  "つけて": ["つけて", "take (care)"],
+  "禁煙": ["きんえん", "no smoking"],
+  "喫煙所": ["きつえんじょ", "smoking area"],
+  "定食": ["ていしょく", "set meal"],
+  "予約席": ["よやくせき", "reserved seat"],
+  "食べ放題": ["たべほうだい", "all you can eat"],
+  "飲み放題": ["のみほうだい", "all you can drink"],
+  "受付": ["うけつけ", "reception"],
+  "大浴場": ["だいよくじょう", "large public bath"],
+  "男湯": ["おとこゆ", "men's bath"],
+  "女湯": ["おんなゆ", "women's bath"],
+  "露天風呂": ["ろてんぶろ", "outdoor bath"],
+  "朝食会場": ["ちょうしょくかいじょう", "breakfast room"],
+  "客室": ["きゃくしつ", "guest room"],
+  "貴重品": ["きちょうひん", "valuables"],
+  "禁煙室": ["きんえんしつ", "non-smoking room"],
+  "清掃中": ["せいそうちゅう", "being cleaned"],
+  "浴衣": ["ゆかた", "yukata, cotton robe"],
+  "新商品": ["しんしょうひん", "new product"],
+  "人気": ["にんき", "popular"],
+  "限定": ["げんてい", "limited"],
+  "均一": ["きんいつ", "all one price"],
+  "婦人服": ["ふじんふく", "women's clothing"],
+  "紳士服": ["しんしふく", "men's clothing"],
+  "食品": ["しょくひん", "food"],
+  "地下": ["ちか", "basement, underground"],
+  "閉店": ["へいてん", "closed, closing"],
+  "駐車場": ["ちゅうしゃじょう", "car park"],
+  "案内所": ["あんないじょ", "information desk"],
+  "現在地": ["げんざいち", "you are here"],
+  "通行止め": ["つうこうどめ", "road closed"],
+  "工事中": ["こうじちゅう", "under construction"],
+  "横断歩道": ["おうだんほどう", "pedestrian crossing"],
+  "受取": ["うけとり", "pick-up"],
+  "返却口": ["へんきゃくぐち", "return point"],
+  "砂糖": ["さとう", "sugar"],
+  "期間限定": ["きかんげんてい", "for a limited time"],
+  "甘味処": ["かんみどころ", "Japanese sweets café"],
+  "薬局": ["やっきょく", "pharmacy"],
+  "処方箋": ["しょほうせん", "prescription"],
+  "頭痛薬": ["ずつうやく", "headache medicine"],
+  "胃腸薬": ["いちょうやく", "stomach medicine"],
+  "目薬": ["めぐすり", "eye drops"],
+  "化粧品": ["けしょうひん", "cosmetics"],
+  "日焼け止め": ["ひやけどめ", "sunscreen"],
+  "空車": ["くうしゃ", "taxi available"],
+  "賃走": ["ちんそう", "taxi occupied"],
+  "迎車": ["げいしゃ", "taxi on its way to a booking"],
+  "回送": ["かいそう", "out of service"],
+  "割増": ["わりまし", "surcharge"],
+  "乗り場": ["のりば", "boarding point, stand"],
+  "初乗り": ["はつのり", "starting fare"],
+  "自動ドア": ["じどうドア", "automatic door"],
+  "禁煙車": ["きんえんしゃ", "non-smoking car"],
+  "一方通行": ["いっぽうつうこう", "one way"],
+  "非常口": ["ひじょうぐち", "emergency exit"],
+  "危険": ["きけん", "danger"],
+  "立入禁止": ["たちいりきんし", "no entry"],
+  "注意": ["ちゅうい", "caution"],
+  "避難場所": ["ひなんばしょ", "evacuation area"],
+  "消火器": ["しょうかき", "fire extinguisher"],
+  "救急": ["きゅうきゅう", "emergency (medical)"],
+  "落とし物": ["おとしもの", "lost property"],
+  "足元注意": ["あしもとちゅうい", "watch your step"],
+  "故障中": ["こしょうちゅう", "out of order"],
+  "神社": ["じんじゃ", "shrine"],
+  "撮影禁止": ["さつえいきんし", "no photos"],
+  "土足厳禁": ["どそくげんきん", "no shoes"],
+  "拝観料": ["はいかんりょう", "entry fee"],
+  "順路": ["じゅんろ", "route to follow"],
+  "開館時間": ["かいかんじかん", "opening hours"],
+  "休館日": ["きゅうかんび", "closed day"],
+  "お守り": ["おまもり", "charm, amulet"],
+  "入場無料": ["にゅうじょうむりょう", "free entry"],
+  "展望台": ["てんぼうだい", "observation deck"],
+  "営業中": ["えいぎょうちゅう", "open for business"],
+  "準備中": ["じゅんびちゅう", "getting ready, not open yet"],
+  "入口": ["いりぐち", "entrance"],
+  "出口": ["でぐち", "exit"],
+  "お会計": ["おかいけい", "the bill, checkout"],
+  "税込": ["ぜいこみ", "tax included"],
+  "税抜": ["ぜいぬき", "before tax"],
+  "割引": ["わりびき", "discount"],
+  "半額": ["はんがく", "half price"],
+  "お手洗い": ["おてあらい", "restroom"],
+  "これ": ["これ", "this"],
+  "を": ["を", "object marker"],
+  "ください": ["ください", "please (give me)"],
+  "袋": ["ふくろ", "bag"],
+  "はい": ["はい", "yes"],
+  "お願いします": ["おねがいします", "please"],
+  "いいえ": ["いいえ", "no"],
+  "大丈夫": ["だいじょうぶ", "fine, all right"],
+  "です": ["です", "is"],
+  "カード": ["カード", "card"],
+  "で": ["で", "by, with"],
+  "温めて": ["あたためて", "heat (it) up"],
+  "お箸": ["おはし", "chopsticks"],
+  "トイレ": ["トイレ", "toilet"],
+  "は": ["は", "topic marker"],
+  "どこ": ["どこ", "where"],
+  "か": ["か", "question marker"],
+  "いらっしゃいませ": ["いらっしゃいませ", "welcome (to the shop)"],
+  "温めます": ["あたためます", "heat up"],
+  "ご利用": ["ごりよう", "use (polite)"],
+  "お付け": ["おつけ", "putting in (polite)"],
+  "します": ["します", "do"],
+  "ポイントカード": ["ポイントカード", "point card, loyalty card", "pointo kādo"],
+  "お持ち": ["おもち", "having (polite)"],
+  "お支払い": ["おしはらい", "payment (polite)"],
+  "どう": ["どう", "how"],
+  "なさいます": ["なさいます", "do (very polite)"],
+  "店内": ["てんない", "inside the shop"],
+  "お召し上がり": ["おめしあがり", "eating (very polite)"],
+  "少々": ["しょうしょう", "a little"],
+  "お待ち": ["おまち", "waiting (polite)"],
+  "年齢": ["ねんれい", "age"],
+  "確認": ["かくにん", "check, confirmation"],
+  "ボタン": ["ボタン", "button"],
+  "押して": ["おして", "push (it)"],
+  "ありがとうございました": ["ありがとうございました", "thank you (for your purchase)", "arigatō gozaimashita"],
+  "ありがとうございます": ["ありがとうございます", "thank you", "arigatō gozaimasu"],
+  "合計": ["ごうけい", "total"],
+  "五百円": ["ごひゃくえん", "500 yen"],
+  "駅": ["えき", "station"],
+  "改札": ["かいさつ", "ticket gates"],
+  "切符売り場": ["きっぷうりば", "ticket machines, ticket office"],
+  "乗り換え": ["のりかえ", "transfer, changing trains"],
+  "番線": ["ばんせん", "platform (number)"],
+  "各駅停車": ["かくえきていしゃ", "local train, stops at every station"],
+  "快速": ["かいそく", "rapid train"],
+  "急行": ["きゅうこう", "express train"],
+  "終電": ["しゅうでん", "last train"],
+  "東口": ["ひがしぐち", "east exit"],
+  "優先席": ["ゆうせんせき", "priority seats"],
+  "精算機": ["せいさんき", "fare adjustment machine"],
+  "新宿": ["しんじゅく", "Shinjuku"],
+  "まで": ["まで", "to, as far as"],
+  "いくら": ["いくら", "how much"],
+  "この": ["この", "this"],
+  "電車": ["でんしゃ", "train"],
+  "に": ["に", "to"],
+  "行きます": ["いきます", "go"],
+  "何番線": ["なんばんせん", "which platform"],
+  "すみません": ["すみません", "excuse me, sorry"],
+  "降ります": ["おります", "get off"],
+  "切符": ["きっぷ", "ticket"],
+  "なくしました": ["なくしました", "lost"],
+  "席": ["せき", "seat"],
+  "空いて": ["あいて", "free, empty"],
+  "います": ["います", "is (right now)"],
+  "まもなく": ["まもなく", "shortly"],
+  "が": ["が", "subject marker"],
+  "参ります": ["まいります", "come (humble)"],
+  "黄色い": ["きいろい", "yellow"],
+  "線": ["せん", "line"],
+  "の": ["の", "of"],
+  "内側": ["うちがわ", "inside"],
+  "お下がり": ["おさがり", "stepping back (polite)"],
+  "ドア": ["ドア", "door"],
+  "閉まります": ["しまります", "close"],
+  "次": ["つぎ", "next"],
+  "お出口": ["おでぐち", "exit (polite)"],
+  "右側": ["みぎがわ", "right side"],
+  "三番線": ["さんばんせん", "platform 3"],
+  "隣": ["となり", "next to, next door"],
+  "ホーム": ["ホーム", "platform"],
+  "遅れて": ["おくれて", "running late"],
+  "おります": ["おります", "is (humble)"],
+  "二つ目": ["ふたつめ", "second"],
+  "出て": ["でて", "go out (and)"],
+  "右": ["みぎ", "right"]
+}
+}

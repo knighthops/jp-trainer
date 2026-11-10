@@ -10,22 +10,21 @@ export const TIMES = [30, 60, 90, 120, 0]; // 0: no clock, play until you stop.
 export const MODES = [['meaning', 'Meaning'], ['reading', 'Reading']];
 
 // A kanji's readings as they are spoken: たか-い is たかい.
-const readingsOf = (k) => [...k.on, ...k.kun].map((r) => r.replace(/-/g, ''));
-// The reading asked for: the first on reading (as used in compounds), else the first kun.
-const mainReading = (k) => readingsOf(k)[0];
+const readingsOf = (k) => [...k.on, ...k.kun].map((r) => r.replace(/[-.]/g, ''));
+// Without a better guess, the reading asked for is the first on, else the first kun, in hiragana.
+const firstReading = (k) => toHiragana(readingsOf(k)[0] || '');
 
 // Four options: the right answer and three that aren't answers for this kanji.
-// In reading mode, wrong readings come from the same kind (on or kun) where possible.
-export function rushQuestion(pool, all, rng = Math.random, last = null, mode = 'meaning') {
+// In reading mode each option is a kanji's head reading in hiragana (readOf), the one
+// you'd hear it by, and no wrong option is any reading of the asked kanji.
+export function rushQuestion(pool, all, rng = Math.random, last = null, mode = 'meaning', readOf = firstReading) {
   const choices = pool.length > 1 ? pool.filter((k) => k !== last) : pool;
   const k = choices[Math.floor(rng() * choices.length)];
   if (mode === 'reading') {
-    const right = mainReading(k);
-    const own = new Set(readingsOf(k).map(toHiragana));
-    const isOn = /[ァ-ヶ]/.test(right);
-    const others = shuffled(all.filter((x) => x !== k), rng)
-      .flatMap((x) => (isOn ? x.on : x.kun.map((r) => r.replace(/-/g, ''))).slice(0, 1))
-      .filter((r, i, a) => r && !own.has(toHiragana(r)) && a.indexOf(r) === i).slice(0, 3);
+    const right = readOf(k);
+    const own = new Set([right, ...readingsOf(k).map(toHiragana)]);
+    const others = shuffled(all.filter((x) => x !== k), rng).map(readOf)
+      .filter((r, i, a) => r && !own.has(r) && a.indexOf(r) === i).slice(0, 3);
     return { k, right, options: shuffled([right, ...others], rng) };
   }
   const right = k.mean[0];
@@ -41,7 +40,7 @@ const optHtml = (o, mode) => (mode === 'reading'
   ? `<button class="opt kana" data-o="${o}"><span class="jp">${o}</span><small>${romaji(o)}</small></button>`
   : `<button class="opt" data-o="${o}">${o}</button>`);
 
-// ctx: { view, setTop, pool, all, settings, saveSettings(s), best(key), onBest(key, score), onExit }
+// ctx: { view, setTop, pool, all, readOf(kanji), settings, saveSettings(s), best(key), onBest(key, score), onExit }
 export function startRush(ctx) {
   const { view, setTop } = ctx;
   const opts = { mode: 'meaning', secs: 60, penalty: true, ...ctx.settings };
@@ -89,10 +88,10 @@ export function startRush(ctx) {
       <div class="rush-stats"><span><b class="num" id="rscore">0</b> right</span><span id="rcombo" class="muted"></span>
         ${total ? `<span class="num" id="rtime">${opts.secs}</span>` : '<button class="chip" id="rstop">Finish</button>'}</div>
       <section class="card rush-card"><div class="rush-k jp" id="rk"></div></section>
-      <div class="opts long rush-opts ${opts.mode}" id="ropts"></div>`;
+      <div class="reach"><div class="opts long rush-opts ${opts.mode}" id="ropts"></div></div>`;
     const el = (id) => view.querySelector(`#${id}`);
     const ask = () => {
-      q = rushQuestion(ctx.pool, ctx.all, Math.random, q?.k, opts.mode);
+      q = rushQuestion(ctx.pool, ctx.all, Math.random, q?.k, opts.mode, ctx.readOf);
       el('rk').textContent = q.k.k;
       el('ropts').innerHTML = q.options.map((o) => optHtml(o, opts.mode)).join('');
     };
@@ -139,7 +138,7 @@ export function startRush(ctx) {
     const record = opts.secs > 0 && score > before;
     if (record) ctx.onBest(key, score);
     const answer = (k) => (opts.mode === 'reading'
-      ? readingsOf(k).slice(0, 3).map((r) => `<span class="jp">${r}</span> ${romaji(r)}`).join(', ')
+      ? [...new Set([(ctx.readOf || firstReading)(k), ...readingsOf(k).map(toHiragana)])].slice(0, 3).map((r) => `<span class="jp">${r}</span> ${romaji(r)}`).join(', ')
       : k.mean.slice(0, 2).join(', '));
     setTop('Kanji Rush', { close: true, onClose: ctx.onExit });
     view.innerHTML = `

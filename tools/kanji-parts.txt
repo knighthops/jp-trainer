@@ -274,3 +274,144 @@
 別|separate|口:Mouth:A mouth.|力:Power:Power.|刂:Knife:A knife cutting apart: separate, part ways.
 初|first|衤:Clothing:Clothing.|刀:Knife:The first cut of the cloth when making clothes: first.
 踏|step on|⻊:Foot:A foot.|沓:Pile:A foot coming down on a pile: step on.
+営|run a business, manage|⺍:Sparks:Lights glowing on top.|冖:Roof:A roof.|呂:Spine:Busy rooms under one lit roof: a business being run.
+準|standard, level|氵:Water:Water.|隹:Bird:A bird.|十:Ten:A bird checks the water level ten times: the standard, getting ready.
+備|prepare, equip|亻:Person:A person.|艹:Grass:Grass.|用:Use:A person stores grass for later use: prepared.
+押|push|扌:Hand:A hand.|甲:Shell:A hand pressed flat on a hard shell: push.
+引|pull|弓:Bow:A bow.|丨:String:Drawing back the bowstring: pull.
+税|tax|禾:Grain:A stalk of rice.|兑:Exchange:Grain handed over to the lord: tax.
+込|crowded, included|辶:Road:A road.|入:Enter:Everyone enters the same road: packed in, included.
+抜|pull out, leave out|扌:Hand:A hand.|犮:Dash:A hand yanks it out and dashes off: removed, without.
+割|divide, ten percent|害:Harm:Harm.|刂:Knife:A knife does its harm and splits it: divide. Also ten percent.
+額|amount, forehead, frame|客:Guest:A guest.|頁:Head:The guest's head: the forehead. Also a sum of money.
+温|warm|氵:Water:Water.|日:Sun:The sun.|皿:Dish:Water in a dish under the sun: warm.
+用|use, task|用:Fence:A fence of planks built for a purpose: use.
+付|attach|亻:Person:A person.|寸:Hand:A person's hand sticks it on: attach, add.
+内|inside|冂:Frame:A frame.|人:Person:A person inside the frame: inside.
+召|summon, eat (polite)|刀:Sword:A sword.|口:Mouth:A mouth calls out under the sword: summon. In 召し上がる, to eat.
+齢|age|歯:Tooth:Teeth.|令:Order:Teeth come in order: how old you are, age.
+確|certain, check|石:Stone:A stone.|隺:High bird:Solid as stone, sure as a high-flying bird: certain, confirm.
+認|recognise, confirm|言:Words:Words.|忍:Endure:Patient words: recognise, confirm.
+改|reform, inspect|己:Self:Yourself.|攵:Strike:A strike at yourself to fix things: reform, check.
+札|ticket, label, note|木:Tree:Wood.|乚:Hook:A wooden tag on a hook: ticket, label.
+売|sell|士:Samurai:A samurai.|冖:Cover:A cover.|儿:Legs:A samurai carries goods under a cover on his legs to market: sell.
+場|place|土:Earth:Ground.|昜:Sunrise:Ground in the rising sun: a place.
+換|exchange|扌:Hand:A hand.|奐:Grand:A hand swaps something grand: exchange, change.
+線|line|糸:Thread:Thread.|泉:Spring:Thread running like water from a spring: a line.
+各|each|夂:Feet:Feet arriving.|口:Door:Feet arriving at every door: each.
+快|pleasant, quick|忄:Heart:A heart.|夬:Decide:A heart that has decided: cheerful, brisk.
+急|hurry, sudden|⺈:Bent:A person bent forward.|彐:Hand:A hand.|心:Heart:Grabbing a racing heart: hurry, sudden.
+終|end|糸:Thread:Thread.|冬:Winter:The thread runs out in winter: the end.
+精|refined, precise|米:Rice:Rice.|青:Blue:Rice polished till it's blue-white: refined, exact.
+算|calculate|竹:Bamboo:Bamboo.|目:Eye:An eye.|廾:Two hands:Bamboo counting sticks, eyes and both hands: calculate.
+参|go, come (humble), join|厶:Private:A private person.|大:Big:Big.|彡:Hair:Someone arriving in their best hair, humbly: come, visit, join.
+黄|yellow|廿:Twenty:Twenty.|由:Field:A field.|八:Eight:A field glowing gold at harvest: yellow.
+色|colour|⺈:Person:A person.|巴:Curl:A face flushing as a person curls up: colour.
+隣|neighbour, next to|阝:Village:A village.|米:Rice:Rice.|舛:Dancing feet:Rice and dancing next door: neighbour, next to.
+決|decide|氵:Water:Water.|夬:Gouge:A notch gouged in a bank. Gouge the bank and the water goes your way. Decide.
+只|only, just|口:Mouth:A mouth.|八:Legs:Two legs. Just a mouth on legs, nothing more. Only.
+満|full|氵:Water:Water.|艹:Grass:Grass.|両:Both:A pair of scales. Water up to the brim on both sides. Full.
+以|by means of, from|レ:Plough:A plough.|人:Person:A person working by means of a plough. By, from (以上, from here up).
+券|ticket|龹:Rolled hands:Two hands rolling something.|刀:Sword:A blade cutting a strip of paper for the hands. Ticket.
+盛|heap up|成:Become:Complete.|皿:Dish:A dish piled until it's complete. Heap up (大盛り).
+荷|load, luggage|艹:Grass:Grass.|何:What:What's that bundle of grass on your back? A load, luggage.
+預|deposit, entrust|予:Beforehand:Ahead of time.|頁:Head:A head. Leave it ahead of time with a head you trust. Deposit.
+記|write down|言:Words:Words.|己:Self:Words you set down yourself. Write down.
+階|floor, storey|阝:Hill:Steps up a hill.|皆:Everyone:Steps everyone climbs. Floor, storey.
+鍵|key|金:Metal:Metal.|建:Build:Metal built to fit a lock. Key.
+他|other|亻:Person:A person.|也:Also:Also a person, but not you. Other.
+免|exempt|⺈:Blade:A blade.|儿:Legs:Legs running from the blade. Escape, be exempt (免税, tax-free).
+探|search|扌:Hand:A hand.|罙:Deep:A hand reaching deep. Search.
+釣|fish; change (money)|金:Metal:Money.|勺:Ladle:A scoop. Scooping back a little money. Change (お釣り), and fishing.
+角|corner, horn|⺈:Tip:A pointed tip.|用:Frame:A frame. A horn with a sharp tip, and the sharp point of a street. Corner.
+信|believe|亻:Person:A person.|言:Words:A person's word you can trust. Believe (信号, a signal).
+建|build|廴:Stride:A long stride.|聿:Brush:Brush out the plan and stride across it. Build.
+突|thrust, sudden|穴:Hole:A hole.|犬:Dog:A dog bursting out of a hole. Thrust, sudden (突き当たり, where a road ends).
+橋|bridge|木:Tree:Wood.|喬:Tall:Tall, arching wood. Bridge.
+渡|cross over|氵:Water:Water.|度:Times:Going across the water time after time. Cross over.
+砂|sand|石:Stone:Stone.|少:Little:Stone in little bits. Sand.
+糖|sugar|米:Rice:Grain.|唐:China:Grain from old China. Sugar.
+呼|call|口:Mouth:A mouth.|乎:Breath:Breath going out of the mouth. Call.
+取|take|耳:Ear:An ear.|又:Hand:A hand grabbing an ear. Take.
+紅|crimson|糸:Thread:Thread.|工:Craft:Thread dyed by a craftsman. Crimson (紅茶, red tea).
+抹|rub, powder|扌:Hand:A hand.|末:End:A hand rubbing down to the very end. Rub, powder (抹茶).
+邪|wicked|牙:Fang:A fang.|阝:Village:Fangs in the village. Wicked. In 風邪, a cold, it's the wicked wind.
+喉|throat|口:Mouth:A mouth.|侯:Lord:The lord of the mouth. Throat.
+回|times, turn|囗:Box:An outer box.|口:Box:An inner box. Boxes turning inside boxes. Turn, times (三回).
+眠|sleep|目:Eye:An eye.|民:People:People's eyes closing. Sleep.
+止|stop|止:Foot:A foot planted on the ground, not moving. Stop.
+領|receive, territory|令:Order:An order.|頁:Head:The head who gives orders over the land. Territory, receive (領収書, receipt).
+収|collect|丩:Rope:Tangled rope.|又:Hand:A hand gathering the rope in. Collect.
+締|tighten|糸:Thread:Thread.|帝:Emperor:Thread pulled tight at the emperor's order. Tighten, fasten.
+辺|area, side|辶:Road:A road.|刀:Blade:The road's edge, cut sharp. Side, area (この辺).
+混|mix, crowded|氵:Water:Water.|昆:Many:Many in a line. Water full of many things. Mix, crowded (混む).
+救|rescue|求:Request:A call for help.|攵:Strike:Acting on a call for help. Rescue (救急車).
+財|wealth|貝:Shell:A shell, money.|才:Talent:Money and talent. Wealth (財布, wallet).
+布|cloth|ナ:Hand:A hand.|巾:Cloth:A hand holding a hanging cloth. Cloth.
+連|connect, take along|辶:Road:A road.|車:Cart:Carts lined up along the road. Connect.
+絡|entwine|糸:Thread:Thread.|各:Each:Thread tied to each one. Entwine (連絡, contact).
+落|fall, drop|艹:Grass:Leaves.|洛:River city:Leaves falling into the river. Fall, drop (落とし物).
+震|shake|雨:Rain:Rain.|辰:Dragon:A dragon in the storm. Shake (地震, earthquake).
+交|cross, exchange|亠:Head:A head.|父:Crossed legs:A person with legs crossed. Cross, exchange (交番).
+靴|shoes|革:Leather:Leather.|化:Change:Leather changed into shoes. Shoes.
+脱|take off|月:Flesh:The body.|兑:Swap:Swapping off what's on your body. Take off (脱ぐ).
+慮|consider|虍:Tiger:A tiger.|思:Think:Think about the tiger. Consider (遠慮, hold back).
+放|release|方:Direction:Direction.|攵:Strike:Act and send it off in any direction. Release (放題, as much as you like).
+受|receive|爫:Claw:A hand from above.|冖:Cover:Something wrapped.|又:Hand:One hand passing it to another. Receive (受付, reception).
+湯|hot water|氵:Water:Water.|昜:Sunrise:Water warmed by the rising sun. Hot water, bath.
+露|dew, open air|雨:Rain:Rain.|路:Road:Rain on the road at dawn. Dew, open air (露天風呂).
+客|guest|宀:Roof:A roof.|各:Each:Each one under your roof. Guest.
+貴|precious|中:Middle:Middle.|一:One:One.|貝:Shell:Money held in the middle of the basket. Precious (貴重品, valuables).
+品|goods|口:Box:A box.|口:Box:Another box.|口:Box:Boxes stacked up. Goods.
+清|pure, clean|氵:Water:Water.|青:Blue:Clear blue water. Pure, clean (清掃, cleaning).
+掃|sweep|扌:Hand:A hand.|帚:Broom:A hand with a broom. Sweep.
+衣|clothing|衣:Robe:A collar and two flapping sleeves. Clothing (浴衣, yukata).
+商|trade|立:Stand:A stand.|冏:Window:A stall at a bright window. Trade, goods (商品).
+限|limit|阝:Hill:A hill.|艮:Stop:A hill that stops you. Limit.
+均|even|土:Earth:Earth.|勻:Shared:Earth spread out evenly. Level, all one price (均一).
+婦|woman, wife|女:Woman:A woman.|帚:Broom:A woman with a broom in old pictures. Wife, lady (婦人).
+服|clothes|月:Body:The body.|卩:Kneel:A kneeling person.|又:Hand:A hand dressing a kneeling body. Clothes.
+紳|gentleman|糸:Thread:A fine sash.|申:Say:A man with a fine sash who speaks with care. Gentleman.
+士|gentleman, samurai|士:Warrior:A warrior standing broad and tall. Gentleman, samurai.
+駐|park, stay|馬:Horse:A horse.|主:Master:The master's horse, kept still. Park (駐車場).
+案|plan|安:Calm:Calm.|木:Desk:Calm at a wooden desk. Plan, guide (案内).
+現|present, appear|王:Jewel:A jewel.|見:See:A jewel you can see right now. Present, appear (現在, now).
+在|exist|才:Sprout:A sprout.|土:Earth:A sprout in the earth. Exist, be there.
+工|craft|工:Square:A carpenter's tool. Craft, construction (工事).
+横|side, across|木:Tree:Wood.|黄:Yellow:A yellow wooden bar laid sideways. Across (横断, crossing).
+断|cut off|米:Rice:Rice.|斤:Axe:An axe chopping through. Cut, cross (横断).
+返|return|辶:Road:A road.|反:Against:Turning back along the road. Return.
+却|withdraw|去:Leave:Leave.|卩:Kneel:Kneel and step back. Withdraw (返却, give back).
+期|period|其:Basket:A basket.|月:Moon:Counting by moons. Period (期間).
+処|deal with, place|夂:Feet:Walking feet.|几:Stool:Walking to a stool to sort things out. Deal with (処方, prescribe).
+方|direction, way|方:Plough:A plough pointing one way. Direction, way.
+箋|slip of paper|竹:Bamboo:Bamboo.|戔:Thin:Thin strips of bamboo for writing. Slip of paper (処方箋).
+胃|stomach|田:Field:A field.|月:Flesh:The field in your flesh where food goes. Stomach.
+腸|intestines|月:Flesh:Flesh.|昜:Unroll:Flesh that unrolls on and on. Intestines.
+化|change|亻:Person:A person.|匕:Upside down:A person turned upside down. Change (化粧, make-up).
+粧|adorn|米:Rice:Rice powder.|庄:House:Rice powder dusted on at home. Adorn, make-up.
+焼|burn, bake|火:Fire:Fire.|尭:Piled high:Fire piled high. Burn (日焼け, sunburn).
+賃|fee, wage|任:Duty:Duty.|貝:Shell:Money for a duty. Fee, fare (賃走).
+迎|welcome, pick up|辶:Road:A road.|卬:Look up:Looking up the road for someone. Welcome, pick up (迎車).
+送|send|辶:Road:A road.|关:Pass:Passing it along the road. Send (回送).
+増|increase|土:Earth:Earth.|曽:Layers:Layers of earth piling up. Increase (割増, surcharge).
+動|move|重:Heavy:Heavy.|力:Power:Power to shift something heavy. Move (自動, automatic).
+非|not|非:Wings:Two wings pulling apart. Not, un- (非常, emergency).
+常|usual|尚:Roof:A roof with smoke rising.|巾:Cloth:Cloth always hanging under the roof. Usual (非常, out of the usual).
+険|steep|阝:Hill:A hill.|㑒:Together:A hill everyone struggles up together. Steep, danger (危険).
+避|avoid|辶:Road:A road.|辟:Punish:Taking another road to avoid punishment. Avoid, shelter (避難).
+消|put out|氵:Water:Water.|肖:Smaller:Water making the fire smaller and smaller. Put out (消火器).
+器|container, tool|口:Pots:Four pots.|犬:Dog:A dog guarding the pots. Container, tool.
+故|reason, old|古:Old:Old.|攵:Strike:An old action. Reason, past (故障, breakdown).
+障|hinder|阝:Hill:A hill.|章:Badge:A hill blocking the way. Hinder (故障, out of order).
+神|god|礻:Altar:An altar.|申:Say:Speaking humbly at the altar. God (神社, shrine).
+影|shadow|景:Scene:A scene.|彡:Rays:Light across the scene casts a shadow. Shadow, image (撮影, photography).
+厳|strict|⺍:Sparks:Sparks.|厂:Cliff:A cliff.|敢:Daring:Daring on a cliff edge with sparks flying. Strict (厳禁, strictly banned).
+拝|worship|扌:Hand:A hand.|丰:Offering:Hands raised with an offering. Worship, view humbly (拝観).
+観|view|雚:Heron:A heron.|見:See:A heron watching the water. View (観光, sightseeing).
+順|order, sequence|川:River:A river.|頁:Head:Heads following each other like a river. Order (順路, the route).
+路|road|足:Foot:A foot.|各:Each:Each foot on its way. Road, route.
+守|protect|宀:Roof:A roof.|寸:Hand:A hand under the roof. Protect (お守り, charm).
+展|unfold, display|尸:Flag:A flag.|衣:Clothing:Clothes spread out on display. Unfold, exhibit (展望台).
+望|hope, gaze|亡:Lost:Lost.|月:Moon:The moon.|王:King:A lost king gazing at the moon. Hope, gaze (展望, view).
+台|stand, platform|厶:Elbow:An elbow.|口:Box:A box you lean your elbow on. Stand, platform.

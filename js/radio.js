@@ -26,13 +26,15 @@ export function radioChannels(state, data) {
   const latest = done.at(-1)?.unit;
   // Story chapters join once you have read them.
   const stories = (data.stories || []).filter((s) => state.course.stories?.[s.unit]);
-  const saved = state.talk?.saved || {};
+  // Trip scenes are always on air: what you'll say, then what you'll hear back.
+  const scenes = data.trip || [];
+  const tripLines = (s) => [...s.say, ...s.hear].map((l) => ({ t: l.t, en: l.en }));
   const channels = [
-    { id: 'course', jp: '講座', title: 'Your course', sub: 'Everything from the lessons you have finished', items: done.flatMap(({ lesson }) => lessonItems(lesson, data)) },
-    latest && { id: 'unit', jp: '今', title: `Unit ${latest.n}: ${latest.title}`, sub: 'The unit you are on', items: done.filter((d) => d.unit === latest).flatMap(({ lesson }) => lessonItems(lesson, data)) },
-    { id: 'stories', jp: '物語', title: 'Stories', sub: 'The chapters you have unlocked', items: stories.flatMap((s) => s.lines.map((l) => ({ t: l.t, en: l.en }))), ordered: true },
-    { id: 'starred', jp: '★', title: 'My phrases', sub: 'Talk phrases you starred', items: (data.talkPhrases || []).filter((p) => saved[p.id]).map((p) => ({ t: p.t, en: p.en })) },
-    ...(data.talk || []).map((c) => ({ id: `talk-${c.id}`, jp: c.jp, title: c.title, sub: 'Talk phrases', items: c.items.map((p) => ({ t: p.t, en: p.en })), talk: true })),
+    scenes.length > 1 && { id: 'trip', jp: '旅', title: 'All trip scenes', sub: 'Every scene, mixed', items: scenes.flatMap(tripLines), trip: true },
+    ...scenes.map((s) => ({ id: `trip-${s.id}`, jp: s.jp, title: s.title, sub: 'Say and hear', items: tripLines(s), trip: true })),
+    { id: 'course', jp: '講座', title: 'Your course', sub: 'Every finished lesson', items: done.flatMap(({ lesson }) => lessonItems(lesson, data)) },
+    latest && { id: 'unit', jp: '今', title: `Unit ${latest.n}: ${latest.title}`, sub: 'The unit you\'re on', items: done.filter((d) => d.unit === latest).flatMap(({ lesson }) => lessonItems(lesson, data)) },
+    { id: 'stories', jp: '物語', title: 'Stories', sub: 'Chapters you\'ve read', items: stories.flatMap((s) => s.lines.map((l) => ({ t: l.t, en: l.en }))), ordered: true },
   ];
   return channels.filter(Boolean).map((c) => ({ ...c, items: unique(c.items) })).filter((c) => c.items.length);
 }

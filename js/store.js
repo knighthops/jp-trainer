@@ -13,6 +13,8 @@ const defaults = () => ({
   practice: { sent: {}, part: {}, rushBest: 0 },
   exams: { current: null, history: [] },
   talk: { saved: {} },
+  // date: the day you fly, "YYYY-MM-DD", for the countdown.
+  trip: { date: null },
   settings: { newPerDay: 4, hints: true, theme: 'system', radioEnglish: true, radioSlow: false, radioText: true },
 });
 
@@ -49,6 +51,7 @@ export function parseBackup(text) {
       practice: { ...base.practice, ...(isObject(raw.practice) ? raw.practice : {}) },
       exams: { ...base.exams, ...(isObject(raw.exams) ? raw.exams : {}) },
       talk: { ...base.talk, ...(isObject(raw.talk) ? raw.talk : {}) },
+      trip: { ...base.trip, ...(isObject(raw.trip) ? raw.trip : {}) },
       settings: { ...base.settings, ...(isObject(raw.settings) ? raw.settings : {}) },
     },
   };
