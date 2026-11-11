@@ -68,6 +68,8 @@ body.in-run main{padding-bottom:0}
 body.in-run .tabbar{display:none}
 .dock{position:sticky;bottom:0;z-index:3;margin-top:auto;padding:14px 0 calc(14px + env(safe-area-inset-bottom));background:linear-gradient(to bottom,transparent,var(--paper) 14px)}
 .dock:empty{display:none}
+/* Sub-screens keep the tab bar: the dock sits just above it, not behind it. */
+body:not(.in-run):not(.has-runbar) .dock{bottom:calc(57px + env(safe-area-inset-bottom));padding-bottom:12px}
 /* Answer controls sink to the bottom, in thumb reach; feedback sits just above them. */
 .reach{margin-top:auto;display:flex;flex-direction:column;gap:12px}
 .reach~.dock{margin-top:0}

@@ -265,13 +265,13 @@ function drawReadCard(root, fresh = false) {
   root.innerHTML = `<section class="card fcard home-read gloss-zone">
     <div class="kod-head"><span class="caps">Try reading this</span><span class="small muted">Unit ${card.unit.n}</span></div>
     ${flashFront(card)}
-    <div class="fback"></div>
-    ${card.kind === 'sentence' ? glossHtml() : ''}
     <div class="fnav">
       <button class="btn ghost" id="rdsay" aria-label="Listen">${icons.speaker}</button>
       <button class="btn ghost" id="rdflip">Check</button>
       <button class="btn ghost" id="rdnext">Another</button>
-    </div></section>`;
+    </div>
+    <div class="fback"></div>
+    ${card.kind === 'sentence' ? glossHtml() : ''}</section>`;
   if (card.kind === 'sentence') bindGloss(root.querySelector('.gloss-zone'), data.glossary);
   root.querySelector('#rdsay').onclick = () => playCard(card);
   root.querySelector('#rdflip').onclick = (e) => {
@@ -1641,10 +1641,12 @@ function screenDeck(id) {
         <div class="fback">${open ? flashBack(card) : ''}</div>
         ${card.kind === 'sentence' ? glossHtml() : ''}
       </section>
-      <div class="fnav">
-        <button class="btn ghost" id="prev" ${i ? '' : 'disabled'}>${icons.back}</button>
+      <div class="dock fnav">
+        <button class="btn ghost" id="prev" ${i ? '' : 'disabled'} aria-label="Previous card">${icons.back}</button>
         <button class="btn" id="flip">${open ? (i + 1 < deck.length ? 'Next card' : 'Start again') : 'Flip'}</button>
       </div>`;
+    // A new card starts at the top; a flipped one stays where you were reading.
+    if (!open) window.scrollTo(0, 0);
     if (card.kind === 'sentence') bindGloss(view.querySelector('.gloss-zone'), data.glossary);
     view.querySelector('#say').onclick = () => playCard(card);
     view.querySelector('#prev').onclick = () => { i--; open = false; draw(); };
