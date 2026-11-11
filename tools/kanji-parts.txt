@@ -415,3 +415,69 @@
 展|unfold, display|尸:Flag:A flag.|衣:Clothing:Clothes spread out on display. Unfold, exhibit (展望台).
 望|hope, gaze|亡:Lost:Lost.|月:Moon:The moon.|王:King:A lost king gazing at the moon. Hope, gaze (展望, view).
 台|stand, platform|厶:Elbow:An elbow.|口:Box:A box you lean your elbow on. Stand, platform.
+留|stay, keep|卯:Open door:Two doors swung open.|田:Field:A field. Doors open onto a field you stay in a while. Stay, as in 留学 (study abroad).
+徒|follower, on foot|彳:Going:A person going along.|走:Run:Running. Those who go along on foot behind a teacher: pupils (生徒).
+帽|hat|巾:Cloth:A piece of cloth.|冒:Cover:Something that covers the head. A cloth that covers the head: a hat.
+夕|evening|夕:Moon:A crescent moon rising, half hidden. Evening.
+牛|cow|牛:Cow:A cow's head seen from the front, with one horn. Cow.
+乳|milk|孚:Hatch:A hand over a child.|乚:Hook:Something bent. A mother bent over her child, giving milk.
+弁|speech, lunch box|厶:Elbow:An elbow.|廾:Two hands:Two hands. Two hands holding a box tucked against the elbow: a lunch box (弁当).
+菓|sweets|艹:Grass:Plants.|果:Fruit:Fruit. Fruit from plants made into sweets.
+練|practise|糸:Thread:Thread.|東:East:A bundle tied up. Twisting thread over and over until it's strong: practice.
+習|learn|羽:Wings:Two wings.|白:White:A white chick. A young bird flapping its wings again and again to learn to fly.
+除|remove|阝:Hill:A hill.|余:Surplus:Extra earth. Clearing extra earth off a hill: remove, as in 掃除 (cleaning).
+濯|rinse|氵:Water:Water.|翟:Pheasant:A pheasant splashing its wings. Splashing in water: rinse, as in 洗濯 (laundry).
+村|village|木:Tree:Trees.|寸:Hand:A hand measuring out land among the trees. A village.
+棚|shelf|木:Wood:Wood.|朋:Companions:Two moons side by side. Planks of wood laid side by side: a shelf.
+玄|dark, deep|亠:Lid:A lid.|幺:Thread:A thin thread. A thread vanishing into the dark. 玄関 is the entrance.
+関|gate, barrier|門:Gate:A gate.|关:Bar:A bar across it. A barred gate: a checkpoint, as in 玄関 (entrance).
+段|step, stairs|𠂤:Steps:A stack of steps.|殳:Hand with tool:A hand cutting them. Steps cut into stone: stairs (階段).
+庭|garden|广:Building:A house.|廷:Court:An open courtyard. The open space by the house: a garden.
+向|face towards|丿:Smoke:A wisp of smoke.|冂:Window:A window facing out. The window faces that way: towards, over there (向こう).
+太|fat, thick|大:Big:A big person.|丶:Dot:With an extra dot. Even bigger than big: fat, thick.
+細|thin, fine|糸:Thread:Thread.|田:Field:A field. Thread as fine as the lines between fields: thin.
+厚|thick|厂:Cliff:A cliff.|日:Sun:The sun.|子:Child:A child sheltering under a thick cliff from the sun.
+薄|thin, weak|艹:Grass:Grass.|氵:Water:Water.|尃:Spread:Spread out. Grass spread thin on water: thin, weak.
+暗|dark|日:Sun:The sun.|音:Sound:Sound. When the sun is gone, you only have sound to go by: dark.
+汚|dirty|氵:Water:Water.|亏:Bent:Something bent and broken. Water that's gone bad: dirty.
+寺|temple|土:Earth:Earth.|寸:Hand:A hand. Hands working the earth to build a temple.
+曇|cloudy|日:Sun:The sun.|雲:Cloud:A cloud. A cloud over the sun: cloudy.
+吹|blow|口:Mouth:A mouth.|欠:Yawn:Someone breathing out. Breath from the mouth: blow.
+差|difference|羊:Sheep:A sheep.|工:Work:Work. Sorting sheep by hand to see how they differ: difference, as in 交差点.
+点|point, dot|占:Divine:Marking a spot.|灬:Fire:Four sparks. Sparks leaving dots: a point.
+平|flat, peace|干:Dry:A plank.|丷:Spread:Spread level both ways. A flat, level plank: flat, as in 平仮名.
+仮|temporary|亻:Person:A person.|反:Opposite:Turned the other way. A person in disguise: temporary, as in 仮名 (kana).
+片|one side, piece|片:Half tree:Half of a split tree trunk. One side, a piece, as in 片仮名.
+章|chapter|立:Stand:Standing.|早:Early:The sun rising. Standing up to read the first page as the sun rises: a chapter.
+覚|remember, wake|⺍:Light:Light shining down.|冖:Cover:A cover.|見:See:Light under the cover lets you see: wake up and remember.
+両|both|一:One:A line on top.|冂:Frame:A frame split in two. Two halves of one thing: both, as in 両親.
+奥|inner, deep inside|丿:Roof edge:A roof's edge.|米:Rice:Rice.|大:Big:Rice stored deep inside a big house. Inner, as in 奥さん (wife).
+勢|force, many|埶:Plant:A hand planting.|力:Power:Power. Planting with full power: force, and a crowd (大勢).
+体|body|亻:Person:A person.|本:Root:A root, the trunk. A person's trunk: the body.
+鼻|nose|自:Self:A nose, which you point at to mean yourself.|畀:Give:Something given below. Your nose.
+貸|lend|代:Replace:Standing in for.|貝:Shell:Money. Giving money to stand in for a while: lend.
+借|borrow|亻:Person:A person.|昔:Long ago:Long ago. A person who borrowed long ago and still hasn't paid.
+頼|rely on, ask|束:Bundle:A bundle.|頁:Head:A head. Bowing your head with a bundle of gifts to ask a favour: rely on.
+洋|ocean, Western|氵:Water:Water.|羊:Sheep:A sheep. Waves like sheep across the water: the ocean, and things from over it (洋服).
+勤|work, serve|堇:Clay:Clay.|力:Power:Power. Putting your strength into the clay every day: work (勤める).
+門|gate|門:Gate:Two doors of a gate. Gate.
+貼|stick, paste|貝:Shell:A shell.|占:Mark:Marking a spot. Sticking a shell on a marked spot: paste, stick.
+並|line up|丷:Two:Two marks.|业:Rows:Two people standing on one line. Line up.
+壁|wall|辟:Open:Pushed aside.|土:Earth:Earth. Earth piled up to push people aside: a wall.
+死|die|歹:Bones:Bones.|匕:Spoon:A person fallen over. A person turned to bones: die.
+困|be in trouble|囗:Box:A box.|木:Tree:A tree. A tree boxed in with no room to grow: stuck, in trouble.
+違|differ|辶:Road:A road.|韋:Leather:Feet going opposite ways. Walking different ways down the road: differ.
+弾|pluck, bullet|弓:Bow:A bow.|単:Single:One thing. Plucking a single string like a bow: play (an instrument).
+絵|picture|糸:Thread:Thread.|会:Meet:Meeting. Threads meeting to make a pattern: a picture.
+鳥|bird|鳥:Bird:A bird, with an eye, feathers and feet. Bird.
+鳴|cry, chirp|口:Mouth:A mouth.|鳥:Bird:A bird. A bird opening its mouth: an animal's cry.
+登|climb|癶:Feet:Two feet.|豆:Stand:A tall stand. Feet climbing up onto a high stand: climb.
+池|pond|氵:Water:Water.|也:Snake:A coiled snake. Water lying coiled in a hollow: a pond.
+咲|bloom|口:Mouth:A mouth.|关:Open:Opening wide. A mouth opening into a smile: a flower blooms.
+始|begin|女:Woman:A woman.|台:Platform:A platform. A woman stepping onto the stage to begin.
+緑|green|糸:Thread:Thread.|录:Carve:Water dripping from carved wood. Thread dyed with the sap of green plants: green.
+丸|round|九:Nine:Nine.|丶:Dot:A dot. Nine rolled into a ball with a dot: round.
+皿|plate|皿:Plate:A dish on a stand, seen from the side. Plate.
+塩|salt|土:Earth:Earth.|皿:Plate:A plate of white crystals scraped from the earth: salt.
+豚|pig|月:Flesh:Meat.|豕:Pig:A pig. Pig meat: pork, and pig.
+鶏|chicken|奚:Tied:A tied-up animal.|鳥:Bird:A bird. A bird kept tied up in the yard: chicken.

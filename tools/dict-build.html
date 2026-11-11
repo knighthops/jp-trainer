@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Build the dictionary</title>
+<style>body{font:14px/1.5 system-ui,sans-serif;margin:24px;max-width:900px}code{background:#f2f2f2;padding:1px 4px}</style>
+</head>
+<body>
+<h1>Build data/dict.json</h1>
+<p>Makes the app's offline dictionary from JMdict (<code>.dict/jmdict-eng-3.6.2.json</code>): every common word,
+every word on the N5 list (<code>.dict/jlpt/n5.csv</code>) and every word the course teaches. Open it from <code>tools/serve.ps1</code>.</p>
+<div id="out">Loading. JMdict is large, so this takes a few seconds.</div>
+<script type="module">
+import { mergeCourse, UNIT_FILES } from '../js/course.js';
+
+const out = document.getElementById('out');
+const get = (p) => fetch(p, { cache: 'no-store' }).then((r) => { if (!r.ok) throw new Error(`${p}: ${r.status}`); return r; });
+
+// Spellings JMdict marks as rare, irregular, outdated or search-only aren't shown (ateji like 寿司 are).
+const RARE = ['rK', 'sK', 'iK', 'oK', 'rk', 'sk', 'ik', 'ok'];
+let taught = new Set();
+const plain = (f) => taught.has(f.text) || !f.tags.some((t) => RARE.includes(t));
+
+try {
+  const [jm, csv, kanji, vocab, glossary, ...units] = await Promise.all([
+    get('../.dict/jmdict-eng-3.6.2.json').then((r) => r.json()),
+    get('../.dict/jlpt/n5.csv').then((r) => r.text()).catch(() => ''),
+    ...['kanji-n5', 'vocab-n5', 'glossary'].map((f) => get(`../data/${f}.json`).then((r) => r.json())),
+    ...UNIT_FILES.map((f) => get(`../data/course/${f}.json`).then((r) => r.json())),
+  ]);
+  // The first column of the N5 list: the word as written (some rows list two spellings).
+  const n5 = new Set(csv.split(/\r?\n/).slice(1).map((line) => line.split(',')[0].split(';')[0].trim().replace(/^～/, '')).filter(Boolean));
+  const data = { kanji, vocab, glossary, sentences: [], particles: {}, papers: [] };
+  mergeCourse(data, units);
+  taught = new Set(data.units.flatMap((u) => u.lessons.flatMap((l) => l.words || [])));
+  const rows = [];
+  for (const e of jm.words) {
+    const kanjiForms = e.kanji.filter(plain);
+    const kanaForms = e.kana.filter(plain);
+    if (!kanaForms.length) continue;
+    const texts = [...kanjiForms, ...kanaForms].map((f) => f.text);
+    const isN5 = texts.some((t) => n5.has(t));
+    const isTaught = texts.some((t) => taught.has(t));
+    const common = [...kanjiForms, ...kanaForms].some((f) => f.common);
+    if (!common && !isN5 && !isTaught) continue;
+    // The headword: the course's spelling if it teaches one, else the first common spelling.
+    const head = kanjiForms.find((k) => taught.has(k.text)) || kanjiForms.find((k) => k.common) || kanjiForms[0];
+    const kana = kanaForms.find((k) => taught.has(k.text))
+      || kanaForms.find((k) => (!head || k.appliesToKanji.includes('*') || k.appliesToKanji.includes(head.text)) && k.common)
+      || kanaForms.find((k) => !head || k.appliesToKanji.includes('*') || k.appliesToKanji.includes(head.text)) || kanaForms[0];
+    const senses = e.sense.filter((s) => s.gloss.length && (!head || s.appliesToKanji.includes('*') || s.appliesToKanji.includes(head.text))).slice(0, 4);
+    if (!senses.length) continue;
+    const uk = senses[0].misc.includes('uk') || (taught.has(kana.text) && !taught.has(head?.text));
+    const flags = (isN5 ? 1 : 0) | (uk ? 2 : 0) | (common ? 4 : 0) | (isTaught ? 8 : 0);
+    const alt = [...new Set(texts.filter((t) => t !== head?.text && t !== kana.text))].slice(0, 4).join(',');
+    rows.push([
+      head?.text || '', kana.text,
+      senses.map((s) => s.gloss.slice(0, 3).map((g) => g.text).join('; ')).join('|'),
+      senses[0].partOfSpeech[0] || '', flags, alt,
+    ]);
+  }
+  // A course or N5 spelling can also belong to a rare entry (猫 read ねこま): drop those when a common entry has it.
+  const strong = new Set(rows.filter((r) => r[4] & 4).map((r) => r[0] || r[1]));
+  for (let i = rows.length - 1; i >= 0; i--) if (!(rows[i][4] & 4) && strong.has(rows[i][0] || rows[i][1])) rows.splice(i, 1);
+  const text = `{"source":"JMdict (EDRDG, CC BY-SA 4.0) via jmdict-simplified ${jm.version}, ${jm.dictDate}",\n"words":[\n${rows.map((r) => JSON.stringify(r)).join(',\n')}\n]}\n`;
+  const save = await fetch('save-dict', { method: 'POST', body: text }).catch(() => null);
+  window.__built = { rows: rows.length, bytes: text.length, n5: rows.filter((r) => r[4] & 1).length, taught: rows.filter((r) => r[4] & 8).length, saved: save?.status === 204 };
+  // Course words JMdict has no plain entry for, such as inflected forms, are reported, not added.
+  const found = new Set(rows.flatMap((r) => [r[0], r[1], ...r[5].split(',')]));
+  window.__missing = [...taught].filter((w) => !found.has(w));
+  out.innerHTML = `<p>${rows.length} words, ${(text.length / 1e6).toFixed(2)} MB. ${window.__built.n5} from the N5 list, ${window.__built.taught} taught in the course.
+    ${window.__built.saved ? 'Saved data/dict.json.' : "Couldn't save: run tools/serve.ps1."}</p>
+    <p>Course words not found: ${window.__missing.join(' ') || 'none'}</p>`;
+} catch (err) {
+  out.textContent = err.message;
+  window.__built = { error: err.message };
+}
+</script>
+</body>
+</html>

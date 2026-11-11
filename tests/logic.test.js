@@ -17,6 +17,8 @@ import { checkLogin, hashPassword, userId } from '../js/lock.js';
 import { radioChannels } from '../js/radio.js';
 import { clipId, clipSsml, englishSaid } from '../js/clips.js';
 import { rushQuestion } from '../js/rush.js';
+import { makeIndex, search, posName } from '../js/dict.js';
+import { deckOf, emojiOf, homeCard } from '../js/cards.js';
 import {
   PARTS, tripId, partSteps, nextPart, readiness, daysUntil, tripReviewSteps, sceneLines,
 } from '../js/trip.js';
@@ -558,13 +560,39 @@ test('a resumed lesson rebuilds the same steps even after cards were rated', () 
 test('course steps count lessons and unit tests, and ranks only rise', () => {
   const merged = course();
   const state = blank();
-  assert.deepEqual(courseSteps(state, merged.units), { done: 0, total: merged.units.length * 3 });
+  const lessons = merged.units.reduce((n, u) => n + u.lessons.length, 0);
+  assert.deepEqual(courseSteps(state, merged.units), { done: 0, total: lessons + merged.units.length });
   state.course.done.u01a = 1;
   state.course.passed.u01 = 1;
   assert.equal(courseSteps(state, merged.units).done, 2);
   assert.equal(rankOf(0).en, 'Beginner');
   assert.equal(rankOf(5).en, 'Starter');
   assert.equal(rankOf(24).next, null);
+});
+
+test('every unit ends on a Words lesson with a reading, and keeps its dialogue on the last grammar lesson', () => {
+  const merged = course();
+  const ids = merged.units.flatMap((u) => u.lessons.map((l) => l.id));
+  assert.equal(new Set(ids).size, ids.length, 'a lesson id is used twice');
+  for (const u of merged.units) {
+    const last = u.lessons.at(-1);
+    assert.equal(last.kind, 'words', `${u.id} ends on ${last.id}`);
+    assert.ok(u.reading?.lines.length >= 4 && u.reading.check.length >= 2, `${u.id} reading`);
+    const steps = lessonSteps(u, last, blank(), merged, { fresh: [], part: false });
+    assert.ok(steps.some((s) => s.type === 'reading'), `${u.id} words lesson has no reading`);
+    assert.ok(!steps.some((s) => s.type === 'dialogue'), `${u.id} dialogue moved into the words lesson`);
+    const grammar = u.lessons.filter((l) => l.kind !== 'words').at(-1);
+    assert.ok(lessonSteps(u, grammar, blank(), merged, { fresh: [], part: false }).some((s) => s.type === 'dialogue'), `${u.id} lost its dialogue`);
+  }
+  // Extra lessons can slot in before an existing one.
+  const u16 = merged.units.find((u) => u.id === 'u16');
+  assert.deepEqual(u16.lessons.map((l) => l.id).slice(0, 2), ['u16v', 'u16a']);
+});
+
+test('the course teaches at least 550 words', () => {
+  const merged = course();
+  const taught = new Set(merged.units.flatMap((u) => u.lessons.flatMap((l) => l.words || [])));
+  assert.ok(taught.size >= 550, `only ${taught.size}`);
 });
 
 test('every unit test has at least 10 questions', () => {
@@ -908,4 +936,80 @@ test('recorded clips: stable names, checked readings, and every radio line liste
       assert.ok(listed.has(clipId('ja', l.t)) && listed.has(clipId('en', englishSaid(l.en))), `${l.id} missing: open tools/audio-lines.html`);
     }
   }
+});
+
+test('dictionary: English, romaji, kana and kanji all find the word, best match first', () => {
+  const index = makeIndex([
+    ['駅', 'えき', 'railway station; train station', 'n', 1 | 4 | 8, ''],
+    ['次', 'つぎ', 'next; following|stage; station', 'n', 1 | 4 | 8, ''],
+    ['液', 'えき', 'liquid; fluid', 'n', 4, ''],
+    ['食べる', 'たべる', 'to eat|to live on (e.g. a salary)', 'v1', 1 | 4 | 8, ''],
+    ['猫', 'ねこ', 'cat (esp. the domestic cat, Felis catus); feline', 'n', 1 | 4 | 8, 'ネコ'],
+    ['', 'ライン', 'line', 'n', 4, ''],
+    ['雨', 'あめ', 'rain', 'n', 1 | 4 | 8, ''],
+    ['有難う', 'ありがとう', 'thank you; thanks', 'int', 2 | 4, '有り難う'],
+  ]);
+  const first = (q) => search(index, q)[0]?.head;
+  assert.equal(first('eat'), '食べる');
+  assert.equal(first('to eat'), '食べる');
+  assert.equal(first('cat'), '猫');
+  assert.equal(first('neko'), '猫');
+  assert.equal(first('ネコ'), '猫');
+  assert.equal(first('tabe'), '食べる');
+  assert.equal(first('食'), '食べる');
+  assert.equal(first('eki'), '駅', 'the course word beats the rarer one');
+  assert.equal(first('station'), '駅', 'a whole first-sense match beats a later sense');
+  assert.equal(first('rain'), '雨', 'English beats the romaji reading of ライン');
+  assert.equal(first('arigatou'), 'ありがとう', 'usually-kana words show in kana');
+  assert.deepEqual(search(index, '   '), []);
+  assert.deepEqual(search(index, 'zzzz'), []);
+  assert.equal(posName('v5u'), 'う verb');
+  assert.equal(posName('adj-na'), 'な adjective');
+});
+
+test('dictionary file, if built: has the course words and every row is well formed', () => {
+  const dict = optional('dict');
+  if (!dict) return;
+  assert.ok(dict.words.length > 15000);
+  for (const r of dict.words) assert.ok(r.length === 6 && r[1] && r[2] && Number.isInteger(r[4]), JSON.stringify(r));
+  const index = makeIndex(dict.words);
+  const d = course();
+  const taught = new Set(d.units.flatMap((u) => u.lessons.flatMap((l) => l.words || [])));
+  const found = new Set(index.flatMap((e) => [e.w, e.y, ...e.forms]));
+  assert.deepEqual([...taught].filter((w) => !found.has(w) && !found.has(toHiragana(w))), []);
+});
+
+test('flashcards: decks by unit, all of N5 and finished lessons, with a picture where there is one', () => {
+  const d = course();
+  const emoji = optional('emoji') || {};
+  const u5 = d.units.find((u) => u.id === 'u05');
+  const words = deckOf('u05-w', d.units, {});
+  assert.ok(words.length >= 15);
+  assert.ok(words.every((c) => c.unit === u5 && d.glossary[c.w]), 'every card word can be glossed');
+  assert.equal(new Set(words.map((c) => c.w)).size, words.length);
+  const all = deckOf('all-w', d.units, {});
+  assert.ok(all.length >= 550);
+  assert.deepEqual(deckOf('done-w', d.units, {}), []);
+  const done = { [u5.lessons[0].id]: 1 };
+  assert.ok(deckOf('done-w', d.units, done).every((c) => c.lesson === u5.lessons[0].id));
+  const sents = deckOf('u05-s', d.units, {});
+  assert.ok(sents.length >= 10 && sents.every((c) => c.t && c.en));
+  assert.deepEqual(deckOf('done-s', d.units, {}), []);
+  assert.deepEqual(deckOf('nope-w', d.units, {}), []);
+  assert.equal(emojiOf({ kind: 'sentence', t: '毎日 コーヒー を 飲みます 。' }, { 毎日: '📆', コーヒー: '☕' }), '☕');
+  const pictured = all.filter((c) => emojiOf(c, emoji)).length;
+  assert.ok(pictured / all.length > 0.6, `${pictured} of ${all.length} word cards have a picture`);
+});
+
+test('home reading card: finished lessons first, never the same card twice running', () => {
+  const d = course();
+  const first = homeCard(d.units, {}, () => 0);
+  assert.equal(first.kind, 'word', 'nothing finished yet: a word from unit 1');
+  assert.equal(first.unit.n, 1);
+  const done = Object.fromEntries(d.units[1].lessons.map((l) => [l.id, 1]));
+  const card = homeCard(d.units, done, () => 0);
+  assert.equal(card.kind, 'sentence');
+  assert.equal(card.unit, d.units[1]);
+  const next = homeCard(d.units, done, () => 0, card.t);
+  assert.notEqual(next.t, card.t);
 });

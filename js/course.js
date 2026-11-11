@@ -5,7 +5,32 @@ import { romaji } from './romaji.js';
 import { shuffled } from './drills.js';
 import { stageOf, STRONG, MASTERED } from './srs.js';
 
-export const UNIT_FILES = ['units-01-04', 'units-05-08', 'units-09-12', 'units-13-16', 'units-17-20', 'units-21-24'];
+// The extra files add lessons, words and readings to units already defined above them.
+export const UNIT_FILES = ['units-01-04', 'units-05-08', 'units-09-12', 'units-13-16', 'units-17-20', 'units-21-24', 'extra-01-08', 'extra-09-16', 'extra-17-24'];
+
+// A Words lesson teaches a unit's themed vocabulary and ends on the unit's reading.
+export const isWords = (lesson) => lesson.kind === 'words';
+
+// Files can add to a unit defined earlier: lessons go before the one named in `before`
+// (or at the end), lex entries fill gaps, and other fields such as `reading` are added.
+export function joinUnits(files) {
+  const byId = new Map();
+  for (const u of files.flat()) {
+    const base = byId.get(u.id);
+    if (!base) {
+      byId.set(u.id, { ...u, lex: { ...u.lex }, lessons: [...(u.lessons || [])] });
+      continue;
+    }
+    base.lex = { ...u.lex, ...base.lex };
+    for (const l of u.lessons || []) {
+      const at = l.before ? base.lessons.findIndex((x) => x.id === l.before) : -1;
+      if (at >= 0) base.lessons.splice(at, 0, l);
+      else base.lessons.push(l);
+    }
+    for (const [k, v] of Object.entries(u)) if (!['id', 'lex', 'lessons'].includes(k)) base[k] = v;
+  }
+  return [...byId.values()];
+}
 export const PASS_SHARE = 0.8;
 
 const PARTICLES = new Set(['は', 'が', 'を', 'に', 'で', 'へ', 'の', 'も', 'と', 'か', 'から', 'まで', 'や', 'ね', 'よ']);
@@ -70,7 +95,7 @@ export function toChoice(d) {
 
 // Adds the course's words to the glossary and vocabulary, and its drills to the review pool.
 export function mergeCourse(data, files) {
-  const units = files.flat().sort((a, b) => a.n - b.n);
+  const units = joinUnits(files).sort((a, b) => a.n - b.n);
   const add = (lex) => {
     for (const [w, [y, m, ro]] of Object.entries(lex || {})) {
       if (!data.glossary[w]) data.glossary[w] = { y, m, ro: ro ?? romaji(y) };
@@ -182,15 +207,20 @@ export function lessonSteps(unit, lesson, state, data, resume = null) {
     if (s) return { type: 'sentence', id: `s:${id}`, ref: s };
     return { type: 'particle', id: `p:${id}`, ref: data.courseChoices.find((c) => c.id === id), set: {} };
   });
-  const isLast = unit.lessons.at(-1) === lesson;
+  // The dialogue (listening) closes the last grammar lesson; the reading closes the Words lesson.
+  const isLast = unit.lessons.filter((l) => !isWords(l)).at(-1) === lesson;
   const dialogue = isLast && unit.dialogue
     ? [{ type: 'dialogue', ref: unit.dialogue, unit }, ...unit.dialogue.check.map((q, n) => ({ type: 'check', id: `${unit.id}-dlg-${n}`, ref: q }))]
+    : [];
+  const reading = isWords(lesson) && unit.reading
+    ? [{ type: 'reading', ref: unit.reading, unit }, ...unit.reading.check.map((q, n) => ({ type: 'check', id: `${unit.id}-rd-${n}`, ref: q }))]
     : [];
   return [
     intro,
     ...groups,
     ...drills,
     ...dialogue,
+    ...reading,
     { type: 'lessonEnd', id: lesson.id },
   ];
 }
