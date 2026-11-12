@@ -11,7 +11,7 @@ import {
 import { reviewSteps, kanjiId } from './session.js';
 import {
   renderSentence, renderParticle, renderCheck, particleCardHtml, bindGloss, glossHtml, glossText, romajiLine, shuffled, glued, setKanji, partsHtml, wordKanjiHtml, kanjiOf, kanjiIn,
-  setNotes, noteOf, noteSlotInner, noteEditorHtml,
+  setNotes, noteOf, noteSlotInner, noteEditorHtml, togglePeek,
 } from './drills.js';
 import {
   UNIT_FILES, mergeCourse, isUnlocked, unitProgress, nextUp, examUnlocked, lessonSteps, words as splitWords,
@@ -2024,6 +2024,8 @@ async function init() {
     const el = e.target.closest('[data-say]');
     if (el) speak(el.dataset.say);
     noteClick(e);
+    const kref = e.target.closest('[data-kref]');
+    if (kref) togglePeek(kref);
     const info = e.target.closest('[data-info]');
     if (info) {
       const text = info.closest('.block-sec').querySelector('.explain');

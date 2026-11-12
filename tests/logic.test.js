@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { newRecord, rate, isDue, stageOf, isStruggling, CLEARS } from '../js/srs.js';
-import { validNext, explainWrong, orders, tokenize, romajiLine, spoken, setNotes, noteSlotInner, partsHtml } from '../js/drills.js';
+import { validNext, explainWrong, orders, tokenize, romajiLine, spoken, setNotes, noteSlotInner, partsHtml, setKanji, linkKanji, peekHtml, soundLine } from '../js/drills.js';
 import { backupJson, parseBackup } from '../js/store.js';
 import { romaji, toHiragana, toKana, judgeReading } from '../js/romaji.js';
 import { speechText } from '../js/tts.js';
@@ -1114,4 +1114,21 @@ test('kanji breakdowns say whether they are real or a memory trick, and sound fa
     assert.ok(k.sound.on && k.sound.kin.length && k.sound.kin.every((c) => have.has(c) && c !== k.k), `${k.k} sound family`);
   }
   assert.deepEqual(['晴', '清', '精', '静'].map((c) => byKanji.get(c).sound?.c), ['青', '青', '青', '青']);
+});
+
+test('kanji in stories and sound families can be tapped to see what they are', () => {
+  const all = [...json('kanji-n5'), ...json('kanji-more')];
+  setKanji(all);
+  const by = new Map(all.map((k) => [k.k, k]));
+  // Every kanji a story, part line or sound family mentions can be looked up.
+  const dead = new Set();
+  for (const k of all) {
+    const text = [k.story || '', ...k.parts.map((p) => p.mn), ...(k.sound ? [k.sound.c, ...k.sound.kin] : [])].join('');
+    for (const c of text.match(/[一-龯々]/g) || []) if (c !== k.k && !linkKanji(c, k.k).includes('data-kref')) dead.add(c);
+  }
+  assert.deepEqual([...dead], [], 'kanji mentioned with nothing to show');
+  assert.ok(!linkKanji('Compare 士', '士').includes('data-kref'), 'not the kanji being explained');
+  assert.ok(soundLine(by.get('晴')).includes('data-kref="青"'));
+  assert.ok(peekHtml('青').includes('blue'));
+  assert.ok(peekHtml('甬').includes('a part'), 'a part that is not a kanji still has a card');
 });

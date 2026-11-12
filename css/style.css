@@ -783,3 +783,10 @@ details.more[open] summary::after{content:"−"}
 .kmeta .jp{font-size:15px}
 .ktag{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;border-radius:10px;box-shadow:inset 0 0 0 1px var(--line);color:var(--mute)}
 .ktag.real{background:var(--ink);color:var(--on-ink);box-shadow:none}
+/* A kanji you can tap in a story or sound family, and the small card it opens. */
+.kref{display:inline;padding:6px 2px;margin:-6px 0;font:inherit;font-weight:600;color:var(--ink);text-decoration:underline dotted;text-underline-offset:4px;text-decoration-color:var(--mute);background:none;min-height:0;vertical-align:baseline}
+.kmeta .kref{font-size:15px}
+.kpeek{display:flex;gap:12px;align-items:flex-start;margin:6px 0;padding:10px 12px;border-radius:12px;background:var(--paper);box-shadow:inset 0 0 0 1px var(--line)}
+.kp-g{font-size:30px;line-height:1.1;flex:none}
+.kp-r{font-size:13px;color:var(--ink2);margin-left:4px}
+.kpeek .small{margin-top:2px;color:var(--ink2);line-height:1.4}

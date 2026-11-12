@@ -9,7 +9,7 @@ import { matchReading } from './readings.js';
 
 let kanjiIndex = new Map();
 // Every kanji with a breakdown: the N5 set and the rest of the app's words.
-export const setKanji = (list) => { kanjiIndex = new Map(list.map((k) => [k.k, k])); };
+export const setKanji = (list) => { kanjiIndex = new Map(list.map((k) => [k.k, k])); partIndex = null; };
 export const kanjiOf = (c) => kanjiIndex.get(c);
 // The kanji in a word, in order, once each.
 export const kanjiIn = (word) => [...new Set([...String(word)])].map((c) => kanjiIndex.get(c)).filter(Boolean);
@@ -40,14 +40,66 @@ export const noteEditorHtml = (c) => `<div class="knote-edit">
 // The line that ties the parts together. A kanji that is its own picture has it on its one part.
 export const storyOf = (k) => k.story || k.parts.at(-1).mn;
 
+/* ---------- Tap a kanji in a story or sound family to see what it is ---------- */
+
+// Parts that aren't kanji in the app (甬, 尃, 亲) still have a name and a picture.
+let partIndex = null;
+function partOf(c) {
+  if (!partIndex) {
+    partIndex = new Map();
+    for (const k of kanjiIndex.values()) for (const p of k.parts) if (p.c !== k.k && !partIndex.has(p.c)) partIndex.set(p.c, p);
+  }
+  return partIndex.get(c);
+}
+
+// Kanji whose sound comes from c, for a sound part that isn't shown as a part (亲 in 新 and 親).
+const soundUsers = (c) => [...kanjiIndex.values()].filter((k) => k.sound?.c === c);
+const known = (c) => kanjiIndex.has(c) || !!partOf(c) || soundUsers(c).length > 0;
+// A kanji you can tap, unless it's the one being explained or there's nothing to show.
+const kref = (c, self) => (c !== self && known(c)
+  ? `<button class="kref jp" data-kref="${c}" aria-label="What is ${c}?">${c}</button>` : `<b class="jp">${c}</b>`);
+// Every kanji in a line of text, made tappable.
+export const linkKanji = (text, self) => String(text).replace(/[一-龯々]/g, (c) => (c !== self && known(c) ? kref(c, self) : c));
+
+// The small card a tapped kanji opens: meaning, readings and its story; for a part, its name and picture.
+export function peekHtml(c) {
+  const k = kanjiIndex.get(c);
+  const reads = k ? [...k.on.slice(0, 2), ...k.kun.slice(0, 2).map((r) => r.replace(/-/g, ''))] : [];
+  if (k) {
+    return `<div class="kpeek" data-peek="${c}"><span class="kp-g jp">${c}</span><div>
+      <strong>${k.mean.join(', ')}</strong>${reads.length ? ` <span class="jp kp-r">${reads.join('・')}</span>` : ''}
+      <div class="small">${storyOf(k)}</div></div></div>`;
+  }
+  const p = partOf(c);
+  if (!p) {
+    const users = soundUsers(c);
+    return `<div class="kpeek" data-peek="${c}"><span class="kp-g jp">${c}</span><div>
+      <strong>Sound part</strong> <span class="jp kp-r">${users[0].sound.on}</span>
+      <div class="small">An old part that gives <span class="jp">${users.map((k) => k.k).join(' ')}</span> the reading <span class="jp">${users[0].sound.on}</span>.</div></div></div>`;
+  }
+  const users = [...kanjiIndex.values()].filter((x) => x.parts.some((q) => q.c === c && x.k !== c)).slice(0, 6).map((x) => x.k);
+  return `<div class="kpeek" data-peek="${c}"><span class="kp-g jp">${c}</span><div>
+    <strong>${p.label}</strong> <span class="small muted">a part</span>
+    <div class="small">${p.mn}${users.length ? ` Found in <span class="jp">${users.join(' ')}</span>.` : ''}</div></div></div>`;
+}
+
+// Opens the card just under the line that was tapped; tapping the same kanji again closes it.
+export function togglePeek(btn) {
+  const host = btn.closest('.part, .kstory, .kmeta, .gk-one > p, .kpeek-host') || btn.parentElement;
+  const open = host.nextElementSibling?.classList.contains('kpeek') ? host.nextElementSibling : null;
+  const same = open?.dataset.peek === btn.dataset.kref;
+  open?.remove();
+  if (!same) host.insertAdjacentHTML('afterend', peekHtml(btn.dataset.kref));
+}
+
 // Kanji that share a sound part tend to share a reading: 青 セイ gives 晴, 清, 精 and 静 theirs.
 export function soundLine(k) {
   const s = k.sound;
   if (!s) return '';
-  const jp = (list) => list.map((c) => `<b class="jp">${c}</b>`).join(' ');
+  const jp = (list) => list.map((c) => kref(c, k.k)).join(' ');
   const others = s.kin.filter((c) => c !== s.c);
   if (k.k === s.c) return `Sound family: <b class="jp">${s.c}</b> lends <span class="jp">${s.on}</span> to ${jp(s.kin)}`;
-  return `Sound family: sounds like <b class="jp">${s.c}</b>, <span class="jp">${s.on}</span>${others.length ? `, as in ${jp(others)}` : ''}`;
+  return `Sound family: sounds like ${kref(s.c, k.k)}, <span class="jp">${s.on}</span>${others.length ? `, as in ${jp(others)}` : ''}`;
 }
 
 // Whether the breakdown is how the kanji really came about, or just a way to remember it.
@@ -58,8 +110,8 @@ const originTag = (k) => (k.origin
 // edit: false where the note must not be changed, like a hint shown before you answer.
 export const partsHtml = (k, { edit = true } = {}) => noteSlot(k.k, edit) + k.parts.map((p) => `<div class="part">
     <span class="pg">${p.c}</span>
-    <div><strong>${p.label}</strong><div class="small">${p.mn}</div></div></div>`).join('')
-  + (k.story ? `<p class="kstory">${k.story}</p>` : '')
+    <div><strong>${p.label}</strong><div class="small">${linkKanji(p.mn, k.k)}</div></div></div>`).join('')
+  + (k.story ? `<p class="kstory">${linkKanji(k.story, k.k)}</p>` : '')
   + (k.origin || k.sound ? `<div class="kmeta">${originTag(k)}${k.sound ? `<span>${soundLine(k)}</span>` : ''}</div>` : '');
 
 // Which reading of k this word uses, as a small On or Kun chip.
@@ -87,7 +139,7 @@ function glossKanji(word, y) {
     <div class="gk-top"><b class="jp">${k.k}</b><span>${k.mean[0]}</span>${readingChip(k, word, y)}</div>
     ${noteSlot(k.k, false)}
     <div class="gk-parts">${k.parts.map((p) => `<span><b class="jp">${p.c}</b> ${p.label}</span>`).join('<i>+</i>')}</div>
-    <p class="small">${storyOf(k)}</p></div>`).join('')}</div>`;
+    <p class="small">${linkKanji(storyOf(k), k.k)}</p></div>`).join('')}</div>`;
 }
 
 // Alone, these particles need respelling or speech reads は as "ha".
