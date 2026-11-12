@@ -37,10 +37,30 @@ export const noteEditorHtml = (c) => `<div class="knote-edit">
     <div class="knote-btns"><button data-note-cancel>Cancel</button><button class="save" data-note-save>Save</button></div>
   </div>`;
 
+// The line that ties the parts together. A kanji that is its own picture has it on its one part.
+export const storyOf = (k) => k.story || k.parts.at(-1).mn;
+
+// Kanji that share a sound part tend to share a reading: 青 セイ gives 晴, 清, 精 and 静 theirs.
+export function soundLine(k) {
+  const s = k.sound;
+  if (!s) return '';
+  const jp = (list) => list.map((c) => `<b class="jp">${c}</b>`).join(' ');
+  const others = s.kin.filter((c) => c !== s.c);
+  if (k.k === s.c) return `Sound family: <b class="jp">${s.c}</b> lends <span class="jp">${s.on}</span> to ${jp(s.kin)}`;
+  return `Sound family: sounds like <b class="jp">${s.c}</b>, <span class="jp">${s.on}</span>${others.length ? `, as in ${jp(others)}` : ''}`;
+}
+
+// Whether the breakdown is how the kanji really came about, or just a way to remember it.
+const originTag = (k) => (k.origin
+  ? `<span class="ktag ${k.origin}">${k.origin === 'real' ? 'Real origin' : 'Memory trick'}</span>` : '');
+
+// Your note, then each part with its name and picture, then the story, its origin and sound family.
 // edit: false where the note must not be changed, like a hint shown before you answer.
 export const partsHtml = (k, { edit = true } = {}) => noteSlot(k.k, edit) + k.parts.map((p) => `<div class="part">
-    ${p.img ? `<img src="${p.img}" alt="${p.label}">` : `<span class="pg">${p.c}</span>`}
-    <div><strong>${p.label}</strong><div class="small">${p.mn}</div></div></div>`).join('');
+    <span class="pg">${p.c}</span>
+    <div><strong>${p.label}</strong><div class="small">${p.mn}</div></div></div>`).join('')
+  + (k.story ? `<p class="kstory">${k.story}</p>` : '')
+  + (k.origin || k.sound ? `<div class="kmeta">${originTag(k)}${k.sound ? `<span>${soundLine(k)}</span>` : ''}</div>` : '');
 
 // Which reading of k this word uses, as a small On or Kun chip.
 function readingChip(k, w, y) {
@@ -67,7 +87,7 @@ function glossKanji(word, y) {
     <div class="gk-top"><b class="jp">${k.k}</b><span>${k.mean[0]}</span>${readingChip(k, word, y)}</div>
     ${noteSlot(k.k, false)}
     <div class="gk-parts">${k.parts.map((p) => `<span><b class="jp">${p.c}</b> ${p.label}</span>`).join('<i>+</i>')}</div>
-    <p class="small">${k.parts.at(-1).mn}</p></div>`).join('')}</div>`;
+    <p class="small">${storyOf(k)}</p></div>`).join('')}</div>`;
 }
 
 // Alone, these particles need respelling or speech reads は as "ha".

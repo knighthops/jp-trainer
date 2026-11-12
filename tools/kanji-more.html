@@ -1,10 +1,10 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><title>Build kanji-more.json</title>
+<head><meta charset="utf-8"><title>Build kanji breakdowns</title>
 <style>body{font:14px/1.5 system-ui,sans-serif;margin:24px;max-width:900px}li{margin:2px 0}</style></head>
 <body>
-<h1>Build data/kanji-more.json</h1>
-<p>Joins the breakdowns in <code>tools/kanji-parts.txt</code> with readings and stroke counts from KANJIDIC2
+<h1>Build the kanji breakdowns</h1>
+<p>Joins the breakdowns in <code>tools/kanji-parts.txt</code> with part names from <code>tools/kanji-radicals.txt</code>, checks each split against KRADFILE, and writes the parts into <code>data/kanji-n5.json</code>. Kanji outside N5 also get readings and stroke counts from KANJIDIC2
 (<code>.dict/kanjidic2-en-3.6.2.json</code>). Readings the app's words use are always kept; otherwise the first two of each kind.</p>
 <div id="out">Loading…</div>
 <script type="module">
@@ -15,8 +15,11 @@ import { toHiragana } from '../js/romaji.js';
 const out = document.getElementById('out');
 const get = (p) => fetch(p, { cache: 'no-store' }).then((r) => { if (!r.ok) throw new Error(`${p}: ${r.status}`); return r; });
 try {
-  const [src, kd, kanji, vocab, glossary, bank, talk, trip, ...units] = await Promise.all([
-    get('kanji-parts.txt').then((r) => r.text()), get('../.dict/kanjidic2-en-3.6.2.json').then((r) => r.json()),
+  const [src, radSrc, originSrc, krad, kd, kanji, vocab, glossary, bank, talk, trip, ...units] = await Promise.all([
+    get('kanji-parts.txt').then((r) => r.text()), get('kanji-radicals.txt').then((r) => r.text()),
+    get('kanji-origins.txt').then((r) => r.text()),
+    get('../.dict/krad/kradfile-3.6.2.json').then((r) => r.json()).then((j) => j.kanji).catch(() => null),
+    get('../.dict/kanjidic2-en-3.6.2.json').then((r) => r.json()),
     ...['kanji-n5', 'vocab-n5', 'glossary', 'particle-bank', 'talk', 'trip'].map((f) => get(`../data/${f}.json`).then((r) => r.json())),
     ...UNIT_FILES.map((f) => get(`../data/course/${f}.json`).then((r) => r.json())),
   ]);
@@ -32,15 +35,73 @@ try {
   Object.entries(trip.lex).forEach(([w, [y]]) => note(w, y));
 
   const kmap = new Map(kd.characters.map((c) => [c.literal, c]));
-  const have = new Set(kanji.map((k) => k.k));
+  const n5 = new Map(kanji.map((k) => [k.k, k]));
   const problems = [];
+  const warnings = [];
   const built = [];
+  const seen = new Set();
+
+  // One name per part: tools/kanji-radicals.txt.
+  const rads = new Map();
+  for (const line of radSrc.split(/\r?\n/)) {
+    if (!line.trim() || line.startsWith('#')) continue;
+    const [c, name, desc] = line.split('|');
+    if (rads.has(c)) problems.push(`${c}: listed twice in kanji-radicals.txt`);
+    rads.set(c, { name, desc });
+  }
+  const usedParts = new Set();
+
+  // KRADFILE writes some pieces with a stand-in kanji (化 for the 亻 side, 込 for 辶).
+  const pairs = [...'亻化丷并刂刈辶込忄忙扌扎氵汁犭犯艹艾阝阡耂老灬杰礻礼疒疔衤初罒買丨｜丿ノ乚乙ク勹ナノツ尚亼个'];
+  const STAND_IN = Object.fromEntries(pairs.flatMap((c, i) => (i % 2 ? [] : [[c, pairs[i + 1]]])));
+  const norm = (c) => STAND_IN[c] || c;
+  // 阝 is a hill on the left (阡 in KRADFILE) and a village on the right (邦).
+  const deep = (c) => new Set([norm(c), ...(c === '阝' ? ['邦'] : []), ...((krad && krad[norm(c)]) || []).map(norm)]);
+  const STROKE = new Set([...'ノ｜一丶亅乙二ハ']);
+  // A split is suspect when the kanji has a piece no part covers, or a part shares nothing with it.
+  function checkSplit(k, chars) {
+    if (!krad?.[k] || (chars.length === 1 && chars[0] === k)) return;
+    const want = new Set(krad[k].map(norm));
+    if (want.has(k)) return;
+    const have = new Set(chars.flatMap((c) => [...deep(c)]));
+    const missing = [...want].filter((x) => !have.has(x) && !STROKE.has(x));
+    const stray = chars.filter((c) => ![...deep(c)].some((x) => want.has(x)));
+    if (missing.length || stray.length) warnings.push(`${k} [${chars.join(' ')}] KRADFILE has ${[...want].join(' ')}${missing.length ? `; not covered: ${missing.join(' ')}` : ''}${stray.length ? `; not in it: ${stray.join(' ')}` : ''}`);
+  }
+
+  // A part as the app shows it. A kanji that is its own picture shows its story as the part's line.
+  function partsOf(k, chars, story, mean) {
+    if (chars.length === 1 && chars[0] === k) {
+      return [{ c: k, label: rads.get(k)?.name || mean[0][0].toUpperCase() + mean[0].slice(1), mn: story }];
+    }
+    return chars.map((c) => {
+      const r = rads.get(c);
+      if (!r) { problems.push(`${k}: part ${c} isn't in kanji-radicals.txt`); return { c, label: c, mn: '' }; }
+      usedParts.add(c);
+      return { c, label: r.name, mn: r.desc };
+    });
+  }
+
   for (const line of src.split(/\r?\n/)) {
     if (!line.trim() || line.startsWith('#')) continue;
-    const [k, mean, ...parts] = line.split('|');
+    const [k, mean, partList, story, extra] = line.split('|');
+    if (!story || extra !== undefined) { problems.push(`${k}: a line needs kanji|meanings|parts|story`); continue; }
+    if (seen.has(k)) { problems.push(`${k}: listed twice`); continue; }
+    seen.add(k);
+    const chars = partList.trim().split(/\s+/);
+    checkSplit(k, chars);
+    const means = mean.split(',').map((m) => m.trim());
+    const parts = partsOf(k, chars, story.trim(), means);
+    const multi = parts.length > 1 || parts[0].c !== k;
+    if (n5.has(k)) {
+      // N5 keeps its readings and words; only the breakdown comes from here.
+      const entry = n5.get(k);
+      entry.parts = parts;
+      if (multi) entry.story = story.trim(); else delete entry.story;
+      continue;
+    }
     const e = kmap.get(k);
     if (!e) { problems.push(`${k}: not in KANJIDIC2`); continue; }
-    if (have.has(k)) { problems.push(`${k}: already in kanji-n5.json`); continue; }
     const groups = e.readingMeaning?.groups ?? [];
     const all = groups.flatMap((g) => g.readings);
     const on = all.filter((r) => r.type === 'ja_on' && !r.value.includes('-')).map((r) => r.value);
@@ -61,20 +122,86 @@ try {
     const vocabWords = words.map(([w]) => w).filter((w) => !/[ 　]/.test(w))
       .sort((a, b) => (inVocab.has(b) - inVocab.has(a)) || a.length - b.length).slice(0, 3);
     built.push({
-      k, on: keep(on), kun: keep(kun), mean: mean.split(',').map((m) => m.trim()), strokes: e.misc.strokeCounts[0], words: vocabWords,
-      parts: parts.map((p) => { const [c, label, ...mn] = p.split(':'); return { c, label, mn: mn.join(':') }; }),
+      k, on: keep(on), kun: keep(kun), mean: means, strokes: e.misc.strokeCounts[0], words: vocabWords,
+      parts, ...(multi ? { story: story.trim() } : {}),
     });
   }
   // Kanji the app's words use that still have no breakdown.
-  const covered = new Set([...have, ...built.map((b) => b.k)]);
+  const covered = new Set([...seen]);
   const missing = [...new Set([...readings.keys()].join('').match(/[一-龯]/g))].filter((c) => !covered.has(c));
   if (missing.length) problems.push(`No breakdown yet: ${missing.join(' ')}`);
-  const text = `[\n${built.map((b) => JSON.stringify(b)).join(',\n')}\n]\n`;
-  const save = await fetch('save-kanji-more', { method: 'POST', body: text }).catch(() => null);
+  const noN5 = kanji.filter((k) => !seen.has(k.k)).map((k) => k.k);
+  if (noN5.length) problems.push(`N5 kanji with no line in kanji-parts.txt: ${noN5.join(' ')}`);
+  const unused = [...rads.keys()].filter((c) => !usedParts.has(c));
+  if (unused.length) warnings.push(`Parts no kanji uses: ${unused.join(' ')}`);
+  if (!krad) warnings.push('No KRADFILE at .dict/krad/kradfile-3.6.2.json, so splits were not checked.');
+
+  /* ---------- Real origin or memory trick, and sound families ---------- */
+
+  const everything = [...kanji, ...built];
+  const origins = new Set(originSrc.split(/\r?\n/).filter((l) => !l.startsWith('#')).join(' ').match(/[一-龯]/g) || []);
+  for (const c of origins) if (!seen.has(c)) problems.push(`${c}: in kanji-origins.txt but has no breakdown`);
+  for (const k of everything) k.origin = origins.has(k.k) ? 'real' : 'trick';
+
+  // A part that gives a kanji its meaning (its dictionary radical) isn't a sound part:
+  // 氵 in 海 and 沖 says "water", not how to read them.
+  const radicalOf = (k) => {
+    const n = kmap.get(k)?.radicals?.find((r) => r.type === 'classical')?.value;
+    return n ? String.fromCodePoint(0x2f00 + n - 1).normalize('NFKC') : '';
+  };
+  const SIDE = { 氵: '水', 亻: '人', 扌: '手', 忄: '心', 艹: '艸', 辶: '辵', 阝: '阜', 刂: '刀', 灬: '火', 礻: '示', 衤: '衣', 犭: '犬', 攵: '攴', 罒: '网', 王: '玉', 月: '肉', 亼: '人', ク: '刀' };
+  const isMeaning = (k, c) => {
+    const r = radicalOf(k);
+    return r === c || r === SIDE[c] || (c === '阝' && r === '邑') || (c === '月' && r === '月');
+  };
+  // Strokes and tiny parts turn up everywhere, so they'd make families by chance.
+  const TINY = new Set([...'一丨ノ丶フメクツナ乚二三八十人儿口亠冖厶又寸小大土日月木']);
+  const onOf = (k) => (kmap.get(k)?.readingMeaning?.groups ?? []).flatMap((g) => g.readings)
+    .filter((r) => r.type === 'ja_on').map((r) => r.value);
+  const byPart = new Map();
+  for (const k of everything) {
+    for (const p of k.parts) {
+      if (p.c === k.k || TINY.has(p.c) || isMeaning(k.k, p.c)) continue;
+      if (!byPart.has(p.c)) byPart.set(p.c, new Set(seen.has(p.c) ? [p.c] : []));
+      byPart.get(p.c).add(k.k);
+    }
+  }
+  // Checked by hand: these share a reading by chance, and 新 and 親 get シン from 亲, not from 立.
+  const CHANCE = new Set([...'女子']);
+  const SOURCE = { 立: '亲' };
+  const families = [];
+  for (const [c, members] of byPart) {
+    if (CHANCE.has(c)) continue;
+    const reads = new Map();
+    for (const k of members) for (const r of onOf(k)) reads.set(r, [...(reads.get(r) || []), k]);
+    for (const [on, kin] of reads) if (kin.length >= 2) families.push({ c, on, kin });
+  }
+  // Each kanji shows its biggest family.
+  families.sort((a, b) => b.kin.length - a.kin.length);
+  for (const k of everything) {
+    delete k.sound;
+    const f = families.find((x) => x.kin.includes(k.k));
+    if (f) k.sound = { c: SOURCE[f.c] || f.c, on: f.on, kin: f.kin.filter((x) => x !== k.k) };
+  }
+  window.__families = families;
+
+  const lines = (list) => `[\n${list.map((b) => JSON.stringify(b)).join(',\n')}\n]\n`;
+  // Nothing is saved while there are problems, so a half-built file never replaces a good one.
+  let saved = 'Not saved: fix the problems first.';
+  if (!problems.length) {
+    const [a, b] = await Promise.all([
+      fetch('save-kanji-more', { method: 'POST', body: lines(built) }).catch(() => null),
+      fetch('save-kanji-n5', { method: 'POST', body: lines(kanji) }).catch(() => null),
+    ]);
+    saved = a?.status === 204 && b?.status === 204 ? 'Saved data/kanji-n5.json and data/kanji-more.json.' : "Couldn't save: run tools/serve.ps1.";
+  }
   window.__built = built;
-  out.innerHTML = `<p>${built.length} kanji built. ${save?.status === 204 ? 'Saved data/kanji-more.json.' : "Couldn't save: run tools/serve.ps1."}</p>`
-    + `<h2>Problems (${problems.length})</h2><ul>${problems.map((p) => `<li>${p}</li>`).join('')}</ul>`;
+  out.innerHTML = `<p>${seen.size} kanji (${kanji.length} N5, ${built.length} more), ${rads.size} parts, ${origins.size} real origins, ${families.length} sound families. ${saved}</p>`
+    + `<h2>Problems (${problems.length})</h2><ul>${problems.map((p) => `<li>${p}</li>`).join('')}</ul>`
+    + `<h2>Sound families (${families.length})</h2><ul>${families.map((f) => `<li>${f.c} ${f.on}: ${f.kin.join(' ')}</li>`).join('')}</ul>`
+    + `<h2>Splits to check against KRADFILE (${warnings.length})</h2><ul>${warnings.map((p) => `<li>${p}</li>`).join('')}</ul>`;
   window.__problems = problems;
+  window.__warnings = warnings;
 } catch (err) {
   out.textContent = err.message;
   window.__problems = [err.message];

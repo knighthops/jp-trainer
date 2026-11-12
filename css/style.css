@@ -776,3 +776,10 @@ details.more[open] summary::after{content:"−"}
 .gk-one .knote{margin-top:6px;padding:5px 9px;font-size:13px}
 .tile .tnote{position:absolute;top:7px;right:7px;width:7px;height:7px;border-radius:50%;background:var(--ink)}
 #kview .num{opacity:.7;font-weight:600}
+/* The story that ties a kanji's parts together, under the parts. */
+.kstory{margin:8px 0 2px;font-size:15px;line-height:1.45;color:var(--ink)}
+/* Real origin or memory trick, then the sound family. */
+.kmeta{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin:8px 0 2px;font-size:13px;color:var(--ink2);line-height:1.5}
+.kmeta .jp{font-size:15px}
+.ktag{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;border-radius:10px;box-shadow:inset 0 0 0 1px var(--line);color:var(--mute)}
+.ktag.real{background:var(--ink);color:var(--on-ink);box-shadow:none}

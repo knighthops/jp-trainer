@@ -461,6 +461,7 @@ function renderStep() {
     finishDrill(clean);
   };
   if (step.type === 'learn') renderLearn(step);
+  else if (step.type === 'parts') renderParts(step);
   else if (step.type === 'card') renderCard(step);
   else if (step.type === 'lesson') renderLesson(step);
   else if (step.type === 'dialogue') renderDialogue(step);
@@ -636,6 +637,19 @@ function renderLearn(step) {
       ${headHtml(title, step)}${glyphHtml(step)}${factsHtml(step)}
     </div>
     <div class="dock"><button class="btn" id="next">${run.browse ? (last ? 'Done' : 'Next') : 'Got it'}</button></div>`;
+  view.querySelector('#next').onclick = advance;
+}
+
+// New parts, met just before the kanji built from them. Once each: not reviewed on their own.
+function renderParts(step) {
+  const many = step.ref.length > 1;
+  const kanji = step.kanji.map((c) => `<span class="jp">${c}</span>`).join(' ');
+  view.innerHTML = `<div class="card study">
+      <div class="study-head"><span class="caps">New ${many ? 'parts' : 'part'}</span><span class="head-tags"><span class="tag">Parts</span></span></div>
+      <p class="small muted">Kanji are built from parts. Meet ${many ? 'these' : 'this one'} first: the next ${step.kanji.length > 1 ? 'kanji use' : 'kanji uses'} ${many ? 'them' : 'it'} (${kanji}).</p>
+      ${step.ref.map((p) => `<div class="part"><span class="pg">${p.c}</span><div><strong>${p.label}</strong><div class="small">${p.mn}</div></div></div>`).join('')}
+    </div>
+    <div class="dock"><button class="btn" id="next">Got it</button></div>`;
   view.querySelector('#next').onclick = advance;
 }
 

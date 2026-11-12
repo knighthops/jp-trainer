@@ -1,0 +1,364 @@
+# The parts kanji are built from, each with one name used everywhere. One part per line:
+#   part|Name|what it looks like or means
+# tools/kanji-parts.txt lists kanji by these parts; tools/kanji-more.html joins the two.
+ク|Hook|A bent hook, like the top of 魚 or 色.
+ツ|Sparkles|Three little marks shining down.
+ナ|Reaching hand|An arm reaching across, as in 左 and 右.
+ノ|Slash|One stroke sweeping down to the left.
+フ|Bent arm|One stroke folding back like an elbow.
+メ|X mark|Two strokes crossing like an X.
+一|One|A single line: one, a floor, a lid.
+丁|Street|A nail, or a street running straight.
+丂|Breath|A breath pushed out and up.
+七|Seven|An upside-down 7 with a line through it.
+三|Three|Three lines stacked.
+不|Not|A line blocking a bud from opening: not.
+与|Give|A hand passing something over.
+且|Further|A stack of shelves, one more on top.
+世|Generation|Three tens joined: thirty years.
+丙|Third|A table on legs, third in line.
+両|Both|A yoke for two: both.
+丨|Stick|One straight vertical line.
+丩|Tangle|A twisted rope.
+丬|Bed|A bed stood up on its side.
+中|Middle|A box with a stick through the middle.
+丰|Offering|A stalk with leaves, held up as an offering.
+丶|Dot|A single drop.
+丷|Horns|Two short marks pointing up and out.
+丸|Round|Something rolled into a ball.
+主|Master|A lamp with its flame on top: the master of the house.
+乂|Crossed arms|Two strokes crossing like folded arms.
+乍|Suddenly|Something that happens without warning.
+乎|Breath out|A breath rising.
+乚|Hook|A line bending into a hook.
+九|Nine|A leg kicking out.
+也|Snake|A coiled snake.
+予|Ahead|A loom shuttle sent ahead.
+争|Fight|Two hands fighting over a stick.
+二|Two|Two lines.
+亍|Step|A right foot stepping.
+亏|Bent|Something bent out of shape.
+云|Cloud|A puff of cloud rolling along.
+五|Five|Five fingers pressed flat.
+井|Well|The wooden frame around a well.
+亜|Second-rate|A shabby little building.
+亠|Lid|A lid with a knob on top.
+亡|Lost|Someone hiding behind a wall: lost, gone.
+交|Mix|A person with crossed legs: mix, cross.
+亦|Also|A person with drops either side: also.
+京|Capital|A tall building on a hill.
+亭|Pavilion|A tall rest house by the road.
+人|Person|Two legs walking.
+亻|Person|A person standing at the side.
+亼|Umbrella|A wide roof with a line under it.
+介|Between|A person standing between two things.
+付|Attach|A hand sticking something on a person.
+代|Replace|A person standing in for another.
+令|Order|A person kneeling under a roof, taking orders.
+任|Duty|A person carrying a load.
+会|Meet|People under one roof.
+何|What|A person asking a question.
+余|Surplus|A roof with extra piled under it.
+侯|Lord|A person with an arrow: a lord.
+僉|Everyone|Everyone gathered under one roof.
+儿|Legs|Two legs walking.
+先|Ahead|A cow walking out in front.
+免|Escape|Legs running away.
+兑|Swap|Two horns and a big mouth: a trade.
+入|Enter|Two strokes ducking into a tent.
+八|Eight|Two lines spreading apart.
+关|Bar|Two horns over a big person: a bar, a gate.
+其|Basket|A woven basket on a stand.
+兼|Both at once|A hand holding two stalks.
+冂|Frame|An open frame, like a doorway.
+冏|Window|A bright window.
+冒|Cover the head|A hat pulled down over the eyes.
+冖|Cover|A cloth cover without a knob.
+冫|Ice|Two drops frozen. Sometimes just two small marks.
+冬|Winter|Dragging feet over ice.
+几|Table|A small low table.
+凵|Open box|A box open at the top.
+刀|Sword|A curved sword.
+刂|Knife|A knife standing at the side.
+則|Rule|Money and a knife: a rule.
+力|Power|A flexed arm: power.
+動|Move|Power on something heavy.
+勺|Ladle|A ladle with a drop in it.
+勻|Even|Something wrapped evenly.
+勿|Banners|Flags flapping in the wind.
+匕|Spoon|A spoon, or a person fallen over.
+化|Change|A person turned upside down.
+北|North|Two people back to back.
+匚|Box|A box open on one side.
+十|Ten|A plus sign, or a cross.
+千|Thousand|Ten with a hat on.
+卓|Tall table|A tall table.
+単|Single|Just one.
+卜|Fortune stick|A stick read for fortunes.
+占|Fortune|A fortune read from a stick and spoken aloud.
+卩|Kneel|A person kneeling.
+卬|Look up|A person looking up at another.
+即|At once|Food, and someone kneeling to it at once.
+厂|Cliff|A cliff overhang.
+厄|Edge|A person crouched under a cliff.
+原|Origin|A spring under a cliff: the source.
+厶|Elbow|An elbow pulled in close: private, mine.
+去|Leave|An elbow pushing off the ground.
+又|Hand|A hand grabbing.
+及|Reach|A hand reaching for someone.
+反|Against|A hand pushing against a cliff.
+取|Take|A hand grabbing an ear.
+受|Receive|A hand passing to a hand below.
+叚|Borrow|Hands lending something.
+口|Mouth|A mouth. Also any box or opening.
+古|Old|Ten mouths retelling a story.
+句|Phrase|Words wrapped together.
+可|Possible|A mouth saying "can do".
+台|Platform|A box with an elbow on it.
+右|Right|A hand feeding the mouth.
+各|Each|Feet arriving at a door.
+合|Fit|A lid on a pot.
+吉|Lucky|A samurai's words: lucky.
+吏|Official|An official with a document.
+呂|Spine|Two mouths stacked.
+周|Lap|A full lap around.
+哥|Singing|Two mouths stacked, both open.
+唐|China|Old China, the Tang.
+喬|Tall|A tall arching shape.
+囗|Enclosure|A box closed on all four sides.
+土|Soil|A sprout over the ground.
+坐|Sit|Two people sitting on the ground.
+坴|Mound|A heap of soil.
+垂|Hang|Something hanging down.
+垔|Blocked|Something stopped up.
+埶|Plant|A hand planting a seedling.
+堇|Clay|Sticky yellow clay.
+士|Samurai|A warrior standing tall.
+売|Sell|Goods carried to market.
+夂|Dragging leg|A leg dragging behind.
+夅|Step down|Feet stepping down.
+复|Again|Going back again.
+夕|Evening|A half-hidden evening moon.
+大|Big|A person with arms stretched wide.
+夫|Husband|A man with a hairpin.
+夬|Gouge|A notch cut out.
+央|Centre|A person right in the middle.
+失|Lose|A hand letting something slip.
+夹|Squeeze|Two small people squeezing a big one.
+奐|Grand|Something grand and shining.
+契|Pledge|A pledge carved in.
+奚|Tied|A tied-up animal.
+女|Woman|A woman kneeling.
+子|Child|A baby wrapped up.
+宀|Roof|A roof with a chimney.
+安|Peaceful|A woman under the roof.
+完|Complete|Finished under the roof.
+官|Official|An official in a hall.
+客|Guest|Someone arriving under your roof.
+害|Harm|Harm done under a roof.
+寸|Thumb|A hand with the thumb marked.
+寺|Temple|A temple built by hand on the soil.
+尃|Spread|Something spread out by hand.
+小|Small|A thin stem with specks either side.
+少|Few|Small, with a bit cut off.
+尚|Still|A house with rays rising and a window.
+尭|Piled high|Earth piled up high.
+尸|Flag|A flag on a pole. Also a body lying down.
+尺|Measure|A hand spread out to measure.
+山|Mountain|Three peaks.
+川|River|Three lines of water.
+工|Craft|A carpenter's square.
+己|Self|A coiled thread: yourself.
+巴|Curl|Something curled up.
+巾|Cloth|A cloth hanging down.
+帀|Wrap|A cloth wrapped around.
+市|Market|A cloth hung out at the market.
+帚|Broom|A broom.
+帝|Emperor|An emperor on a high seat.
+干|Dry|A plank, or something dried.
+幺|Thread|A short twist of thread.
+幾|How many|Threads on a frame.
+广|Shed|A roof with one open side.
+庄|Farmhouse|A house in the country.
+度|Times|Hands measuring inside a building.
+廴|Stride|A long stride.
+延|Stretch|A long stride stretched out.
+廷|Court|An open court.
+建|Build|A plan drawn and walked out.
+廾|Two hands|Two hands held out.
+廿|Twenty|Two tens joined.
+开|Bar lifted|A bar lifted off a gate.
+式|Ceremony|A formal ceremony.
+弓|Bow|A bow, bent.
+彐|Broom hand|A hand, like the head of a broom.
+录|Carve|Wood carved, sap dripping.
+彡|Rays|Three slanted strokes: hair, rays.
+彦|Handsome|A handsome young man.
+彳|Going|A person on the move.
+心|Heart|A heart with drops around it.
+忄|Heart|A heart standing at the side.
+忍|Endure|A blade held over the heart.
+志|Intention|A samurai's heart: intention.
+思|Think|A field in the heart.
+憂|Worry|A head and heart weighed down.
+戈|Halberd|A spear with a blade.
+成|Become|A halberd finishing the job.
+戔|Thin|Two halberds slicing thin.
+戸|Door|A single door.
+扌|Hand|A hand at the side.
+才|Talent|A sprout coming up: talent.
+攵|Whip|A hand holding a stick.
+敢|Daring|A bold strike.
+敬|Respect|A bow, with a strict stick.
+斗|Ladle|A big measuring ladle.
+斤|Axe|An axe.
+方|Direction|A plough pointing one way.
+日|Sun|The sun. Also a day.
+旦|Sunrise|The sun over the horizon.
+早|Early|The sun just over the horizon.
+昆|Many|Many in a line.
+昏|Dusk|The sun sinking low.
+昔|Long ago|Days piled up long ago.
+昜|Sun rising|The sun climbing up.
+是|Just right|Just right, correct.
+景|Scene|A view in the sunlight.
+更|Again|Doing it over again.
+曽|Layers|Layers piled up.
+最|Most|The best of all.
+月|Moon|A crescent moon. On the left of body words (腹, 胃, 脱) it means flesh.
+朋|Companions|Two moons side by side.
+木|Tree|A tree with roots.
+未|Not yet|A tree not grown yet.
+末|Tip|A tree with a long top line.
+本|Root|A tree with its root marked.
+朮|Plant|A tall plant.
+束|Bundle|Sticks tied in a bundle.
+東|East|The sun behind a tree.
+林|Woods|Two trees.
+果|Fruit|Fruit on a tree.
+楽|Ease|Music on a stand: ease, fun.
+欠|Yawn|A person with a wide-open mouth.
+止|Stop|A foot planted still.
+歯|Teeth|Teeth in a mouth.
+歹|Bones|Bare bones.
+殳|Weapon hand|A hand holding a tool or weapon.
+母|Mother|A woman with two dots.
+毎|Every|A person bowing to mother.
+氏|Family name|A family name.
+氐|Bottom|Something at the very bottom.
+民|People|The common people.
+气|Steam|Steam rising.
+氵|Water|Three drops of water.
+永|Forever|Water flowing on and on.
+求|Request|A hand reaching out to ask.
+沓|Pile|Water heaped over the sun.
+泉|Spring|Water bubbling up white.
+火|Fire|A campfire with sparks.
+灬|Fire below|Four sparks of fire under something. In 魚 and 鳥, tail fins and feathers.
+爫|Claw|A hand reaching down from above.
+爰|Pull|A hand reaching down to pull.
+父|Father|Whiskers over crossed arms.
+牙|Fang|A fang.
+牛|Cow|A cow's head with a horn.
+犬|Dog|A big animal with an ear cocked.
+犭|Beast|An animal standing at the side.
+犮|Dash|A dog dashing off.
+玉|Jewel|A king with a jewel.
+王|King|A king. On the left of a kanji (理, 現) it's a jewel.
+甚|Very|Very much.
+生|Life|A shoot coming up out of the soil.
+用|Use|A fence of planks.
+甬|Passage|A path running through.
+田|Rice field|A field in four plots.
+由|Reason|A field with a shoot coming up.
+甲|Shell|A hard shell.
+申|Speak|A flash of lightning.
+电|Lightning|A lightning bolt.
+畀|Give|Something handed over.
+疋|Leg|A leg.
+疒|Sickbed|A bed with someone sick in it.
+癶|Feet|Two feet setting off.
+白|White|The sun with one bright ray.
+百|Hundred|One white banknote.
+皆|Everyone|All of them together.
+皮|Skin|A hand peeling off skin.
+皿|Dish|A dish on a stand.
+目|Eye|An eye on its end.
+直|Straight|An eye looking straight.
+相|Together|An eye looking at a tree.
+矢|Arrow|An arrow.
+石|Stone|A stone under a cliff.
+示|Altar|An altar with offerings.
+礻|Altar|An altar standing at the side.
+祭|Festival|Meat offered at the altar.
+禾|Grain|A stalk of grain.
+穴|Hole|A hole in the roof.
+立|Stand|A person standing on the ground.
+章|Badge|A badge, a chapter.
+竹|Bamboo|Two stalks of bamboo.
+米|Rice|Grains of rice.
+糸|Thread|A twisted thread.
+罒|Net|A net.
+罙|Deep|Reaching deep inside.
+羊|Sheep|A sheep with horns.
+義|Right|What's right.
+羽|Wings|Two wings.
+耂|Old man|An old man bent over.
+者|Someone|An old man in the sun.
+耳|Ear|An ear.
+聿|Brush|A hand holding a brush upright.
+肖|Smaller|Something getting smaller.
+臣|Retainer|A loyal guard watching.
+自|Nose|A nose: yourself.
+至|Arrive|An arrow landing.
+舌|Tongue|A tongue out of a mouth.
+舛|Dancing feet|Feet dancing apart.
+艮|Stubborn|An eye that won't look away.
+良|Good|Something good.
+艹|Grass|Grass sprouting.
+虍|Tiger|A tiger's head.
+虫|Bug|A bug.
+行|Go|Left foot, right foot.
+衣|Clothes|A collar and sleeves.
+衤|Clothes|Clothes at the side.
+袁|Long robe|A long, trailing robe.
+西|West|A bird in its nest.
+見|See|An eye on legs.
+言|Words|Words coming out of a mouth.
+谷|Valley|A valley.
+豆|Bean|A bean on a stand.
+豕|Pig|A pig.
+貝|Shell|A shell: money, long ago.
+走|Run|A foot pushing off the ground.
+足|Foot|A foot and leg.
+路|Road|A road.
+車|Cart|A cart from above.
+辛|Bitter|A needle: sharp and bitter.
+辟|Punish|Punishment.
+辰|Dragon|A dragon.
+辶|Road|A road with a foot moving along it.
+酉|Sake jar|A jar of sake.
+釆|Seeds|Seeds scattered.
+里|Village|Fields and soil: a village.
+重|Heavy|A heavy load.
+金|Metal|Gold under a roof: metal, money.
+門|Gate|Two gate doors.
+阝|Hill / Village|On the left, a hill (院, 階). On the right, a village (都, 部).
+隹|Small bird|A small bird.
+隺|High bird|A bird flying high.
+雚|Heron|A heron.
+雨|Rain|Rain on a window.
+雲|Cloud|Rain and cloud.
+青|Blue|Blue-green new life.
+革|Leather|Leather hide.
+韋|Opposite feet|Two feet walking opposite ways round a wall.
+音|Sound|Someone standing in the sun singing.
+頁|Head|A head.
+食|Eat|Food under a lid.
+首|Neck|A head on a neck.
+馬|Horse|A horse.
+髟|Long hair|Long hair.
+鳥|Bird|A bird.
+麻|Hemp|Hemp drying in a shed.
+黄|Yellow|A field glowing gold.
+黽|Frog|A frog.

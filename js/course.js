@@ -195,10 +195,37 @@ export function lessonSteps(unit, lesson, state, data, resume = null) {
   const waiting = resume ? all.filter((s) => resume.fresh.includes(s.id)) : all.filter((s) => !state.items[s.id]);
   const learn = resume ? waiting : waiting.slice(0, LESSON_NEW);
   const more = resume ? Boolean(resume.part) : waiting.length > LESSON_NEW;
+  // Parts come before the kanji built from them. Met already: every part of a kanji you've
+  // started, and those kanji themselves. The ones being taught now don't count, so a resumed
+  // lesson rebuilds the same steps.
+  const now = new Set(learn.map((s) => s.id));
+  const met = new Set();
+  for (const k of data.kanji) {
+    if (!state.items[`k:${k.k}`] || now.has(`k:${k.k}`)) continue;
+    met.add(k.k);
+    for (const p of k.parts) met.add(p.c);
+  }
+  const partsFor = (g) => {
+    const list = [];
+    const users = [];
+    for (const s of g) {
+      if (s.kind !== 'kanji') continue;
+      for (const p of s.ref.parts) {
+        if (p.c === s.ref.k || met.has(p.c)) continue;
+        met.add(p.c);
+        list.push(p);
+        if (!users.includes(s.ref.k)) users.push(s.ref.k);
+      }
+      met.add(s.ref.k);
+    }
+    return list.length
+      ? [{ type: 'parts', id: `parts:${g.map((s) => s.id).join(',')}`, ref: list, kanji: users }]
+      : [];
+  };
   const groups = [];
   for (let i = 0; i < learn.length; i += GROUP) {
     const g = learn.slice(i, i + GROUP);
-    groups.push(...g.map((s) => ({ ...s, type: 'learn' })), ...g.map((s) => ({ ...s, type: 'card', isNew: true })));
+    groups.push(...partsFor(g), ...g.map((s) => ({ ...s, type: 'learn' })), ...g.map((s) => ({ ...s, type: 'card', isNew: true })));
   }
   const intro = { type: 'lesson', ref: lesson, unit };
   if (more) return [intro, ...groups, { type: 'lessonPart', id: lesson.id }];

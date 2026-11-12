@@ -1,0 +1,7 @@
+# Kanji whose breakdown follows the character's real history: a picture of the thing, or parts
+# that were put together for that meaning. Every other breakdown is a memory trick.
+# Kanji only, any spacing. tools/kanji-more.html reads this.
+一 二 三 上 下 本 末 中 小 大 天 夫 人 入 女 子 母 好 安 字 家 休 信 取 見 友 北 化
+日 月 明 間 夕 山 川 田 男 木 水 火 雨 電 雪 申 生 年 来 午
+口 目 耳 手 足 止 自 心 面 身 立 長 高 京 門 車 乗 弟 業 曲 非 衣 工 交 文 無 世 傘
+皿 冊 片 卵 甘 鳥 鳴 魚 牛 美 突 器 国 品

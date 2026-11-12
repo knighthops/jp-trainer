@@ -541,7 +541,8 @@ test('a big lesson comes in parts of at most LESSON_NEW new items', () => {
 test('new items are recalled in small groups, soon after they are taught', () => {
   const merged = course();
   const unit = merged.units.find((u) => u.n === 4);
-  const types = lessonSteps(unit, unit.lessons[0], blank(), merged).map((s) => s.type);
+  // A new-parts card before a group isn't teaching an item, so it doesn't count here.
+  const types = lessonSteps(unit, unit.lessons[0], blank(), merged).map((s) => s.type).filter((t) => t !== 'parts');
   const firstCard = types.indexOf('card');
   assert.ok(firstCard > 0 && firstCard <= 5, `first recall at step ${firstCard}`);
 });
@@ -1053,4 +1054,64 @@ test('struggling: Forgot or Shaky puts it on, 3 good reviews in a row take it of
   assert.ok(isStruggling(old));
   assert.ok(!isStruggling(good(old, CLEARS)));
   assert.ok(!isStruggling({ ease: 2.6, interval: 9, reps: 4, lapses: 0, due: 0 }));
+});
+
+test('kanji breakdowns: one name per part, a story for every built-up kanji', () => {
+  const all = [...json('kanji-n5'), ...json('kanji-more')];
+  const names = new Map();
+  const clashes = [];
+  for (const k of all) {
+    const own = k.parts.length === 1 && k.parts[0].c === k.k;
+    if (!own) assert.ok(k.story && k.parts.every((p) => p.label && p.mn), `${k.k} needs parts and a story`);
+    else assert.ok(!k.story && k.parts[0].mn, `${k.k} is its own picture: the story is its one line`);
+    for (const p of own ? [] : k.parts) {
+      if (names.has(p.c) && names.get(p.c) !== p.label) clashes.push(`${p.c}: ${names.get(p.c)} / ${p.label} (${k.k})`);
+      names.set(p.c, p.label);
+    }
+  }
+  assert.deepEqual(clashes, [], 'a part with two names');
+  // Rare characters show as empty boxes on some phones: parts stay in the main kanji block, kana and the radical forms.
+  const rare = [...names.keys()].filter((c) => c.codePointAt(0) > 0xffff || /[⺀-⿟㐀-䶿]/.test(c));
+  assert.deepEqual(rare, [], 'parts that may not display');
+});
+
+test('lessons show new parts once, just before the kanji built from them', () => {
+  const merged = course();
+  const unit = merged.units.find((u) => u.lessons.some((l) => (l.kanji || []).some((c) => {
+    const k = merged.kanji.find((x) => x.k === c);
+    return k && k.parts.some((p) => p.c !== c);
+  })));
+  const lesson = unit.lessons.find((l) => (l.kanji || []).length);
+  const steps = lessonSteps(unit, lesson, blank(), merged);
+  const shown = steps.filter((s) => s.type === 'parts').flatMap((s) => s.ref.map((p) => p.c));
+  assert.ok(shown.length, 'a first lesson with built-up kanji meets some parts');
+  assert.equal(new Set(shown).size, shown.length, 'each part once');
+  for (const s of steps.filter((x) => x.type === 'learn' && x.kind === 'kanji')) {
+    const first = steps.indexOf(s);
+    for (const p of s.ref.parts) {
+      if (p.c === s.ref.k) continue;
+      const at = steps.findIndex((x) => x.type === 'parts' && x.ref.some((q) => q.c === p.c));
+      assert.ok(at === -1 || at < first, `${p.c} comes before ${s.ref.k}`);
+    }
+  }
+  // Parts of kanji you've started are known.
+  const state = blank();
+  for (const k of merged.kanji) state.items[`k:${k.k}`] = newRecord();
+  for (const k of lesson.kanji) delete state.items[`k:${k}`];
+  const later = lessonSteps(unit, lesson, state, merged).filter((s) => s.type === 'parts').flatMap((s) => s.ref.map((p) => p.c));
+  const others = new Set(merged.kanji.filter((k) => !lesson.kanji.includes(k.k)).flatMap((k) => [k.k, ...k.parts.map((p) => p.c)]));
+  assert.ok(later.every((c) => !others.has(c)), 'a part you already know is not shown again');
+});
+
+test('kanji breakdowns say whether they are real or a memory trick, and sound families hold together', () => {
+  const all = [...json('kanji-n5'), ...json('kanji-more')];
+  const have = new Set(all.map((k) => k.k));
+  assert.ok(all.every((k) => k.origin === 'real' || k.origin === 'trick'));
+  const real = all.filter((k) => k.origin === 'real').map((k) => k.k);
+  for (const c of '休明男日山川木') assert.ok(real.includes(c), `${c} is a real origin`);
+  const byKanji = new Map(all.map((k) => [k.k, k]));
+  for (const k of all.filter((x) => x.sound)) {
+    assert.ok(k.sound.on && k.sound.kin.length && k.sound.kin.every((c) => have.has(c) && c !== k.k), `${k.k} sound family`);
+  }
+  assert.deepEqual(['晴', '清', '精', '静'].map((c) => byKanji.get(c).sound?.c), ['青', '青', '青', '青']);
 });

@@ -18,7 +18,7 @@ while ($listener.IsListening) {
   $res = $ctx.Response
   # tools/dict-build.html, dict-check.html, kanji-more.html and audio-lines.html save their output here. Only this
   # server's own origin may write, and only these files.
-  $saves = @{ 'tools/save-dict' = 'data/dict.json'; 'tools/save-dict-check' = 'data/dict-check.json'; 'tools/save-kanji-more' = 'data/kanji-more.json'; 'tools/save-audio-lines' = 'data/audio-lines.json' }
+  $saves = @{ 'tools/save-dict' = 'data/dict.json'; 'tools/save-dict-check' = 'data/dict-check.json'; 'tools/save-kanji-more' = 'data/kanji-more.json'; 'tools/save-kanji-n5' = 'data/kanji-n5.json'; 'tools/save-audio-lines' = 'data/audio-lines.json' }
   if ($ctx.Request.HttpMethod -eq 'POST') {
     $sameOrigin = $ctx.Request.Headers['Origin'] -eq "http://localhost:$Port"
     if ($saves.ContainsKey($rel) -and $sameOrigin -and $ctx.Request.ContentLength64 -lt 8MB) {
