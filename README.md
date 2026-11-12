@@ -80,6 +80,8 @@ Talk phrases come from [Tatoeba](https://tatoeba.org/), shared under [CC BY 2.0 
 
 JMdict and KANJIDIC2 are the property of the [Electronic Dictionary Research and Development Group](https://www.edrdg.org/), and are used in conformance with the Group's [licence](https://www.edrdg.org/edrdg/licence.html) (CC BY-SA 4.0). The JSON versions come from [jmdict-simplified](https://github.com/scriptin/jmdict-simplified). `data/dict-check.json` is derived from them, so it's shared under the same licence.
 
+Stroke order comes from [KanjiVG](https://kanjivg.tagaini.net/) by Ulrich Apel, shared under [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/). `data/strokes.json` keeps only the stroke paths of the N5 kanji, so it is shared under the same licence.
+
 ## Editing content
 
 Everything is in `data/`:
@@ -89,6 +91,7 @@ Everything is in `data/`:
 - `particles.json`: every wrong option in `options` needs an explanation in `why`.
 - `glossary.json`: reading, romaji, and meaning for each word in the sentences, particle guides, and drills. Every word used there needs an entry.
 - `talk.json`: Talk phrases by category. `id` is the Tatoeba sentence number, `c: 1` marks casual speech, and `lex` adds words to the glossary.
+- `strokes.json`: each N5 kanji's strokes from KanjiVG, as SVG path data in a 109 by 109 box, in writing order.
 - `particle-bank.json`: sentence frames for the unlimited particle drill. `slots` fills in the frames, and each frame's `w` explains its wrong answers.
 - `course/units-*.json`: the units. Text is space-separated so each word can be tapped. A unit's `lex` adds words to the glossary as `word: [kana, meaning, optional romaji]`. In `o`, the first option is always the correct one, and the app shuffles them.
 - `course/exam-n5-*.json`: the mock papers, in the same format. `[x]` underlines a word, `play` lists the lines to speak, and `ao` means the options are heard, not read, in exam mode.

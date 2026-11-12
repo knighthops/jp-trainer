@@ -1060,3 +1060,25 @@ nav.seg{margin-bottom:12px}
 .kh-cards{color:var(--mute);text-decoration:none;min-height:44px;display:inline-flex;align-items:center;margin:-12px 0}
 .cardslink{display:flex;align-items:center;gap:10px;color:inherit;text-decoration:none;min-height:56px}
 .cardslink .grow{display:flex;flex-direction:column}
+
+/* Stroke order: watch, trace, then write from memory. Box is KanjiVG's 109 units. */
+.sk-sec .sechead{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.sk-box{position:relative;width:180px;aspect-ratio:1;margin:10px auto;border-radius:18px;background:var(--paper);box-shadow:inset 0 0 0 1px var(--line)}
+.sk-box.big{width:min(300px,calc(100vw - 72px))}
+.sk-svg{display:block;width:100%;height:100%;touch-action:none;user-select:none;-webkit-user-select:none}
+.sk-svg path{fill:none;stroke-linecap:round;stroke-linejoin:round}
+.sk-grid{stroke:var(--line);stroke-width:.6;stroke-dasharray:2 2}
+.sk-ghost path{stroke:var(--line2);stroke-width:4}
+.sk-ghost path.next{stroke:color-mix(in srgb,var(--s-learn) 45%,var(--line2))}
+.sk-ink path{stroke:var(--ink);stroke-width:4.2}
+.sk-live{stroke:var(--s-strong);stroke-width:4.5;opacity:.85}
+.sk-nums text{font-size:7px;font-weight:700;fill:var(--s-strong);font-family:inherit}
+.sk-start{position:absolute;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;background:var(--s-learn);box-shadow:0 0 0 4px color-mix(in srgb,var(--s-learn) 30%,transparent);pointer-events:none;animation:skpulse 1.2s ease-in-out infinite}
+.sk-box.shake2{animation:shake2 .34s ease}
+.sk-box.sk-done{box-shadow:inset 0 0 0 2px var(--s-mastered)}
+.sk-box.sk-done .sk-ink path{stroke:var(--s-mastered)}
+.sk-row{display:flex;gap:10px;justify-content:center;margin-top:4px}
+.sk-row .btn{flex:1;max-width:170px;white-space:nowrap;padding-inline:12px}
+.sk-msg{min-height:20px;margin:6px 0 0}
+@keyframes skpulse{50%{transform:scale(1.25)}}
+@media (prefers-reduced-motion: reduce){.sk-start{animation:none}.sk-box.shake2{animation:none}}

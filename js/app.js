@@ -10,6 +10,7 @@ import {
 } from './srs.js';
 import { reviewSteps, kanjiId } from './session.js';
 import { quizQuestion, drillKanji, kindFor, DRILL_SECONDS } from './quiz.js';
+import { loadStrokes, mountStrokes } from './strokes.js';
 import {
   renderSentence, renderParticle, renderCheck, particleCardHtml, bindGloss, glossHtml, glossText, romajiLine, shuffled, glued, setKanji, partsHtml, wordKanjiHtml, kanjiOf, kanjiIn,
   setNotes, noteOf, noteSlotInner, noteEditorHtml, togglePeek,
@@ -692,6 +693,7 @@ function kanjiFacts(k) {
     </div>
     ${run?.browse ? levelTrack(k) : ''}
     <div class="block-sec"><span class="caps">Breakdown</span>${partsHtml(k)}</div>
+    ${k.jlpt ? `<div class="block-sec sk-sec" data-strokes="${k.k}"></div>` : ''}
     <div class="block-sec">
       <div class="sechead"><span class="caps">Readings and the words that use them</span>
         <button class="info" data-info aria-label="What are On and Kun?" aria-expanded="false">${icons.info}</button></div>
@@ -730,6 +732,21 @@ function renderLearn(step) {
     <div class="dock ${run.browse && step.kind === 'kanji' ? 'pair' : ''}">${run.browse && step.kind === 'kanji' ? `<button class="btn ghost" id="prac">Practise <span class="jp">${step.ref.k}</span> · 30 s</button>` : ''}<button class="btn" id="next">${run.browse ? (last ? 'Done' : 'Next') : 'Got it'}</button></div>`;
   view.querySelector('#next').onclick = advance;
   view.querySelector('#prac')?.addEventListener('click', () => startPractice(step.ref));
+  showStrokes();
+}
+
+// Fills a kanji page's stroke-order box once the stroke file has loaded.
+function showStrokes() {
+  const el = view.querySelector('[data-strokes]');
+  if (!el) return;
+  el.hidden = true;
+  loadStrokes(new URL(import.meta.url).search).then(() => {
+    if (!el.isConnected) return;
+    el.hidden = false;
+    mountStrokes(el, el.dataset.strokes, {
+      onTraced: (slips, memory) => { if (!slips) toast(memory ? 'Written from memory, clean!' : 'Clean trace!'); },
+    });
+  }).catch(() => {});
 }
 
 // New parts, met just before the kanji built from them. Once each: not reviewed on their own.
@@ -2307,7 +2324,7 @@ function screenSettings() {
     </section>
     <div class="caps sect"><span>About</span></div>
     <section class="card">
-      <p class="small">Course lessons and exams are written for this app. The dictionary comes from JMdict, and words and kanji are checked against JMdict and KANJIDIC2 (Electronic Dictionary Research and Development Group, CC BY-SA 4.0). Talk phrases come from Tatoeba (tatoeba.org, CC BY 2.0 FR). Audio uses your device's Japanese voice.</p></section>`;
+      <p class="small">Course lessons and exams are written for this app. The dictionary comes from JMdict, and words and kanji are checked against JMdict and KANJIDIC2 (Electronic Dictionary Research and Development Group, CC BY-SA 4.0). Stroke order comes from KanjiVG (kanjivg.tagaini.net, Ulrich Apel, CC BY-SA 3.0). Talk phrases come from Tatoeba (tatoeba.org, CC BY 2.0 FR). Audio uses your device's Japanese voice.</p></section>`;
   settingsNotice = '';
   view.querySelector('#logout').onclick = logOut;
   view.querySelector('#export').onclick = exportBackup;

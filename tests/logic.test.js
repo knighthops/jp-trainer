@@ -18,6 +18,7 @@ import { checkLogin, hashPassword, userId } from '../js/lock.js';
 import { radioChannels } from '../js/radio.js';
 import { clipId, clipSsml, englishSaid } from '../js/clips.js';
 import { rushQuestion, bestKey } from '../js/rush.js';
+import { judgeStroke, resample } from '../js/strokes.js';
 import { makeIndex, search, posName } from '../js/dict.js';
 import { deckOf, emojiOf, homeCard } from '../js/cards.js';
 import {
@@ -1199,4 +1200,29 @@ test('Rush keeps a separate best for the struggling-only game', () => {
   assert.equal(bestKey({ mode: 'meaning', secs: 60, penalty: true }), 'meaning-60');
   assert.equal(bestKey({ mode: 'meaning', secs: 60, penalty: true, only: 'all' }), 'meaning-60');
   assert.equal(bestKey({ mode: 'reading', secs: 30, penalty: false, only: 'weak' }), 'reading-30-free-weak');
+});
+
+test('every N5 kanji has its strokes, as many as its stroke count', () => {
+  const strokes = json('strokes').k;
+  const off = [];
+  for (const k of json('kanji-n5')) {
+    const list = strokes[k.k];
+    assert.ok(list, `${k.k} has strokes`);
+    for (const d of list) assert.match(d, /^[MmCcSsLlZzHhVv0-9.,\s-]+$/, `${k.k}: path data only`);
+    if (list.length !== k.strokes) off.push(`${k.k} ${list.length}/${k.strokes}`);
+  }
+  assert.deepEqual(off, []);
+});
+
+test('a traced stroke is checked for start, end, direction and shape', () => {
+  const line = (x1, y1, x2, y2) => resample([{ x: x1, y: y1 }, { x: x2, y: y2 }], 24);
+  const want = line(15, 55, 95, 50);
+  assert.equal(judgeStroke(line(18, 57, 92, 52), want).ok, true);
+  assert.equal(judgeStroke(line(95, 50, 15, 55), want).why, 'backwards');
+  assert.equal(judgeStroke(line(15, 90, 95, 90), want).why, 'start');
+  assert.equal(judgeStroke(line(15, 55, 50, 52), want).why, 'end');
+  assert.equal(judgeStroke([{ x: 15, y: 55 }], want).why, 'tap');
+  // A bend that starts and ends right but wanders off the line in between.
+  const bent = resample([{ x: 15, y: 55 }, { x: 55, y: 95 }, { x: 95, y: 50 }], 24);
+  assert.equal(judgeStroke(bent, want).why, 'shape');
 });
