@@ -13,6 +13,8 @@ const defaults = () => ({
   practice: { sent: {}, part: {}, rushBest: 0 },
   exams: { current: null, history: [] },
   talk: { saved: {} },
+  // Your own notes on kanji, by kanji: { "休": "Leaning on the oak after mowing" }.
+  notes: {},
   // date: the day you fly, "YYYY-MM-DD", for the countdown.
   trip: { date: null },
   settings: { newPerDay: 4, hints: true, theme: 'system', radioEnglish: true, radioSlow: false, radioText: true },
@@ -20,6 +22,8 @@ const defaults = () => ({
 
 const isObject = (x) => x !== null && typeof x === 'object' && !Array.isArray(x);
 const RECORD_FIELDS = ['ease', 'interval', 'reps', 'lapses', 'due'];
+// Notes from a backup: only text, by kanji.
+const cleanNotes = (n) => (isObject(n) ? Object.fromEntries(Object.entries(n).filter(([, v]) => typeof v === 'string' && v.trim())) : {});
 
 export function backupJson(state, now = Date.now()) {
   return JSON.stringify({ app: 'jp-trainer', exportedAt: now, ...state });
@@ -51,6 +55,7 @@ export function parseBackup(text) {
       practice: { ...base.practice, ...(isObject(raw.practice) ? raw.practice : {}) },
       exams: { ...base.exams, ...(isObject(raw.exams) ? raw.exams : {}) },
       talk: { ...base.talk, ...(isObject(raw.talk) ? raw.talk : {}) },
+      notes: cleanNotes(raw.notes),
       trip: { ...base.trip, ...(isObject(raw.trip) ? raw.trip : {}) },
       settings: { ...base.settings, ...(isObject(raw.settings) ? raw.settings : {}) },
     },

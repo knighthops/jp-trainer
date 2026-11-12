@@ -6,11 +6,12 @@ import { setRecorded, unlockAudio, hasClips } from './clips.js';
 import { radioChannels, startRadio } from './radio.js';
 import { startRush, bestKey as rushKey } from './rush.js';
 import {
-  GRADES, GRADE_NAMES, GRADE_HELP, TROUBLE, newRecord, rate, label, STAGES, stageOf, STRONG,
+  GRADES, GRADE_NAMES, GRADE_HELP, TROUBLE, CLEARS, isStruggling, struggleOrder, newRecord, rate, label, STAGES, stageOf, STRONG,
 } from './srs.js';
 import { reviewSteps, kanjiId } from './session.js';
 import {
   renderSentence, renderParticle, renderCheck, particleCardHtml, bindGloss, glossHtml, glossText, romajiLine, shuffled, glued, setKanji, partsHtml, wordKanjiHtml, kanjiOf, kanjiIn,
+  setNotes, noteOf, noteSlotInner, noteEditorHtml,
 } from './drills.js';
 import {
   UNIT_FILES, mergeCourse, isUnlocked, unitProgress, nextUp, examUnlocked, lessonSteps, words as splitWords,
@@ -691,7 +692,7 @@ function hintHtml(step) {
   const list = step.kind === 'kanji' ? [step.ref] : kanjiIn(step.ref.w);
   if (!list.length) return '';
   return `<div class="hintbd" id="hint"><span class="caps">${step.relearn ? 'You forgot this one. Rebuild it from its parts' : 'A tricky one. Start from its parts'}</span>
-    ${list.map((k) => `${list.length > 1 ? `<p class="hint-k jp">${k.k}</p>` : ''}${partsHtml(k)}`).join('')}</div>`;
+    ${list.map((k) => `${list.length > 1 ? `<p class="hint-k jp">${k.k}</p>` : ''}${partsHtml(k, { edit: false })}`).join('')}</div>`;
 }
 
 const RATE_HELP = `<div class="block-sec">
@@ -1166,7 +1167,7 @@ function screenDojo() {
     ${action('cards', icons.story, 'Flashcards', 'Words and sentences to read, by unit or all of N5')}
     ${action('sent', icons.blocks, 'Sentence drill', done ? `${done} sentences from your finished lessons` : 'Finish a course lesson to fill this', !done)}
     ${action('part', icons.practice, 'Particles', 'Guides and unlimited practice, focused on what you miss')}
-    ${action('kan', icons.kanji, 'Kanji', `All ${data.kanji.length} N5 kanji, with parts, readings and words`)}
+    ${action('kan', icons.kanji, 'Kanji', `All ${data.kanji.length} N5 kanji. Filter to the ones you struggle with or have notes on`)}
     ${action('exam', icons.exam, 'JLPT N5 mock exam', 'Only if you plan to sit the exam')}
     <p class="small muted center">Dojo practice doesn't change your review schedule.</p>`;
   view.querySelector('#rush').onclick = () => { location.hash = '#/dojo/rush'; };
@@ -1544,10 +1545,29 @@ function screenExam() {
   };
 }
 
+// Struggling: rated Forgot or Shaky, until you get it right 3 reviews in a row. Hardest first.
+function strugglingKanji() {
+  return Object.keys(state.items)
+    .filter((id) => id.startsWith('k:') && isStruggling(state.items[id]))
+    .map((id) => kanjiOf(id.slice(2))).filter(Boolean)
+    .sort((a, b) => struggleOrder(state.items[kanjiId(a)], state.items[kanjiId(b)]));
+}
+const notedKanji = () => Object.keys(state.notes).map(kanjiOf).filter(Boolean);
+
+const KANJI_VIEWS = [
+  { id: 'all', name: 'All', list: () => data.kanji },
+  { id: 'hard', name: 'Struggling', list: strugglingKanji,
+    empty: `Nothing here. Kanji you rate Forgot or Shaky show up here, and leave once you get them right ${CLEARS} reviews in a row.` },
+  { id: 'notes', name: 'Notes', list: notedKanji,
+    empty: 'No notes yet. Open any kanji and tap "+ Add your note" above its breakdown.' },
+];
+
 function screenKanji() {
   setTop('Kanji', backTo('#/dojo'));
+  const pick = KANJI_VIEWS.find((v) => v.id === state.practice.kanjiView) || KANJI_VIEWS[0];
+  const list = pick.list();
   const started = data.kanji.filter((k) => state.items[kanjiId(k)]).length;
-  const steps = data.kanji.map((x) => ({ type: 'learn', kind: 'kanji', id: kanjiId(x), ref: x }));
+  const steps = list.map((x) => ({ type: 'learn', kind: 'kanji', id: kanjiId(x), ref: x }));
   // The bar under a tile shows its memory stage: a third for Learning, two for Strong, full for Mastered.
   const stage = (k) => stageOf(state.items[kanjiId(k)]);
   view.innerHTML = `
@@ -1556,13 +1576,24 @@ function screenKanji() {
         <span class="small muted"><span class="num">${started}</span> of ${data.kanji.length} started</span></div>
       <div class="meter"><i style="width:${(started / data.kanji.length) * 100}%"></i></div>
     </section>
-    <div class="grid" id="grid">${data.kanji.map((k, i) => `<button class="tile" data-i="${i}">
-      <b>${k.k}</b><small>${k.mean[0]}</small>${stage(k) ? `<i class="s-${STAGES[stage(k)].id}" style="width:${(stage(k) / 3) * 100}%"></i>` : ''}</button>`).join('')}</div>
-    <p class="small muted center">The bar fills as a kanji moves from ${STAGES.slice(1).map((s) => `<span class="jp">${s.jp}</span> ${s.en}`).join(' to ')}.</p>`;
-  view.querySelector('#grid').onclick = (e) => {
-    const b = e.target.closest('.tile');
-    if (b) startRun(steps, 'Kanji', { browse: true, start: Number(b.dataset.i) });
+    <div class="seg mini" id="kview">${KANJI_VIEWS.map((v) => `<button data-v="${v.id}" class="${v === pick ? 'on' : ''}">
+      ${v.name}${v.id === 'all' ? '' : ` <span class="num">${v.list().length}</span>`}</button>`).join('')}</div>
+    ${list.length ? `<div class="grid" id="grid">${list.map((k, i) => `<button class="tile" data-i="${i}">
+      ${noteOf(k.k) ? '<span class="tnote" aria-label="Has your note"></span>' : ''}
+      <b>${k.k}</b><small>${k.mean[0]}</small>${stage(k) ? `<i class="s-${STAGES[stage(k)].id}" style="width:${(stage(k) / 3) * 100}%"></i>` : ''}</button>`).join('')}</div>`
+    : `<p class="small muted center">${pick.empty}</p>`}
+    <p class="small muted center">The bar fills as a kanji moves from ${STAGES.slice(1).map((s) => `<span class="jp">${s.jp}</span> ${s.en}`).join(' to ')}. A dot means it has your note.</p>`;
+  view.querySelector('#kview').onclick = (e) => {
+    const b = e.target.closest('[data-v]');
+    if (!b) return;
+    state.practice.kanjiView = b.dataset.v;
+    save(state);
+    screenKanji();
   };
+  view.querySelector('#grid')?.addEventListener('click', (e) => {
+    const b = e.target.closest('.tile');
+    if (b) startRun(steps, pick.id === 'all' ? 'Kanji' : pick.name, { browse: true, start: Number(b.dataset.i) });
+  });
 }
 
 /* ---------- Flashcards ---------- */
@@ -1874,6 +1905,7 @@ async function importBackup(file) {
   box.querySelector('#nokeep').onclick = () => { screenSettings(); };
   box.querySelector('#yesreplace').onclick = () => {
     Object.assign(state, parsed.state);
+    setNotes(state.notes);
     save(state);
     applyTheme();
     settingsNotice = 'Progress restored from the backup.';
@@ -1936,6 +1968,39 @@ function route() {
   window.scrollTo(0, 0);
 }
 
+/* ---------- Your notes on kanji ---------- */
+
+// Every slot for this kanji on screen shows the note as it is now.
+const redrawNotes = (c) => document.querySelectorAll(`.knote-slot[data-k="${c}"]`)
+  .forEach((s) => { s.innerHTML = noteSlotInner(c, !s.hasAttribute('data-ro')); });
+
+// Tap a note or "+ Add your note" to write in place; Save keeps it, an empty Save removes it.
+function noteClick(e) {
+  const open = e.target.closest('[data-note]');
+  if (open) {
+    const slot = open.closest('.knote-slot');
+    slot.innerHTML = noteEditorHtml(slot.dataset.k);
+    const box = slot.querySelector('textarea');
+    const fit = () => { box.style.height = 'auto'; box.style.height = `${box.scrollHeight}px`; };
+    box.addEventListener('input', fit);
+    fit();
+    box.focus();
+    box.setSelectionRange(box.value.length, box.value.length);
+    return;
+  }
+  const btn = e.target.closest('[data-note-save], [data-note-cancel]');
+  if (!btn) return;
+  const slot = btn.closest('.knote-slot');
+  const c = slot.dataset.k;
+  if (btn.hasAttribute('data-note-save')) {
+    const text = slot.querySelector('textarea').value.trim();
+    if (text) state.notes[c] = text;
+    else delete state.notes[c];
+    save(state);
+  }
+  redrawNotes(c);
+}
+
 async function init() {
   applyTheme();
   // Any listen button, on any screen.
@@ -1944,6 +2009,7 @@ async function init() {
     unlockAudio();
     const el = e.target.closest('[data-say]');
     if (el) speak(el.dataset.say);
+    noteClick(e);
     const info = e.target.closest('[data-info]');
     if (info) {
       const text = info.closest('.block-sec').querySelector('.explain');
@@ -1995,6 +2061,7 @@ async function init() {
     // Every kanji with a breakdown, so word cards and word glosses can show each one.
     data.kanjiMore = kanjiMore;
     setKanji([...kanji, ...kanjiMore]);
+    setNotes(state.notes ||= {});
     setReadings(glossary);
     // Lessons finished before grammar had its own reviews get their grammar item now.
     let added = false;

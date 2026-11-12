@@ -14,7 +14,31 @@ export const kanjiOf = (c) => kanjiIndex.get(c);
 // The kanji in a word, in order, once each.
 export const kanjiIn = (word) => [...new Set([...String(word)])].map((c) => kanjiIndex.get(c)).filter(Boolean);
 
-export const partsHtml = (k) => k.parts.map((p) => `<div class="part">
+/* Your own notes, by kanji. They sit above the breakdown and never replace it. */
+let notes = {};
+export const setNotes = (n) => { notes = n; };
+export const noteOf = (c) => notes[c] || '';
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+export const NOTE_MAX = 300;
+
+// What goes in a kanji's note slot: the note (tap to edit), or a quiet link to add one.
+export function noteSlotInner(c, edit = true) {
+  const n = noteOf(c);
+  if (!edit) return n ? `<p class="knote">${esc(n)}</p>` : '';
+  return n
+    ? `<button class="knote" data-note="${c}" aria-label="Edit your note for ${c}">${esc(n)}</button>`
+    : `<button class="knote-add" data-note="${c}">+ Add your note</button>`;
+}
+const noteSlot = (c, edit) => `<div class="knote-slot" data-k="${c}"${edit ? '' : ' data-ro'}>${noteSlotInner(c, edit)}</div>`;
+
+// The editor that replaces a slot while you write. An empty note is removed on save.
+export const noteEditorHtml = (c) => `<div class="knote-edit">
+    <textarea maxlength="${NOTE_MAX}" rows="2" placeholder="Your own way to remember ${c}" aria-label="Your note for ${c}">${esc(noteOf(c))}</textarea>
+    <div class="knote-btns"><button data-note-cancel>Cancel</button><button class="save" data-note-save>Save</button></div>
+  </div>`;
+
+// edit: false where the note must not be changed, like a hint shown before you answer.
+export const partsHtml = (k, { edit = true } = {}) => noteSlot(k.k, edit) + k.parts.map((p) => `<div class="part">
     ${p.img ? `<img src="${p.img}" alt="${p.label}">` : `<span class="pg">${p.c}</span>`}
     <div><strong>${p.label}</strong><div class="small">${p.mn}</div></div></div>`).join('');
 
@@ -41,6 +65,7 @@ function glossKanji(word, y) {
   if (!list.length) return '';
   return `<div class="gk">${list.map((k) => `<div class="gk-one">
     <div class="gk-top"><b class="jp">${k.k}</b><span>${k.mean[0]}</span>${readingChip(k, word, y)}</div>
+    ${noteSlot(k.k, false)}
     <div class="gk-parts">${k.parts.map((p) => `<span><b class="jp">${p.c}</b> ${p.label}</span>`).join('<i>+</i>')}</div>
     <p class="small">${k.parts.at(-1).mn}</p></div>`).join('')}</div>`;
 }

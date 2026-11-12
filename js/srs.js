@@ -17,6 +17,18 @@ export const TROUBLE = 3;
 
 export const newRecord = () => ({ ease: 2.5, interval: 0, reps: 0, lapses: 0, due: 0 });
 
+// Struggling: rated Forgot or Shaky, and not yet rated Knew it or Instant this many times in a row since.
+export const CLEARS = 3;
+// Good reviews in a row since the last Forgot or Shaky, or null if it has never been either.
+// Records saved before this was tracked start from zero when they show a past struggle.
+const streakOf = (rec) => rec.streak ?? (rec.lapses > 0 || rec.ease < 2.5 ? 0 : null);
+export const isStruggling = (rec) => {
+  const s = rec ? streakOf(rec) : null;
+  return s !== null && s < CLEARS;
+};
+// Most-forgotten first, then the fewest good reviews since.
+export const struggleOrder = (a, b) => b.lapses - a.lapses || streakOf(a) - streakOf(b) || a.ease - b.ease;
+
 function dueAfter(days, now) {
   const d = new Date(now);
   d.setHours(0, 0, 0, 0);
@@ -38,6 +50,7 @@ export function rate(rec, grade, now = Date.now()) {
       reps: 0,
       lapses: rec.lapses + (rec.reps > 0 ? 1 : 0),
       due: now + RELEARN_MS,
+      streak: 0,
     };
   }
   const good = goodInterval(rec);
@@ -51,7 +64,9 @@ export function rate(rec, grade, now = Date.now()) {
     interval = Math.max(good + 2, Math.round(good * 1.8));
     ease += 0.15;
   }
-  return { ease, interval, reps: rec.reps + 1, lapses: rec.lapses, due: dueAfter(interval, now) };
+  const s = streakOf(rec);
+  const streak = grade === 'hard' ? 0 : s === null ? null : s + 1;
+  return { ease, interval, reps: rec.reps + 1, lapses: rec.lapses, due: dueAfter(interval, now), streak };
 }
 
 export const isDue = (rec, now = Date.now()) => Boolean(rec) && rec.due <= now;

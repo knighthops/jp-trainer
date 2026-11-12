@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { newRecord, rate, isDue, stageOf } from '../js/srs.js';
-import { validNext, explainWrong, orders, tokenize, romajiLine, spoken } from '../js/drills.js';
+import { newRecord, rate, isDue, stageOf, isStruggling, CLEARS } from '../js/srs.js';
+import { validNext, explainWrong, orders, tokenize, romajiLine, spoken, setNotes, noteSlotInner, partsHtml } from '../js/drills.js';
 import { backupJson, parseBackup } from '../js/store.js';
 import { romaji, toHiragana, toKana, judgeReading } from '../js/romaji.js';
 import { speechText } from '../js/tts.js';
@@ -1012,4 +1012,45 @@ test('home reading card: finished lessons first, never the same card twice runni
   assert.equal(card.unit, d.units[1]);
   const next = homeCard(d.units, done, () => 0, card.t);
   assert.notEqual(next.t, card.t);
+});
+
+test('kanji notes: kept by backups, shown above the breakdown, escaped, read-only in hints', () => {
+  const state = { ...blank(), v: 1, notes: { 休: 'Leaning on the oak', 木: '  ', 山: 7 } };
+  const { state: restored } = parseBackup(backupJson(state, NOW));
+  assert.deepEqual(restored.notes, { 休: 'Leaning on the oak' }, 'only real text survives');
+  assert.deepEqual(parseBackup(backupJson(blankOld(), NOW)).state.notes, {});
+  setNotes({ 休: 'a <b>bold</b> & "odd" note' });
+  const k = { k: '休', parts: [{ c: '亻', label: 'Person', mn: 'A person.' }, { c: '木', label: 'Tree', mn: 'Resting on a tree.' }] };
+  const html = partsHtml(k);
+  assert.ok(html.indexOf('knote') < html.indexOf('class="part"'), 'the note comes before the parts');
+  assert.ok(html.includes('Resting on a tree.'), 'the breakdown is still there');
+  assert.ok(html.includes('&lt;b&gt;bold&lt;/b&gt; &amp; &quot;odd&quot;') && !html.includes('<b>bold'));
+  assert.ok(html.includes('data-note="休"'), 'editable on a card');
+  assert.ok(!partsHtml(k, { edit: false }).includes('data-note='), 'not editable in a hint');
+  assert.ok(noteSlotInner('木').includes('+ Add your note'));
+  assert.equal(noteSlotInner('木', false), '');
+  setNotes({});
+});
+
+test('struggling: Forgot or Shaky puts it on, 3 good reviews in a row take it off', () => {
+  const good = (r, n) => { for (let i = 0; i < n; i++) r = rate(r, 'good', NOW); return r; };
+  let r = good(newRecord(), 2);
+  assert.ok(!isStruggling(r), 'never rated badly');
+  assert.ok(!isStruggling(rate(r, 'easy', NOW)));
+  r = rate(r, 'hard', NOW);
+  assert.ok(isStruggling(r), 'Shaky puts it on');
+  r = good(r, CLEARS - 1);
+  assert.ok(isStruggling(r), 'not yet');
+  r = rate(r, 'again', NOW);
+  r = good(r, CLEARS - 1);
+  assert.ok(isStruggling(r), 'Forgot resets the count');
+  r = rate(r, 'easy', NOW);
+  assert.ok(!isStruggling(r), 'Instant counts as good too');
+  assert.ok(!isStruggling(rate(good(r, 5), 'good', NOW)), 'stays off, even with low ease and past lapses');
+  assert.ok(isStruggling(rate(r, 'hard', NOW)), 'and comes back on a new slip');
+  // Saved before the count existed: a past struggle starts at zero.
+  const old = { ease: 2.2, interval: 3, reps: 4, lapses: 1, due: 0 };
+  assert.ok(isStruggling(old));
+  assert.ok(!isStruggling(good(old, CLEARS)));
+  assert.ok(!isStruggling({ ease: 2.6, interval: 9, reps: 4, lapses: 0, due: 0 }));
 });
