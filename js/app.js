@@ -1,21 +1,22 @@
 // Routing and screens.
-import { load, save, dayStats, daysStudied, dayKey, backupJson, parseBackup } from './store.js';
+import { load, save, dayStats, daysStudied, dayKey, backupJson, parseBackup, xpToday, DAILY_GOAL, streakWithRest, XP } from './store.js';
 import { renderListen } from './listen.js';
 import { speak, speakLines, speakStep, cancel, sayBtn, setReadings, unlockSpeech, NORMAL, SLOW } from './tts.js';
 import { setRecorded, unlockAudio, hasClips } from './clips.js';
 import { radioChannels, startRadio } from './radio.js';
 import { startRush, bestKey as rushKey } from './rush.js';
 import {
-  GRADES, GRADE_NAMES, GRADE_HELP, TROUBLE, CLEARS, isStruggling, struggleOrder, newRecord, rate, label, STAGES, stageOf, STRONG,
+  GRADES, GRADE_NAMES, GRADE_HELP, CLEARS, isStruggling, struggleOrder, newRecord, rate, label, STAGES, stageOf, STRONG, MASTERED, isDue,
 } from './srs.js';
 import { reviewSteps, kanjiId } from './session.js';
+import { quizQuestion, drillKanji, kindFor, DRILL_SECONDS } from './quiz.js';
 import {
   renderSentence, renderParticle, renderCheck, particleCardHtml, bindGloss, glossHtml, glossText, romajiLine, shuffled, glued, setKanji, partsHtml, wordKanjiHtml, kanjiOf, kanjiIn,
   setNotes, noteOf, noteSlotInner, noteEditorHtml, togglePeek,
 } from './drills.js';
 import {
   UNIT_FILES, mergeCourse, isUnlocked, unitProgress, nextUp, examUnlocked, lessonSteps, words as splitWords,
-  LEVELS, levelSentences, levelProgress, levelUnlocked, particleItem, courseSteps, rankOf, unitStars, grammarId, passUnit, isWords,
+  LEVELS, levelSentences, levelProgress, levelUnlocked, particleItem, courseSteps, rankOf, RANKS, unitStars, grammarId, passUnit, isWords,
 } from './course.js';
 import { mockExam, unitTest, startExam } from './exam.js';
 import { icons } from './icons.js';
@@ -39,7 +40,9 @@ let run = null;
 let stepCleanup = null;
 let settingsNotice = '';
 
-const TABS = [['today', 'Home'], ['trip', 'Trip'], ['course', 'Course'], ['listen', 'Listen'], ['dojo', 'Dojo']];
+const TABS = [['today', 'Home'], ['course', 'Course'], ['kanji', 'Kanji'], ['trip', 'Trip'], ['dojo', 'Dojo']];
+// Trip and Listen share one tab: scenes to practise, and radio to listen to hands-free.
+const tripSeg = (on) => `<nav class="seg" aria-label="Trip"><a href="#/trip" class="${on === 'trip' ? 'on' : ''}">Scenes</a><a href="#/listen" class="${on === 'listen' ? 'on' : ''}">Listen</a></nav>`;
 // Leaving a screen stops whatever it was doing (Radio playback, the Rush timer).
 let screenCleanup = null;
 
@@ -78,7 +81,9 @@ function setTop(title, {
     runbar.innerHTML = '';
     return;
   }
-  top.innerHTML = `<div class="top-in slim"><h1>${title}</h1></div>
+  // A run of right answers shows as a small combo pill; it turns solid at three.
+  const combo = run?.combo >= 2 ? `<span class="combo ${run.combo >= 3 ? 'hot' : ''}" aria-label="${run.combo} right in a row">×${run.combo}</span>` : '';
+  top.innerHTML = `<div class="top-in slim"><h1>${title}</h1>${combo}</div>
     ${progress === null ? '' : `<div class="progress"><i style="width:${progress}%"></i></div>`}`;
   runbar.innerHTML = `
     <button id="rbexit"><span class="rbi">${icons.close}</span><span class="rbl">Exit</span></button>
@@ -126,15 +131,6 @@ function featuredKanji() {
   return from[localDay() % from.length];
 }
 
-// Consecutive days with any study, counting back from today (or yesterday, if today is still open).
-function streak(now = Date.now()) {
-  let n = 0;
-  let t = now;
-  if (!activity(state.days[dayKey(t)])) t -= DAY_MS;
-  while (activity(state.days[dayKey(t)])) { n++; t -= DAY_MS; }
-  return n;
-}
-
 function ringSvg(share) {
   const pct = Math.round(Math.max(0, Math.min(1, share)) * 100);
   return `<svg class="ring" viewBox="0 0 120 120" aria-hidden="true">
@@ -165,29 +161,84 @@ function kanjiDeck(now = Date.now()) {
   }));
 }
 
+// Home's hero: the one next thing to do, how long it takes, and what it gives.
 function courseCard(next) {
   const units = data.units || [];
   const passed = units.filter((u) => state.course.passed[u.id]).length;
-  const steps = courseSteps(state, units);
   const rank = rankOf(passed);
   const go = nextAction(next);
   const due = reviewSteps(state, data).length;
   const label = next?.type === 'lesson' ? next.lesson.title
-    : next?.type === 'test' ? `Unit ${next.unit.n} test` : next?.type === 'exam' ? 'Mock exam' : 'Course complete';
-  const seg = (u) => (state.course.passed[u.id] ? 'on' : u === next?.unit ? 'now' : '');
-  return `<section class="card course-card">
-    <div class="cc-top">
-      <div class="ringbox">${ringSvg(steps.total ? steps.done / steps.total : 0)}
-        <span class="ringtext"><b>${steps.done}</b><small>of ${steps.total}</small></span></div>
-      <div class="grow">
-        <span class="caps">Course${next?.unit ? ` · Unit ${next.unit.n}` : ''}</span>
-        <h3>${label}</h3>
-        <p class="small muted"><span class="jp">${rank.jp}</span> ${rank.en}${next?.unit ? ` · ${pips(next.unit)}` : ''}</p>
-      </div>
+    : next?.type === 'test' ? `Unit ${next.unit.n} test` : 'Course complete';
+  const newKanji = next?.type === 'lesson' ? (next.lesson.kanji || []).filter((c) => !state.items[`k:${c}`]).length : 0;
+  const lessonMins = next?.type === 'lesson' && !resumable(next) ? 4 : next?.type === 'test' ? 6 : resumable(next) ? 2 : 0;
+  const mins = Math.max(1, Math.round((resumable(next) ? 0 : due * 8) / 60 + lessonMins));
+  const where = next?.unit ? `Lesson ${next.unit.n}.${next.unit.lessons.indexOf(next.lesson) + 1}` : '';
+  const chips = [
+    due && !resumable(next) ? `${due} reviews` : '',
+    next?.type === 'lesson' ? (resumable(next) ? `Resume ${where}` : where) : next?.type === 'test' ? `Unit ${next.unit.n} test` : '',
+    newKanji ? `+${newKanji} kanji` : '',
+  ].filter(Boolean);
+  return `<section class="card hero upnext">
+    <span class="water" aria-hidden="true">${rank.jp[0]}</span>
+    <span class="caps">Up next${go ? ` · about ${mins} min` : ''}</span>
+    <h2>${label}</h2>
+    ${chips.length ? `<div class="plan-chips">${chips.map((c, n) => `${n ? '<span class="arrow" aria-hidden="true">→</span>' : ''}<span class="pchip">${c}</span>`).join('')}</div>` : ''}
+    ${go ? `<button class="btn" id="cont">${resumable(next) ? 'Resume' : 'Start'}</button>` : ''}
+    ${due && go && !resumable(next) ? `<button class="hero-link" id="revonly">Only 2 minutes? Just reviews · ${due}</button>` : ''}
+    ${!go && due ? `<button class="btn" id="revonly">Review · ${due}</button>` : ''}
+  </section>`;
+}
+
+// Today's XP ring, this week's days, and the streak. Up to two days off a week count as rest.
+function goalHome(now = Date.now()) {
+  const xp = xpToday(state, now);
+  const s = streakWithRest(state, now);
+  const share = Math.min(1, xp / DAILY_GOAL);
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const t = now - (6 - i) * DAY_MS;
+    const on = activity(state.days[dayKey(t)]) > 0;
+    const wd = '日月火水木金土'[new Date(t).getDay()];
+    return `<span class="wd ${on ? 'on' : i === 6 ? 'now' : 'rest'}"><i>${on ? '' : i === 6 ? '' : '休'}</i><small class="jp">${wd}</small></span>`;
+  }).join('');
+  return `<section class="card goalhome">
+    <div class="gh-top">
+      <div class="ringbox small">${ringSvg(0)}<span class="ringtext"><b>${xp}</b><small>XP</small></span></div>
+      <div class="grow"><span class="caps">Daily goal · ${DAILY_GOAL} XP</span>
+        <strong>${share >= 1 ? 'Done for today' : `${DAILY_GOAL - xp} XP to go`}</strong>
+        <span class="small muted">${s ? `${s} ${s === 1 ? 'day' : 'days'} running` : 'Study today to start a run'} · rest days don't break it</span></div>
     </div>
-    <div class="segs" aria-label="${passed} of ${units.length} units passed">${units.map((u) => `<i class="${seg(u)}"></i>`).join('')}</div>
-    ${go ? `<button class="btn" id="cont">${go.label}</button>` : ''}
-    ${due ? `<button class="btn ghost" id="revonly">Review only · ${due}</button>` : ''}
+    <div class="weekrow">${days}</div>
+    <span hidden data-fill="${share}"></span>
+  </section>`;
+}
+
+// How many N5 kanji sit at each memory stage: not started, Learning, Strong, Mastered.
+function kanjiStages() {
+  const n = [0, 0, 0, 0];
+  for (const k of data.kanji) n[stageOf(state.items[kanjiId(k)])]++;
+  return n;
+}
+
+// The N5 kanji at a glance, and a one-tap 2-minute drill on the weakest ones.
+function kanjiHomeCard() {
+  const [none, learn, strong, mastered] = kanjiStages();
+  const total = data.kanji.length;
+  const weak = strugglingKanji();
+  const due = data.kanji.filter((k) => isDue(state.items[kanjiId(k)])).length;
+  const drill = drillKanji(weak, data.kanji.filter((k) => isDue(state.items[kanjiId(k)])));
+  const seg = (n, cls) => (n ? `<i class="${cls}" style="flex:${n}"></i>` : '');
+  return `<section class="card kanjihome">
+    <a class="kod-head kh-link" href="#/kanji"><span class="caps">N5 kanji · ${total - none} of ${total} started</span><span class="chev">${icons.chevron}</span></a>
+    <div class="stagebar" aria-hidden="true">${seg(mastered, 'm')}${seg(strong, 's')}${seg(learn, 'l')}${seg(none, 'n')}</div>
+    <div class="stagekey">
+      <span><i class="m"></i><span class="jp">極</span> ${mastered}</span><span><i class="s"></i><span class="jp">強</span> ${strong}</span>
+      <span><i class="l"></i><span class="jp">習</span> ${learn}</span><span><i class="n"></i>Not yet ${none}</span></div>
+    ${drill.length ? `<button class="weakrow" id="weak">
+      <span class="wk-glyphs jp" aria-hidden="true">${drill.slice(0, 3).map((k) => k.k).join('')}</span>
+      <span class="grow"><strong>2-minute kanji drill</strong>
+        <span class="small muted">${weak.length ? `${weak.length} struggling` : ''}${weak.length && due ? ' · ' : ''}${due ? `${due} due` : ''}</span></span>
+      <span class="chev">${icons.chevron}</span></button>` : ''}
   </section>`;
 }
 
@@ -203,7 +254,7 @@ function heatmap(now = Date.now()) {
     const level = n === 0 ? 0 : n < 5 ? 1 : n < 15 ? 2 : n < 30 ? 3 : 4;
     return `<i class="l${level} ${i === back + 28 ? 'now' : ''}"></i>`;
   });
-  const s = streak(now);
+  const s = streakWithRest(state, now);
   return `<section class="card">
     <div class="kod-head"><span class="caps">Last 5 weeks</span>
       <span class="small"><b class="num">${s}</b> ${s === 1 ? 'day' : 'days'} in a row</span></div>
@@ -213,38 +264,16 @@ function heatmap(now = Date.now()) {
   </section>`;
 }
 
-// Kanji and words you keep forgetting, most-forgotten first.
-function troubleSteps() {
-  const cards = [
-    ...data.kanji.map((x) => ({ type: 'card', kind: 'kanji', id: kanjiId(x), ref: x })),
-    ...data.vocab.map((x) => ({ type: 'card', kind: 'word', id: `w:${x.w}`, ref: x })),
-  ].filter((s) => isTrouble(s.id));
-  return cards.sort((a, b) => state.items[b.id].lapses - state.items[a.id].lapses);
-}
-
-function troubleCard() {
-  const list = troubleSteps();
-  if (!list.length) return '';
-  return `<button class="card kod trouble" id="trouble" aria-label="Drill your trouble list">
-    <span class="kod-glyph jp" aria-hidden="true">${list.slice(0, 3).map((s) => (s.kind === 'kanji' ? s.ref.k : s.ref.w[0])).join('')}</span>
-    <span class="kod-info">
-      <span class="caps">Trouble list · ${list.length}</span>
-      <strong>Forgotten ${TROUBLE}+ times</strong>
-      <span class="small muted">Relearn each one from its breakdown</span>
-    </span>
-    <span class="chev">${icons.chevron}</span>
-  </button>`;
-}
-
-// Home: the trip, the course (reviews include kanji), plus anything you keep forgetting.
+// Home: one next action, today's goal, your kanji at a glance, then the trip and a card to read.
 function screenToday() {
   setTop('JP Trainer');
   const next = nextUp(state, data.units);
   view.innerHTML = `
-    ${tripCard()}
     ${courseCard(next)}
+    ${goalHome()}
+    ${kanjiHomeCard()}
     <div id="readcard"></div>
-    ${troubleCard()}
+    ${tripCard()}
     ${backupDue() ? `<a class="nudge" href="#/settings">${icons.download}<span class="grow">Back up your progress. Safari can clear saved data.</span><span class="chev">${icons.chevron}</span></a>` : ''}`;
   view.querySelector('#cont')?.addEventListener('click', () => nextAction(next).go());
   view.querySelector('#revonly')?.addEventListener('click', startReviews);
@@ -253,8 +282,9 @@ function screenToday() {
     if (go) startPart(go.scene, go.part);
     else location.hash = '#/trip';
   });
-  view.querySelector('#trouble')?.addEventListener('click', () => startRun(troubleSteps(), 'Trouble list', { useSrs: true }));
+  view.querySelector('#weak')?.addEventListener('click', () => startWeakDrill());
   drawReadCard(view.querySelector('#readcard'));
+  fillRings();
 }
 
 // Home's "Try reading this": a random card from what you've learned. Flip to check, or get another.
@@ -262,9 +292,9 @@ let homeShown = null;
 function drawReadCard(root, fresh = false) {
   if (fresh || !homeShown) homeShown = homeCard(data.units, state.course.done, Math.random, homeShown?.t || homeShown?.w);
   const card = homeShown;
-  if (!card) { root.innerHTML = ''; return; }
+  if (!card) { root.innerHTML = `<a class="card cardslink" href="#/dojo/cards"><span class="grow"><strong>Flashcards</strong><span class="small">Words and sentences to read, by unit or all of N5</span></span><span class="chev">${icons.chevron}</span></a>`; return; }
   root.innerHTML = `<section class="card fcard home-read gloss-zone">
-    <div class="kod-head"><span class="caps">Try reading this</span><span class="small muted">Unit ${card.unit.n}</span></div>
+    <div class="kod-head"><span class="caps">Try reading this</span><a class="small kh-cards" href="#/dojo/cards">Unit ${card.unit.n} · All cards</a></div>
     ${flashFront(card)}
     <div class="fnav">
       <button class="btn ghost" id="rdsay" aria-label="Listen">${icons.speaker}</button>
@@ -292,7 +322,7 @@ const lineRo = (text) => romajiLine(text.split(' '), data.glossary);
 
 // Hands-free listening: your trip scenes first, then what the course has taught.
 function screenListen() {
-  setTop('Listen');
+  setTop('Trip');
   const channels = radioChannels(state, data);
   const chRow = (c) => `<a class="crow" href="#/listen/radio/${c.id}">
       <span class="cjp jp big">${c.jp}</span>
@@ -300,7 +330,7 @@ function screenListen() {
       <span class="playdot" aria-hidden="true">${icons.play}</span></a>`;
   const trip = channels.filter((c) => c.trip);
   const course = channels.filter((c) => !c.trip);
-  view.innerHTML = `
+  view.innerHTML = `${tripSeg('listen')}
     <div class="caps sect"><span><span class="jp">旅</span> Trip radio</span><span class="muted">Hands-free</span></div>
     <section class="clist">${trip.map(chRow).join('')}</section>
     <div class="caps sect"><span><span class="jp">講座</span> Course radio</span></div>
@@ -330,10 +360,15 @@ const kanjiKnown = () => Object.keys(state.items).filter((id) => id.startsWith('
 let carried = null;
 const starMap = () => Object.fromEntries((data.units || []).map((u) => [u.id, unitStars(state, u)]));
 
-function startRun(steps, title, { useSrs = false, browse = false, start = 0, more = null, onDrill = null, lesson = null, then = null } = {}) {
-  const from = carried || { ups: [0, 0, 0, 0], stars: starMap(), kanji: kanjiKnown() };
+function startRun(steps, title, { useSrs = false, browse = false, start = 0, more = null, onDrill = null, lesson = null, then = null, drill = null } = {}) {
+  const from = carried || { ups: [0, 0, 0, 0], stars: starMap(), kanji: kanjiKnown(), started: Date.now(), xp: xpToday(state), combo: 0, best: 0 };
   carried = null;
-  run = { steps: [...steps], i: start, title, useSrs, browse, more, onDrill, lesson, then, kanjiBefore: from.kanji, ups: from.ups, starsBefore: from.stars, clean: 0, drills: 0, cards: 0 };
+  run = {
+    steps: [...steps], i: start, title, useSrs, browse, more, onDrill, lesson, then, drill,
+    kanjiBefore: from.kanji, ups: from.ups, starsBefore: from.stars, clean: 0, drills: 0, cards: 0,
+    // For the end screen: how long it took, XP earned, and the longest run of right answers.
+    started: from.started, xpBefore: from.xp, combo: from.combo, bestCombo: from.best,
+  };
   document.body.classList.add('in-run');
   renderStep();
 }
@@ -356,6 +391,7 @@ function goPrevious() {
 function clearStep() {
   stepCleanup?.();
   stepCleanup = null;
+  document.body.classList.remove('has-sheet');
   cancel();
 }
 
@@ -368,7 +404,27 @@ function endRun() {
 
 function advance() {
   run.i++;
+  // The 2-minute drill's clock is a target, not a fail state: when it runs out, the run ends after the item you were on.
+  if (run.drill && Date.now() > run.drill.deadline) run.i = Math.max(run.i, run.steps.length);
   renderStep();
+}
+
+// Right answers in a row. A miss resets it quietly; every fourth gets a short toast.
+function bumpCombo(clean) {
+  if (!run) return;
+  run.combo = clean ? run.combo + 1 : 0;
+  run.bestCombo = Math.max(run.bestCombo, run.combo);
+  if (clean && run.combo >= 4 && run.combo % 4 === 0) toast(`${run.combo} in a row`);
+}
+
+function toast(text) {
+  document.querySelector('.toast')?.remove();
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.setAttribute('role', 'status');
+  t.textContent = text;
+  document.body.append(t);
+  setTimeout(() => t.remove(), 1500);
 }
 
 function record(id, grade) {
@@ -400,7 +456,7 @@ function renderStep() {
     // Reviews before a lesson flow straight into it.
     if (run.then) {
       const then = run.then;
-      carried = { ups: run.ups, stars: run.starsBefore, kanji: run.kanjiBefore };
+      carried = { ups: run.ups, stars: run.starsBefore, kanji: run.kanjiBefore, started: run.started, xp: run.xpBefore, combo: run.combo, best: run.bestCombo };
       clearStep();
       run = null;
       return then();
@@ -450,6 +506,7 @@ function renderStep() {
       step.done = true;
       run.drills++;
       if (clean) run.clean++;
+      bumpCombo(clean);
       record(step.id, clean ? 'good' : 'again');
       run.onDrill?.(step, clean);
     }
@@ -463,10 +520,11 @@ function renderStep() {
   if (step.type === 'learn') renderLearn(step);
   else if (step.type === 'parts') renderParts(step);
   else if (step.type === 'card') renderCard(step);
+  else if (step.type === 'quiz') renderQuiz(step);
   else if (step.type === 'lesson') renderLesson(step);
   else if (step.type === 'dialogue') renderDialogue(step);
   else if (step.type === 'reading') renderReading(step);
-  else if (step.type === 'sentence') renderSentence(view, step.ref, { hints: state.settings.hints, review, onDone: finishDrill });
+  else if (step.type === 'sentence') renderSentence(view, step.ref, { hints: state.settings.hints && ((b) => !knownKanji(b.t)), review, onDone: finishDrill });
   else if (step.type === 'particle') renderParticle(view, step.ref, step.set, data.particles.cards, { glossary: data.glossary, review, onDone: finishDrill });
   else if (step.type === 'check') {
     renderCheck(view, step.ref, {
@@ -477,6 +535,7 @@ function renderStep() {
           step.done = true;
           run.drills++;
           if (clean) run.clean++;
+          bumpCombo(clean);
           if (step.missed && clean) {
             delete state.course.missed[step.id];
             save(state);
@@ -541,10 +600,6 @@ function renderStep() {
   animate();
 }
 
-const readingLines = (a) => (a.length
-  ? a.map((r) => `<span class="rline"><span class="jp">${r}</span><span class="ro">${romaji(r)}</span></span>`).join('')
-  : '<span class="muted">—</span>');
-
 const glyphHtml = (step) => (step.kind === 'kanji'
   ? `<div class="genko">${step.ref.k}</div>`
   : `<div class="wordglyph">${step.ref.w}</div>`);
@@ -588,25 +643,61 @@ function headReading(k) {
   return full(k.on[0] || k.kun[0] || '');
 }
 
+// How well you know a kanji: 習 → 強 → 極 with your place marked, when it's next due, and how often you've got it.
+function levelTrack(k) {
+  const rec = state.items[kanjiId(k)];
+  if (!rec) return '';
+  const s = stageOf(rec);
+  const days = Math.ceil((rec.due - Date.now()) / DAY_MS);
+  const next = rec.due <= Date.now() ? 'Due now' : days <= 1 ? 'Tomorrow' : `In ${days} days`;
+  return `<div class="ltrack">
+    <div class="lt-steps">${STAGES.slice(1).map((x, n) => `<span class="lt lt${n + 1} ${n + 1 <= s ? 'on' : ''} ${n + 1 === s ? 'here' : ''}">
+      <span class="jp">${x.jp}</span><small>${x.en}</small></span>`).join('<i class="lt-bar"></i>')}</div>
+    <div class="lt-facts"><span><small>Next review</small><b>${next}</b></span>
+      <span><small>Right in a row</small><b>${rec.streak ?? rec.reps}</b></span>
+      <span><small>${s >= MASTERED ? 'Mastered' : 'Mastered at'}</small><b>${s >= MASTERED ? `${rec.interval} d gap` : '21 d gap'}</b></span></div>
+  </div>`;
+}
+
+// Each reading with the words that use it, so the On/Kun pattern is learned by example.
+function readingGroups(k) {
+  const words = k.words.map(wordEntry).filter(Boolean);
+  const groups = new Map();
+  const special = [];
+  for (const w of words) {
+    const hit = matchReading(k, w, w.y);
+    if (!hit) { special.push(w); continue; }
+    const key = `${hit.type}:${toHiragana(hit.reading)}`;
+    if (!groups.has(key)) groups.set(key, { type: hit.type, reading: hit.reading, words: [] });
+    groups.get(key).words.push(w);
+  }
+  const used = new Set([...groups.values()].map((g) => toHiragana(g.reading)));
+  const unused = [...k.on.map((r) => ['on', r]), ...k.kun.map((r) => ['kun', r])]
+    .filter(([, r]) => !used.has(toHiragana(r.split(/[-.]/)[0])));
+  const card = (g) => `<div class="rgroup ${g.type}">
+      <div class="rg-head"><span class="rt ${g.type}">${g.type === 'on' ? 'On' : 'Kun'}</span>
+        <span class="jp rg-r">${toHiragana(g.reading)}</span><span class="ro">${romaji(g.reading)}</span></div>
+      ${g.words.map((w) => wordRow(k, w)).join('')}</div>`;
+  return `${[...groups.values()].map(card).join('')}
+    ${special.length ? `<div class="rgroup"><div class="rg-head"><span class="rt">Special reading</span></div>${special.map((w) => wordRow(k, w)).join('')}</div>` : ''}
+    ${unused.length ? `<p class="small muted rg-also">Also read: ${unused.map(([t, r]) => `<span class="jp">${r}</span> <span class="rt ${t}">${t === 'on' ? 'On' : 'Kun'}</span>`).join(' ')}</p>` : ''}`;
+}
+
 // Breakdown first: the parts are what make a kanji stick.
 function kanjiFacts(k) {
-  const words = k.words.map(wordEntry).filter(Boolean);
   const said = headReading(k);
   return `<div>
       <p class="mean">${k.mean.join(', ')}</p>
       ${said ? `<p class="head-read"><span class="jp">${said}</span> <span class="ro">${romaji(said)}</span></p>` : ''}
     </div>
+    ${run?.browse ? levelTrack(k) : ''}
     <div class="block-sec"><span class="caps">Breakdown</span>${partsHtml(k)}</div>
     <div class="block-sec">
-      <div class="sechead"><span class="caps">All readings</span>
+      <div class="sechead"><span class="caps">Readings and the words that use them</span>
         <button class="info" data-info aria-label="What are On and Kun?" aria-expanded="false">${icons.info}</button></div>
       <p class="explain small" hidden><b>On</b> comes from Chinese and mostly appears in compounds, like 学生. <b>Kun</b> is native Japanese, mostly used alone or before hiragana, like 山 or 食べる.</p>
-      <div class="reads">
-        <div class="read"><span class="caps">On</span>${readingLines(k.on)}</div>
-        <div class="read"><span class="caps">Kun</span>${readingLines(k.kun)}</div>
-      </div>
-    </div>
-    ${words.length ? `<div class="block-sec"><span class="caps">In words</span>${words.map((w) => wordRow(k, w)).join('')}</div>` : ''}`;
+      ${readingGroups(k)}
+    </div>`;
 }
 
 // A word card's answer, then each of its kanji with the breakdown.
@@ -636,8 +727,9 @@ function renderLearn(step) {
   view.innerHTML = `<div class="card study">
       ${headHtml(title, step)}${glyphHtml(step)}${factsHtml(step)}
     </div>
-    <div class="dock"><button class="btn" id="next">${run.browse ? (last ? 'Done' : 'Next') : 'Got it'}</button></div>`;
+    <div class="dock ${run.browse && step.kind === 'kanji' ? 'pair' : ''}">${run.browse && step.kind === 'kanji' ? `<button class="btn ghost" id="prac">Practise <span class="jp">${step.ref.k}</span> · 30 s</button>` : ''}<button class="btn" id="next">${run.browse ? (last ? 'Done' : 'Next') : 'Got it'}</button></div>`;
   view.querySelector('#next').onclick = advance;
+  view.querySelector('#prac')?.addEventListener('click', () => startPractice(step.ref));
 }
 
 // New parts, met just before the kanji built from them. Once each: not reviewed on their own.
@@ -656,15 +748,27 @@ function renderParts(step) {
 /* ---------- Typing the reading ---------- */
 
 const KANJI_RE = /[一-龯々]/;
-// Every reading that counts as right: a kanji takes any of its on or kun readings,
-// with or without its okurigana; a word takes its kana spelling.
-function readingsOf(step) {
-  if (step.kind !== 'kanji') return [toHiragana(step.ref.y)];
-  return [...new Set([...step.ref.on, ...step.ref.kun].flatMap((r) => {
-    const h = toHiragana(r).replace(/^-|-$/g, '');
-    return [h.replace(/[-.]/g, ''), h.split(/[-.]/)[0]];
-  }).filter(Boolean))];
+// Words that show which reading a kanji takes, so a review can ask for one exact reading.
+function readingWords(k) {
+  return k.words.map(wordEntry).filter((w) => w && w.w !== k.k && matchReading(k, w, w.y));
 }
+// A kanji is reviewed through one of its words, a different one each time, so every
+// reading gets asked in turn. On its own it is asked for its main reading.
+function readingAsk(step) {
+  if (step.kind !== 'kanji') return { answers: [toHiragana(step.ref.y)] };
+  if (step.ask) return step.ask;
+  const list = readingWords(step.ref);
+  const reps = state.items[step.id]?.reps || 0;
+  const word = list.length ? list[reps % list.length] : null;
+  step.ask = word ? { word, answers: [toHiragana(word.y)] } : { answers: [headReading(step.ref)] };
+  return step.ask;
+}
+const readingsOf = (step) => readingAsk(step).answers;
+// The word a kanji is asked in, with the kanji picked out.
+const askWordHtml = (step) => {
+  const w = readingAsk(step).word;
+  return w ? `<p class="askword jp">${w.w.replace(step.ref.k, `<b>${step.ref.k}</b>`)}</p>` : '';
+};
 
 // Known items (Strong and up) are reviewed by typing the reading. Kana-only words and guessing decks aren't.
 const typesReading = (step) => run.useSrs && !step.isNew && !step.label && stageOf(state.items[step.id]) >= STRONG
@@ -683,7 +787,10 @@ function rateButtons(step, grades = GRADES) {
 }
 
 function finishCard(step, grade) {
+  // Leaning on the parts hint means it wasn't recalled cleanly.
+  if (step.hinted && (grade === 'good' || grade === 'easy')) grade = 'hard';
   record(step.id, grade);
+  if (grade !== 'hard') bumpCombo(grade !== 'again');
   run.cards++;
   step.done = true;
   // A forgotten card comes back later in this session, opening on its breakdown.
@@ -698,30 +805,39 @@ function reveal() {
   view.querySelector('#studycard').classList.add('revealed');
 }
 
-// Forgotten cards, and trouble items, open on their parts before you try again:
-// relearning through the breakdown, not just seeing the answer once more.
-const isTrouble = (id) => (state.items[id]?.lapses || 0) >= TROUBLE;
+// A card forgotten earlier in this session opens on its parts: relearning through the breakdown.
+// A struggling one offers the parts as a hint instead, since part names often give the meaning away.
+// Using the hint caps the rating at Shaky.
+const hintKanji = (step) => (step.kind === 'kanji' ? [step.ref] : kanjiIn(step.ref.w));
+const hintBody = (step) => {
+  const list = hintKanji(step);
+  return list.map((k) => `${list.length > 1 ? `<p class="hint-k jp">${k.k}</p>` : ''}${partsHtml(k, { edit: false })}`).join('');
+};
 function hintHtml(step) {
-  if (step.done || !(step.relearn || isTrouble(step.id))) return '';
-  const list = step.kind === 'kanji' ? [step.ref] : kanjiIn(step.ref.w);
-  if (!list.length) return '';
-  return `<div class="hintbd" id="hint"><span class="caps">${step.relearn ? 'You forgot this one. Rebuild it from its parts' : 'A tricky one. Start from its parts'}</span>
-    ${list.map((k) => `${list.length > 1 ? `<p class="hint-k jp">${k.k}</p>` : ''}${partsHtml(k, { edit: false })}`).join('')}</div>`;
+  if (step.done || !hintKanji(step).length) return '';
+  if (step.relearn) {
+    return `<div class="hintbd" id="hint"><span class="caps">You forgot this one. Rebuild it from its parts</span>${hintBody(step)}</div>`;
+  }
+  if (!isStruggling(state.items[step.id])) return '';
+  return `<button class="hintbtn" id="hintbtn" type="button">◇ Show its parts <small>counts as Shaky</small></button>`;
 }
 
 const RATE_HELP = `<div class="block-sec">
     <div class="sechead"><span class="caps">How to rate</span>
       <button class="info" data-info aria-label="What do the ratings mean?" aria-expanded="false">${icons.info}</button></div>
     <div class="explain small" hidden>${GRADES.map((g) => `<p><b>${GRADE_NAMES[g]}:</b> ${GRADE_HELP[g]}</p>`).join('')}
-      <p>Anything you forget ${TROUBLE} times goes on the Trouble list on Home.</p></div>
+      <p>Anything you rate Forgot or Shaky goes on your Struggling list, and leaves once you get it right ${CLEARS} reviews in a row.</p></div>
   </div>`;
 
 function renderCard(step) {
   const typed = !step.done && typesReading(step);
+  const inWord = typed && step.kind === 'kanji' && readingAsk(step).word;
   const ask = step.label ? 'Guess the meaning and reading, then check.'
-    : typed ? `Type ${step.kind === 'kanji' ? 'a reading' : 'the reading'} in romaji or kana.` : 'Recall the reading and meaning, then check.';
+    : inWord ? 'Type how this word is read, in romaji or kana. Then recall the kanji\'s meaning.'
+      : typed ? 'Type the reading in romaji or kana. Then recall the meaning.' : 'Recall the reading and meaning, then check.';
   view.innerHTML = `<div class="card study" id="studycard">
       ${headHtml(step.label || (step.isNew ? 'Now recall it' : 'Review'), step)}${glyphHtml(step)}
+      ${inWord ? askWordHtml(step) : ''}
       ${hintHtml(step)}
       <p class="ask" id="ask">${ask}</p>
       ${typed ? `<form class="type-in" id="typein" autocomplete="off">
@@ -740,8 +856,13 @@ function renderCard(step) {
     view.querySelector('#next').onclick = advance;
     return;
   }
+  view.querySelector('#hintbtn')?.addEventListener('click', (e) => {
+    step.hinted = true;
+    e.currentTarget.outerHTML = `<div class="hintbd" id="hint"><span class="caps">Its parts</span>${hintBody(step)}</div>`;
+  });
+  const grades = () => (step.hinted ? ['again', 'hard'] : GRADES);
   if (!typed) {
-    view.querySelector('#show').onclick = () => { reveal(); rateButtons(step); };
+    view.querySelector('#show').onclick = () => { reveal(); rateButtons(step, grades()); };
     return;
   }
   const input = view.querySelector('#typed');
@@ -753,13 +874,13 @@ function renderCard(step) {
   const settle = (verdict) => {
     reveal();
     input.disabled = true;
-    const shown = step.kind === 'kanji' ? '' : ` It's ${answers[0]}.`;
+    const shown = ` It's ${answers[0]}.`;
     fb.hidden = false;
     if (verdict === 'right') {
       fb.className = 'fb good';
-      fb.textContent = 'Right.';
-      // Recalled it: no "Again" needed.
-      rateButtons(step, ['hard', 'good', 'easy']);
+      fb.textContent = 'Right. Did you know the meaning too?';
+      // Read it right: rate how well the meaning came back.
+      rateButtons(step, step.hinted ? ['hard'] : ['again', 'hard', 'good', 'easy']);
       return;
     }
     fb.className = verdict === 'close' ? 'fb info' : 'fb bad';
@@ -774,6 +895,129 @@ function renderCard(step) {
   };
   view.querySelector('#check').onclick = () => settle(judgeReading(toKana(input.value, { done: true }), answers));
   view.querySelector('#dunno').onclick = () => settle('wrong');
+}
+
+/* ---------- The 2-minute weak-kanji drill ---------- */
+
+// A word with the part this kanji reads marked, and whether that reading is On or Kun.
+function markedWord(k, w) {
+  const hit = matchReading(k, w, w.y);
+  if (!hit) return { html: `<span class="jp">${w.w}</span> <span class="jp">${w.y}</span>`, chip: '' };
+  const y = w.y;
+  const kana = `${y.slice(0, hit.start)}<mark>${y.slice(hit.start, hit.start + hit.length)}</mark>${y.slice(hit.start + hit.length)}`;
+  return {
+    html: `<span class="jp sh-w">${w.w}</span> <span class="jp">${kana}</span>`,
+    chip: `<span class="rt ${hit.type}">${hit.type === 'on' ? 'On' : 'Kun'} · ${romaji(hit.reading)}</span>`,
+  };
+}
+
+// The sheet that slides up after an answer: the kanji, its meaning, and its reading inside a word.
+function answerSheet(k, word, right, headline) {
+  const w = word || readingWords(k)[0];
+  const m = w ? markedWord(k, w) : null;
+  return `<div class="sheet ${right ? 'good' : 'bad'}" role="status">
+    <div class="sh-head"><span class="sh-badge" aria-hidden="true">${right ? '✓' : '✕'}</span><b>${headline}</b>
+      ${right ? `<span class="sh-xp">+${XP.reviews} XP</span>` : ''}</div>
+    <div class="sh-body"><span class="sh-k jp">${k.k}</span>
+      <span class="grow"><strong>${k.mean.slice(0, 2).join(', ')}</strong>
+        ${m ? `<span class="sh-line">${m.html} ${m.chip}</span><span class="small muted">${romaji(w.y)} · ${w.m}</span>`
+    : `<span class="sh-line jp">${headReading(k)}</span>`}</span></div>
+    <button class="btn" id="cont">Continue</button></div>`;
+}
+
+const QUIZ_TAG = { pick: 'Meaning → kanji', read: 'Reading in a word', mean: 'Kanji → meaning' };
+
+function renderQuiz(step) {
+  const q = (step.q ||= quizQuestion(step.ref, step.kind, { pool: data.kanji, wordOf: wordEntry, n: state.items[step.id]?.reps || 0 }));
+  const hit = q.word ? matchReading(q.k, q.word, q.word.y) : null;
+  const left = () => Math.max(0, Math.ceil((run.drill.deadline - Date.now()) / 1000));
+  const clock = () => {
+    const s = left();
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  };
+  const share = () => left() / DRILL_SECONDS;
+  const dots = run.steps.map((s, n) => `<i class="${s.result || (n === run.i ? 'cur' : '')}"></i>`).join('');
+  const prompt = q.kind === 'pick' ? `<p class="qz-q">Which kanji means</p><p class="qz-mean">${q.k.mean[0]}</p>`
+    : q.kind === 'read' ? `<p class="qz-q">How is this word read?</p><p class="qz-big jp">${q.word.w.replace(q.k.k, `<u>${q.k.k}</u>`)}</p>
+      <p class="small muted center">${q.word.m}</p>`
+      : `<p class="qz-q">What does this kanji mean?</p><p class="qz-big jp">${q.k.k}</p>`;
+  const optClass = q.kind === 'pick' ? 'opt qk jp' : q.kind === 'read' ? 'opt kana' : 'opt qm';
+  const optHtml = (o) => (q.kind === 'read' ? `<span class="jp">${o}</span><small>${romaji(o)}</small>` : o);
+  view.innerHTML = `<div class="qz">
+      <div class="qz-top">${run.drill ? `<div class="qz-dots" aria-hidden="true">${dots}</div>
+        <div class="qz-clock" aria-label="Time left"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="tr" cx="22" cy="22" r="19"/>
+          <circle class="fg" id="clockfg" cx="22" cy="22" r="19" pathLength="100" stroke-dasharray="${share() * 100} 100" transform="rotate(-90 22 22)"/></svg>
+          <b id="clock">${clock()}</b></div>` : ''}</div>
+      <span class="qz-tag ${q.kind === 'read' ? 'on' : ''}">${QUIZ_TAG[q.kind]}${hit ? ` · ${hit.type === 'on' ? 'On' : 'Kun'}` : ''}</span>
+      ${prompt}
+      ${q.k.parts.some((p) => p.c !== q.k.k) && !step.done ? '<button class="hintbtn" id="hintbtn" type="button">◇ Show its parts <small>counts as Shaky</small></button>' : ''}
+    </div>
+    <div class="reach"><div class="opts qz-opts" id="opts">${q.options.map((o, n) => `<button class="${optClass}" data-n="${n}">${optHtml(o)}</button>`).join('')}</div></div>`;
+  if (run.drill) {
+    const tick = setInterval(() => {
+      const c = view.querySelector('#clock');
+      if (!c) return;
+      c.textContent = clock();
+      view.querySelector('#clockfg').setAttribute('stroke-dasharray', `${share() * 100} 100`);
+    }, 1000);
+    stepCleanup = () => clearInterval(tick);
+  }
+  view.querySelector('#hintbtn')?.addEventListener('click', (e) => {
+    step.hinted = true;
+    e.currentTarget.outerHTML = `<div class="hintbd" id="hint"><span class="caps">Its parts</span>${partsHtml(q.k, { edit: false })}</div>`;
+  });
+  const opts = view.querySelector('#opts');
+  const settle = (picked) => {
+    const right = picked === q.answer;
+    opts.querySelectorAll('.opt').forEach((b, n) => {
+      b.disabled = true;
+      if (n === q.answer) b.classList.add('right');
+      else if (n === picked) b.classList.add('wrong');
+      else b.classList.add('dim');
+    });
+    if (!step.done) {
+      step.done = true;
+      step.result = right && !step.hinted ? 'ok' : 'miss';
+      run.drills++;
+      if (right && !step.hinted) run.clean++;
+      bumpCombo(right && !step.hinted);
+      record(step.id, !right ? 'again' : step.hinted ? 'hard' : 'good');
+    }
+    const say = q.kind === 'read' ? `It's ${q.options[q.answer]}` : q.kind === 'pick' ? `It's ${q.k.k}` : `It means ${q.k.mean[0]}`;
+    view.insertAdjacentHTML('beforeend', answerSheet(q.k, q.word, right, right ? (step.hinted ? 'Right, with a hint' : 'Nice') : say));
+    document.body.classList.add('has-sheet');
+    view.querySelector('#cont').onclick = () => { document.body.classList.remove('has-sheet'); advance(); };
+    if (q.kind === 'read' && right) speak(q.word.y);
+  };
+  opts.onclick = (e) => {
+    const b = e.target.closest('[data-n]');
+    if (b && !b.disabled) settle(Number(b.dataset.n));
+  };
+  if (step.done) settle(q.answer);
+}
+
+// Struggling kanji first, hardest first, then any that are due, about two minutes' worth.
+function startWeakDrill(list = null, title = '2-minute drill') {
+  const now = Date.now();
+  const due = data.kanji.filter((k) => isDue(state.items[kanjiId(k)], now))
+    .sort((a, b) => state.items[kanjiId(a)].due - state.items[kanjiId(b)].due);
+  let pick = list?.length ? list : drillKanji(strugglingKanji(), due);
+  // Nothing weak or due: a mixed set of kanji you've started, so the button never does nothing.
+  if (!pick.length) pick = shuffled(data.kanji.filter((k) => state.items[kanjiId(k)])).slice(0, 10);
+  if (!pick.length) return;
+  const offset = Math.floor(Math.random() * 3);
+  const steps = shuffled(pick).map((k, i) => ({ type: 'quiz', kind: kindFor(i, offset), id: kanjiId(k), ref: k }));
+  startRun(steps, title, {
+    useSrs: true,
+    drill: { deadline: now + DRILL_SECONDS * 1000, struggling: pick.filter((k) => isStruggling(state.items[kanjiId(k)])) },
+  });
+}
+
+// One kanji from every side: meaning, reading in a word, recognition. Practice only, so it
+// never bunches up the review schedule.
+function startPractice(k) {
+  const steps = ['mean', 'read', 'pick'].map((kind) => ({ type: 'quiz', kind, id: kanjiId(k), ref: k }));
+  startRun(steps, `Practise ${k.k}`);
 }
 
 // A row of tappable words, for text written as "word word word".
@@ -978,7 +1222,6 @@ function renderLessonDone() {
   const next = nextUp(state, data.units);
   const go = nextAction(next);
   const perfect = run.drills > 0 && run.clean === run.drills;
-  const chip = (big, small, glyphs = '') => `<div class="gain"><b>${big}</b><span>${small}</span>${glyphs ? `<span class="jp gl">${glyphs}</span>` : ''}</div>`;
   const status = run.part ? 'More new items are waiting in part 2.'
     : p.done === p.total ? `Unit ${unit.n} test is ready.` : `${p.done} of ${p.total} lessons in Unit ${unit.n}.`;
   view.innerHTML = `<section class="card hero done-hero lesson-done">
@@ -987,49 +1230,119 @@ function renderLessonDone() {
       <h2>${name}${run.part ? ', part 1' : ''}</h2>
       <div class="unit-strip">${pips(unit, run.part ? null : lesson.id)}<span class="small">${status}</span></div>
     </section>
-    ${kanji.length || words ? `<div class="caps sect"><span>You gained</span></div>
-      <div class="gains">${kanji.length ? chip(`+${kanji.length}`, kanji.length === 1 ? 'kanji' : 'kanji', kanji.join(' ')) : ''}${words ? chip(`+${words}`, words === 1 ? 'word' : 'words') : ''}</div>` : ''}
+    ${statTrio()}
+    ${kanji.length || words ? `<section class="card gained">
+      <div class="kod-head"><span class="caps">${kanji.length ? `Kanji gained · +${kanji.length}` : 'Words gained'}</span>
+        ${words ? `<span class="small muted">+${words} ${words === 1 ? 'word' : 'words'}</span>` : ''}</div>
+      ${kanji.length ? `<div class="flips">${kanji.map((c, n) => `<span class="flip jp" style="--d:${n}">${c}</span>`).join('')}</div>` : ''}
+      <div class="row tight"><span class="grow small muted">Kanji collected</span><span class="num">${kanjiNow > kanjiFrom ? `${kanjiFrom} → ` : ''}<b>${kanjiNow}</b> / ${data.kanji.length}</span></div>
+      <div class="meter two"><i style="width:${(kanjiFrom / data.kanji.length) * 100}%"></i><i class="new" style="width:${((kanjiNow - kanjiFrom) / data.kanji.length) * 100}%"></i></div>
+    </section>` : ''}
     <section class="card list">
-      ${run.drills ? `<div class="row"><span class="grow">Drills right first time</span><span class="num">${run.clean} / ${run.drills}</span></div>` : ''}
+      ${comboRow()}
       ${memoryHtml()}
-      <div class="row"><span class="grow">Kanji collected</span><span class="num">${kanjiNow > kanjiFrom ? `${kanjiFrom} → ` : ''}<b>${kanjiNow}</b> / ${data.kanji.length}</span></div>
       <div class="row"><span class="grow">Course<div class="meter"><i style="width:${(steps.done / steps.total) * 100}%"></i></div></span><span class="num">${steps.done} / ${steps.total}</span></div>
     </section>
+    ${goalCard()}
     <div class="dock stack">
       ${go ? `<button class="btn" id="go">${run.part ? 'Keep going: part 2' : `Next: ${go.label.replace(/^(Take the|Start|Open the) /, '')}`}</button>` : ''}
+      <button class="btn ghost" id="fin">Done for now</button>
     </div>`;
   view.querySelector('#go')?.addEventListener('click', () => {
     endRun();
     go.go();
   });
+  view.querySelector('#fin').onclick = endRun;
   animate();
+  fillRings();
+}
+
+// The three numbers every session ends on: XP earned, share right first time, and time taken.
+function statTrio() {
+  const xp = Math.max(0, xpToday(state) - run.xpBefore);
+  const secs = Math.round((Date.now() - run.started) / 1000);
+  const time = secs < 60 ? `${secs}s` : `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
+  const acc = run.drills ? `${Math.round((run.clean / run.drills) * 100)}%` : '—';
+  const tile = (v, k, cls = '') => `<div class="trio-t ${cls}"><b>${v}</b><span>${k}</span></div>`;
+  const mid = run.drills ? tile(acc, 'Right first time') : tile(run.cards, run.cards === 1 ? 'Card recalled' : 'Cards recalled');
+  return `<section class="trio">${tile(`+${xp}`, 'XP', 'xp')}${mid}${tile(time, 'Time')}</section>`;
+}
+
+const comboRow = () => (run.bestCombo >= 3
+  ? `<div class="row"><span class="grow">Best run of right answers</span><span class="num combo-n">×${run.bestCombo}</span></div>` : '');
+
+// Today's XP against the daily goal, as a ring that fills when the screen opens.
+function goalCard() {
+  const xp = xpToday(state);
+  const share = Math.min(1, xp / DAILY_GOAL);
+  return `<section class="card goalcard ${share >= 1 ? 'met' : ''}">
+    <div class="ringbox small">${ringSvg(0)}<span class="ringtext"><b>${xp}</b><small>of ${DAILY_GOAL}</small></span></div>
+    <div class="grow"><span class="caps">Daily goal</span>
+      <strong>${share >= 1 ? 'Goal met for today' : `${DAILY_GOAL - xp} XP to today's goal`}</strong>
+      <span class="small muted">About one lesson a day. Rest days never break anything.</span></div>
+    <span hidden data-fill="${share}"></span></section>`;
+}
+
+// Rings start empty and fill once on screen, so the gain is something you watch happen.
+function fillRings() {
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    view.querySelectorAll('[data-fill]').forEach((el) => {
+      const fill = el.closest('section').querySelector('.ring .fill');
+      if (fill) fill.setAttribute('stroke-dasharray', `${Math.round(Number(el.dataset.fill) * 100)} 100`);
+    });
+  }));
 }
 
 function renderSummary() {
   if (run.lesson) return renderLessonDone();
+  if (run.drill) return renderDrillDone();
   setTop(run.title, { close: true, progress: 100 });
-  const C = 2 * Math.PI * 46;
   const share = run.drills ? run.clean / run.drills : 1;
-  const inner = run.drills ? `${Math.round(share * 100)}%` : icons.check;
-  const drills = run.drills ? `<div class="row"><span class="grow">Drills right first time</span>
-    <span class="num">${run.clean} / ${run.drills}</span></div>` : '';
   const cards = run.cards ? `<div class="row"><span class="grow">Cards rated</span><span class="num">${run.cards}</span></div>` : '';
-  view.innerHTML = `<section class="card hero done-hero">
-      <div class="ring"><svg viewBox="0 0 108 108" aria-hidden="true">
-        <circle class="tr" cx="54" cy="54" r="46"/>
-        <circle class="fg" id="ringfg" cx="54" cy="54" r="46" stroke-dasharray="${C}" stroke-dashoffset="${C}"/>
-      </svg><div>${inner}</div></div>
+  view.innerHTML = `<section class="card hero done-hero lesson-done">
+      <div class="burst" aria-hidden="true">${icons.check}</div>
+      <span class="caps">${run.drills && share === 1 ? 'Clean run' : 'Session done'}</span>
       <h2>${share >= 0.8 ? 'Nice work' : 'Good effort'}</h2>
       <p class="sub">${run.useSrs ? 'Your next reviews are scheduled.' : 'Practice does not change your review schedule.'}</p>
     </section>
-    ${memoryHtml() ? `<section class="card list">${memoryHtml()}</section>` : ''}
-    ${cards || drills ? `<section class="card list">${cards}${drills}</section>` : ''}
+    ${statTrio()}
+    ${memoryHtml() || cards || comboRow() ? `<section class="card list">${cards}${comboRow()}${memoryHtml()}</section>` : ''}
+    ${run.useSrs ? goalCard() : ''}
     <div class="dock"><button class="btn" id="fin">Finish</button></div>`;
+  view.querySelector('#fin').onclick = endRun;
   animate();
-  requestAnimationFrame(() => requestAnimationFrame(() => {
-    const fg = view.querySelector('#ringfg');
-    if (fg) fg.style.strokeDashoffset = C * (1 - share);
-  }));
+  fillRings();
+}
+
+// The drill's payoff: which kanji left your struggling list, and which come back tomorrow.
+function renderDrillDone() {
+  setTop(run.title, { close: true, progress: 100 });
+  const was = run.drill.struggling;
+  const cleared = was.filter((k) => !isStruggling(state.items[kanjiId(k)]));
+  const shaky = run.steps.filter((s) => s.result === 'miss').map((s) => s.ref);
+  const tile = (k, cls) => `<span class="kt ${cls} jp">${k.k}<small>${k.mean[0]}</small></span>`;
+  const more = drillKanji(strugglingKanji(), data.kanji.filter((k) => isDue(state.items[kanjiId(k)]))).length;
+  view.innerHTML = `<section class="card hero done-hero lesson-done">
+      <div class="burst" aria-hidden="true">${icons.check}</div>
+      <span class="caps">2-minute drill</span>
+      <h2>${run.clean} <small>/ ${run.drills}</small> right first time</h2>
+      <p class="sub">${cleared.length ? `${cleared.length} ${cleared.length === 1 ? 'kanji' : 'kanji'} off your struggling list.` : 'Every right answer brings a kanji closer to leaving the list.'}</p>
+    </section>
+    ${statTrio()}
+    ${cleared.length ? `<section class="card"><span class="caps">Cleared from struggling</span>
+      <div class="kts">${cleared.map((k) => tile(k, 'clear')).join('')}</div></section>` : ''}
+    ${shaky.length ? `<section class="card"><span class="caps">Still shaky · back soon</span>
+      <div class="kts">${shaky.map((k) => tile(k, 'left')).join('')}</div></section>` : ''}
+    ${comboRow() ? `<section class="card list">${comboRow()}${memoryHtml()}</section>` : ''}
+    ${goalCard()}
+    <div class="dock stack">
+      ${more ? '<button class="btn" id="again">Another 2 minutes</button>' : ''}
+      <button class="btn ${more ? 'ghost' : ''}" id="fin">Done</button>
+    </div>`;
+  view.querySelector('#again')?.addEventListener('click', () => { endRun(); startWeakDrill(); });
+  view.querySelector('#fin').onclick = endRun;
+  animate();
+  fillRings();
 }
 
 /* ---------- Other tabs ---------- */
@@ -1047,10 +1360,35 @@ function rushPool() {
 // Best scores are kept per mode and clock. The old single best was for meanings at 60 seconds.
 const rushBest = (key) => state.practice.rushBests?.[key] ?? (key === 'meaning-60' ? state.practice.rushBest || 0 : 0);
 
+// True when a sentence tile's kanji are all Strong or better, so its reading can stay hidden.
+function knownKanji(text) {
+  const chars = [...String(text)].filter((c) => /[一-鿿]/.test(c));
+  if (!chars.length) return false;
+  return chars.every((c) => {
+    const k = data.kanji.find((x) => x.k === c);
+    return k && stageOf(state.items[kanjiId(k)]) >= STRONG;
+  });
+}
+
+// Kanji you're studying that you keep missing, worst first.
+const struggleKanji = () => data.kanji.filter((k) => isStruggling(state.items[kanjiId(k)]))
+  .sort((a, b) => struggleOrder(state.items[kanjiId(a)], state.items[kanjiId(b)]));
+
+// A Rush miss counts as Shaky: the kanji is struggling again and due within a day.
+// It never pushes a review later, and kanji you haven't started are left alone.
+function rushMiss(k) {
+  const id = kanjiId(k);
+  const rec = state.items[id];
+  if (!rec) return;
+  const shaky = rate(rec, 'hard');
+  state.items[id] = { ...shaky, reps: rec.reps, interval: Math.min(rec.interval, shaky.interval), due: Math.min(rec.due, Date.now() + 864e5) };
+  save(state);
+}
+
 const headCache = new Map();
 function screenRush() {
   screenCleanup = startRush({
-    view, setTop, pool: rushPool(), all: [...data.kanji, ...(data.kanjiMore || [])], readOf: (k) => headCache.get(k) ?? headCache.set(k, headReading(k)).get(k),
+    view, setTop, pool: rushPool(), weak: struggleKanji(), onMiss: rushMiss, all: [...data.kanji, ...(data.kanjiMore || [])], readOf: (k) => headCache.get(k) ?? headCache.set(k, headReading(k)).get(k),
     settings: state.practice.rush || {},
     saveSettings: (s) => { state.practice.rush = s; save(state); },
     best: rushBest,
@@ -1112,6 +1450,7 @@ function screenTrip() {
   const ready = tripReadiness(data.trip, state.items);
   const date = state.trip?.date || '';
   view.innerHTML = `
+    ${tripSeg('trip')}
     <section class="card hero trip-hero">
       <span class="water" aria-hidden="true">旅</span>
       <span class="caps">${countdown() || 'Your trip to Japan'}</span>
@@ -1178,17 +1517,13 @@ function screenDojo() {
       <h2>Kanji Rush</h2>
       <span class="sub">Match kanji to their meanings or readings, fast. Set the clock your way.</span>
     </button>
-    ${action('cards', icons.story, 'Flashcards', 'Words and sentences to read, by unit or all of N5')}
     ${action('sent', icons.blocks, 'Sentence drill', done ? `${done} sentences from your finished lessons` : 'Finish a course lesson to fill this', !done)}
     ${action('part', icons.practice, 'Particles', 'Guides and unlimited practice, focused on what you miss')}
-    ${action('kan', icons.kanji, 'Kanji', `All ${data.kanji.length} N5 kanji. Filter to the ones you struggle with or have notes on`)}
     ${action('exam', icons.exam, 'JLPT N5 mock exam', 'Only if you plan to sit the exam')}
-    <p class="small muted center">Dojo practice doesn't change your review schedule.</p>`;
+    <p class="small muted center">Only Kanji Rush misses touch your reviews: they come back sooner.</p>`;
   view.querySelector('#rush').onclick = () => { location.hash = '#/dojo/rush'; };
-  view.querySelector('#cards').onclick = () => { location.hash = '#/dojo/cards'; };
   view.querySelector('#sent').onclick = startCourseSentences;
   view.querySelector('#part').onclick = () => { location.hash = '#/dojo/particles'; };
-  view.querySelector('#kan').onclick = () => { location.hash = '#/dojo/kanji'; };
   view.querySelector('#exam').onclick = () => { location.hash = '#/dojo/exam'; };
 }
 
@@ -1304,7 +1639,58 @@ function screenCourse() {
     return open ? `<a class="node story-node ${read ? 'done' : 'unread'}" href="#/course/story/${u.id}">${inner}<span class="chev">${icons.chevron}</span></a>`
       : `<div class="node story-node off">${inner}</div>`;
   };
-  // The next step starts from Home; this tab is the map.
+  // The unit you're on (and the one after) opens into a trail: one node per lesson, labelled with
+  // the first kanji it teaches, then the test gate. The current node breathes under a START bubble.
+  const X = [50, 74, 50, 26];
+  const ROW = 92;
+  const trail = (u) => {
+    const open = isUnlocked(state, units, u);
+    const p = unitProgress(state, u);
+    const stops = [
+      ...u.lessons.map((l, i) => ({ l, i, done: Boolean(state.course.done[l.id]) })),
+      { test: true, done: p.passed },
+    ];
+    const nowAt = stops.findIndex((s) => (s.test ? next?.type === 'test' && next.unit === u : next?.lesson === s.l));
+    const pts = stops.map((s, n) => [X[n % X.length], n * ROW + 40]);
+    const doneTo = Math.max(-1, nowAt >= 0 ? nowAt : stops.filter((s) => s.done).length - 1);
+    const line = (a, b) => pts.slice(a, b + 1).map(([x, y], n) => `${n ? 'L' : 'M'}${x} ${y}`).join(' ');
+    const kanjiChars = u.lessons.flatMap((l) => l.kanji || []);
+    const glyph = (s) => (s.test ? '試' : s.l.kanji?.[0] || (isWords(s.l) ? '語' : '文'));
+    const sub = (s) => (s.test ? (p.passed ? 'Passed' : p.done === p.total ? 'Ready' : 'Test') : lessonKind(u, s.l).split(' · ')[0]);
+    return `<section class="trail-unit">
+      <a class="ubanner ${nowAt >= 0 ? 'now' : ''}" href="#/course/${u.id}">
+        <span class="caps">Unit ${u.n} · ${p.done} of ${p.total} lessons</span><strong>${u.title}</strong>
+        ${kanjiChars.length ? `<span class="jp ub-k">${kanjiChars.join(' ')}</span>` : ''}</a>
+      <div class="trail" style="height:${stops.length * ROW}px">
+        <svg class="trail-line" viewBox="0 0 100 ${stops.length * ROW}" preserveAspectRatio="none" aria-hidden="true">
+          <path d="${line(0, stops.length - 1)}" class="tl-all"/>
+          ${doneTo > 0 ? `<path d="${line(0, doneTo)}" class="tl-done"/>` : ''}</svg>
+        ${stops.map((s, n) => {
+    const now = n === nowAt;
+    const cls = s.test ? 'gate' : '';
+    const state_ = s.done ? 'done' : now ? 'now' : open ? 'open' : 'off';
+    const label = s.test ? `Unit ${u.n} test` : s.l.title.replace(/^Words: (.)/, (_, c) => c.toUpperCase());
+    return `<button class="tn ${cls} ${state_}" style="left:${pts[n][0]}%;top:${pts[n][1]}px" data-u="${u.id}" ${s.test ? 'data-test' : `data-l="${s.i}"`}
+            ${open ? '' : 'disabled'} aria-label="${label}${s.done ? ', done' : now ? ', next' : ''}">
+          ${now ? '<span class="tn-start">START</span>' : ''}
+          <span class="tn-dot jp"><span>${s.done && s.test ? icons.check : glyph(s)}</span></span>
+          <span class="tn-label ${pts[n][0] > 50 ? 'left' : 'right'}"><b>${label}</b><small>${sub(s)}</small></span></button>`;
+  }).join('')}
+      </div></section>`;
+  };
+  // Rank goals sit between units, so the next title is always in sight.
+  const rankGoal = (u) => {
+    const at = RANKS.find((r) => r.at === u.n);
+    if (!at || u.n <= passed) return '';
+    return `<div class="rankgoal"><span class="jp">${at.jp}</span><span class="grow"><small>Rank goal</small><b>${at.en}</b>
+      <span class="small muted">Unlocks at ${at.at} units passed · you have ${passed}</span></span></div>`;
+  };
+  // Passed units fold into rows with their stars; the unit you're on and the next open as trails.
+  const hereUnit = next?.unit;
+  const body = shown.map((u) => {
+    const asTrail = u === hereUnit || (hereUnit && units.indexOf(u) === units.indexOf(hereUnit) + 1);
+    return (asTrail ? trail(u) : `<section class="path">${node(u)}</section>`) + `<section class="path">${storyNode(u)}</section>` + rankGoal(u);
+  }).join('');
   view.innerHTML = `
     <section class="course-strip">
       <div class="row tight"><span class="grow"><span class="jp">${rank.jp}</span> <strong>${rank.en}</strong></span>
@@ -1312,11 +1698,19 @@ function screenCourse() {
       <div class="meter"><i style="width:${(steps.done / steps.total) * 100}%"></i></div>
       <a class="syl-link small" href="#/course/syllabus">See the full N5 syllabus${icons.chevron}</a>
     </section>
-    <section class="path">${shown.map((u) => node(u) + storyNode(u)).join('')}
-      ${folded ? `<div class="node off fold"><span class="dot">${icons.lock}</span><span class="grow"><span class="label">Units ${shown.length + 1}–${units.length}</span>
-        <span class="small muted">Open as you pass each unit</span></span></div>` : ''}
-    </section>
+    ${body}
+    ${folded ? `<section class="path"><div class="node off fold"><span class="dot">${icons.lock}</span><span class="grow"><span class="label">Units ${shown.length + 1}–${units.length}</span>
+      <span class="small muted">Open as you pass each unit</span></span></div></section>` : ''}
     <p class="small muted center">★ passed · ★★ most of it remembered · ★★★ mastered</p>`;
+  view.onclick = (e) => {
+    const b = e.target.closest('.tn');
+    if (!b || b.disabled) return;
+    const u = units.find((x) => x.id === b.dataset.u);
+    if ('test' in b.dataset) runUnitTest(u);
+    else startLesson(u, u.lessons[Number(b.dataset.l)]);
+  };
+  // Open on the node you're up to.
+  requestAnimationFrame(() => view.querySelector('.tn.now')?.scrollIntoView({ block: 'center', behavior: 'instant' }));
 }
 
 // A lesson left part-way picks up at the same step with the same new items.
@@ -1400,6 +1794,7 @@ function runUnitTest(unit) {
       state.course.best[unit.id] = Math.max(state.course.best[unit.id] || 0, result.share);
       let cleared = [];
       if (result.pass) {
+        if (!state.course.passed[unit.id]) dayStats(state).tests = (dayStats(state).tests || 0) + 1;
         cleared = passUnit(state, data.units, unit);
         // Passing the unit settles its old misses.
         for (const id of Object.keys(state.course.missed)) if (id.startsWith(`${unit.id}-`)) delete state.course.missed[id];
@@ -1568,42 +1963,98 @@ function strugglingKanji() {
 }
 const notedKanji = () => Object.keys(state.notes).map(kanjiOf).filter(Boolean);
 
+const stageK = (k) => stageOf(state.items[kanjiId(k)]);
+const dueKanji = () => data.kanji.filter((k) => isDue(state.items[kanjiId(k)]))
+  .sort((a, b) => state.items[kanjiId(a)].due - state.items[kanjiId(b)].due);
+
+// The map's filters: four memory stages (counts double as buttons), then lists.
 const KANJI_VIEWS = [
   { id: 'all', name: 'All', list: () => data.kanji },
-  { id: 'hard', name: 'Struggling', list: strugglingKanji,
+  { id: 'hard', name: 'Struggling', flat: true, list: strugglingKanji,
     empty: `Nothing here. Kanji you rate Forgot or Shaky show up here, and leave once you get them right ${CLEARS} reviews in a row.` },
+  { id: 'due', name: 'Due', flat: true, list: dueKanji, empty: 'Nothing due. Your next kanji reviews are scheduled.' },
   { id: 'notes', name: 'Notes', list: notedKanji,
     empty: 'No notes yet. Open any kanji and tap "+ Add your note" above its breakdown.' },
+  ...STAGES.map((s, n) => ({
+    id: `s${n}`, name: n ? s.en : 'Not yet', stage: true, list: () => data.kanji.filter((k) => stageK(k) === n),
+    empty: n ? `No kanji at ${s.en} yet.` : 'Every N5 kanji is started.',
+  })),
 ];
 
+// Which unit teaches each kanji, for grouping the map like the course.
+let kanjiUnit = null;
+function unitOfKanji(c) {
+  if (!kanjiUnit) {
+    kanjiUnit = new Map();
+    for (const u of data.units) for (const l of u.lessons) for (const k of l.kanji || []) if (!kanjiUnit.has(k)) kanjiUnit.set(k, u);
+  }
+  return kanjiUnit.get(c) || null;
+}
+
+// Every N5 kanji, coloured by how well you know it: 習 amber, 強 blue, 極 green, untaught ones as ghosts.
+// Pips in the corner count the stage, a red dot marks struggling, and any filter can be quizzed in one tap.
 function screenKanji() {
-  setTop('Kanji', backTo('#/dojo'));
+  setTop('Kanji');
   const pick = KANJI_VIEWS.find((v) => v.id === state.practice.kanjiView) || KANJI_VIEWS[0];
   const list = pick.list();
-  const started = data.kanji.filter((k) => state.items[kanjiId(k)]).length;
+  const hide = Boolean(state.practice.kanjiHide);
+  const counts = kanjiStages();
   const steps = list.map((x) => ({ type: 'learn', kind: 'kanji', id: kanjiId(x), ref: x }));
-  // The bar under a tile shows its memory stage: a third for Learning, two for Strong, full for Mastered.
-  const stage = (k) => stageOf(state.items[kanjiId(k)]);
-  view.innerHTML = `
-    <section class="card">
-      <div class="row" style="min-height:0"><span class="grow"><strong>JLPT N5</strong></span>
-        <span class="small muted"><span class="num">${started}</span> of ${data.kanji.length} started</span></div>
-      <div class="meter"><i style="width:${(started / data.kanji.length) * 100}%"></i></div>
-    </section>
-    <div class="seg mini" id="kview">${KANJI_VIEWS.map((v) => `<button data-v="${v.id}" class="${v === pick ? 'on' : ''}">
-      ${v.name}${v.id === 'all' ? '' : ` <span class="num">${v.list().length}</span>`}</button>`).join('')}</div>
-    ${list.length ? `<div class="grid" id="grid">${list.map((k, i) => `<button class="tile" data-i="${i}">
+  const tile = (k) => {
+    const s = stageK(k);
+    const rec = state.items[kanjiId(k)];
+    return `<button class="tile st${s}" data-i="${list.indexOf(k)}" aria-label="${k.k}, ${k.mean[0]}, ${STAGES[s].en}">
+      ${isStruggling(rec) ? '<span class="tbad" aria-hidden="true"></span>' : ''}
+      ${s ? `<span class="tpips" aria-hidden="true">${[1, 2, 3].map((n) => `<i class="${n <= s ? 'on' : ''}"></i>`).join('')}</span>` : ''}
       ${noteOf(k.k) ? '<span class="tnote" aria-label="Has your note"></span>' : ''}
-      <b>${k.k}</b><small>${k.mean[0]}</small>${stage(k) ? `<i class="s-${STAGES[stage(k)].id}" style="width:${(stage(k) / 3) * 100}%"></i>` : ''}</button>`).join('')}</div>`
-    : `<p class="small muted center">${pick.empty}</p>`}
-    <p class="small muted center">The bar fills as a kanji moves from ${STAGES.slice(1).map((s) => `<span class="jp">${s.jp}</span> ${s.en}`).join(' to ')}. A dot means it has your note.</p>`;
-  view.querySelector('#kview').onclick = (e) => {
+      <b>${k.k}</b><small>${hide ? '&nbsp;' : k.mean[0]}</small></button>`;
+  };
+  // Grouped by the unit that teaches each kanji, in course order; lists like Struggling stay in their own order.
+  let grid = '';
+  if (pick.flat) grid = `<div class="grid kgrid" id="grid">${list.map(tile).join('')}</div>`;
+  else {
+    const groups = [];
+    for (const u of data.units) {
+      const ks = list.filter((k) => unitOfKanji(k.k) === u);
+      if (ks.length) groups.push({ name: `Unit ${u.n} · ${u.title}`, ks, all: data.kanji.filter((k) => unitOfKanji(k.k) === u) });
+    }
+    const rest = list.filter((k) => !unitOfKanji(k.k));
+    if (rest.length) groups.push({ name: 'More N5 kanji', ks: rest, all: data.kanji.filter((k) => !unitOfKanji(k.k)) });
+    grid = `<div id="grid">${groups.map((g) => `<div class="kgroup"><div class="caps sect"><span>${g.name}</span>
+      <span class="num">${g.all.filter((k) => stageK(k)).length} / ${g.all.length}</span></div>
+      <div class="grid kgrid">${g.ks.map(tile).join('')}</div></div>`).join('')}</div>`;
+  }
+  // Only kanji you've started can be quizzed: the quiz is a review.
+  const quiz = list.filter((k) => state.items[kanjiId(k)]);
+  const chip = (v) => `<button class="fchip ${v === pick ? 'on' : ''}" data-v="${v.id}">${v.id === 'hard' ? '<i class="dot"></i>' : ''}${v.name}
+    <span class="num">${v.id === 'all' ? data.kanji.length : v.list().length}</span></button>`;
+  view.innerHTML = `
+    <section class="stagecounts" id="kstages">${STAGES.map((s, n) => `<button class="sc sc${n} ${pick.id === `s${n}` ? 'on' : ''}" data-v="s${n}">
+      <b>${counts[n]}</b><span>${n ? `<span class="jp sj">${s.jp}</span>${s.en}` : 'Not yet'}</span></button>`).join('')}</section>
+    <div class="fchips" id="kview">${KANJI_VIEWS.filter((v) => !v.stage).map(chip).join('')}
+      <button class="fchip hide ${hide ? 'on' : ''}" id="khide" aria-pressed="${hide}">${hide ? 'Show meanings' : 'Hide meanings'}</button></div>
+    ${list.length ? grid : `<p class="small muted center">${pick.empty}</p>`}
+    <p class="small muted center">Tap a kanji to study it. Pips count its stage, and a red dot means it's struggling.</p>
+    ${quiz.length ? `<div class="dock"><button class="btn" id="kquiz">Quiz ${pick.id === 'all' ? 'the weakest' : `these ${Math.min(quiz.length, 10)}`} · about 2 min</button></div>` : ''}`;
+  const choose = (e) => {
     const b = e.target.closest('[data-v]');
     if (!b) return;
-    state.practice.kanjiView = b.dataset.v;
+    state.practice.kanjiView = b.dataset.v === pick.id && b.dataset.v !== 'all' ? 'all' : b.dataset.v;
     save(state);
     screenKanji();
   };
+  view.querySelector('#kview').onclick = choose;
+  view.querySelector('#kstages').onclick = choose;
+  view.querySelector('#khide').addEventListener('click', (e) => {
+    e.stopPropagation();
+    state.practice.kanjiHide = !hide;
+    save(state);
+    screenKanji();
+  });
+  view.querySelector('#kquiz')?.addEventListener('click', () => {
+    const pickList = pick.id === 'all' ? null : drillKanji(quiz.filter((k) => isStruggling(state.items[kanjiId(k)])), quiz);
+    startWeakDrill(pickList, pick.id === 'all' ? '2-minute drill' : `Quiz: ${pick.name}`);
+  });
   view.querySelector('#grid')?.addEventListener('click', (e) => {
     const b = e.target.closest('.tile');
     if (b) startRun(steps, pick.id === 'all' ? 'Kanji' : pick.name, { browse: true, start: Number(b.dataset.i) });
@@ -1936,7 +2387,7 @@ const SCREENS = {
   'dojo/exam': screenExam,
   'dojo/rush': screenRush,
   'dojo/particles': screenParticleChoice,
-  'dojo/kanji': screenKanji,
+  kanji: screenKanji,
   'dojo/cards': screenCards,
   'course/syllabus': screenSyllabus,
   dict: screenDict,
@@ -1953,11 +2404,18 @@ const PARAM_SCREENS = [
 ];
 
 // Old addresses: from before the tabs were reshuffled, and screens folded into others.
-const MOVED = [[/^practice(\/|$)/, 'dojo$1'], [/^(listen\/)?talk(\/[\w-]+)?$/, 'listen'], [/^kanji$/, 'dojo/kanji'],
+const MOVED = [[/^practice(\/|$)/, 'dojo$1'], [/^(listen\/)?talk(\/[\w-]+)?$/, 'listen'], [/^dojo\/kanji$/, 'kanji'],
   [/^course\/exam$/, 'dojo/exam'], [/^dojo\/sentences$/, 'dojo'], [/^listen\/radio\/(starred|talk-[\w-]+)$/, 'listen']];
 
 function route() {
-  if (!data || run) return;
+  if (!data) return;
+  // Browsing kanji has nothing to lose, so a tab tap or a link leaves it. Other sessions stay put.
+  if (run?.browse) {
+    clearStep();
+    run = null;
+    document.body.classList.remove('in-run');
+  }
+  if (run) return;
   screenCleanup?.();
   screenCleanup = null;
   view.onclick = null;
@@ -1970,7 +2428,9 @@ function route() {
     if (m) screen = () => fn(m[1]);
   }
   // Settings sits outside the tabs; the rest light up the tab they belong to.
-  const tab = screen ? name.split('/')[0] : 'today';
+  const first = screen ? name.split('/')[0] : 'today';
+  // Listen lives under the Trip tab.
+  const tab = first === 'listen' ? 'trip' : first;
   tabbar.querySelectorAll('a').forEach((a) => {
     const on = a.dataset.tab === tab;
     a.classList.toggle('on', on);
@@ -2077,6 +2537,13 @@ async function init() {
     // Every kanji with a breakdown, so word cards and word glosses can show each one.
     data.kanjiMore = kanjiMore;
     setKanji([...kanji, ...kanjiMore]);
+    // Kanji with few example words borrow more from the N5 word list: shortest first, up to four.
+    for (const k of kanji) {
+      if ((k.words ||= []).length >= 4) continue;
+      const extra = vocab.filter((v) => v.w !== k.k && v.w.includes(k.k) && !k.words.includes(v.w))
+        .sort((a, b) => a.w.length - b.w.length).slice(0, 4 - k.words.length).map((v) => v.w);
+      k.words = [...k.words, ...extra];
+    }
     setNotes(state.notes ||= {});
     setReadings(glossary);
     // Lessons finished before grammar had its own reviews get their grammar item now.

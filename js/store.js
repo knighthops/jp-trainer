@@ -86,7 +86,28 @@ export function dayStats(state, now = Date.now()) {
   return (state.days[key] ||= { newK: 0, newW: 0, reviews: 0, sentences: 0, particles: 0, shadow: 0, lessons: 0 });
 }
 
-const active = (d) => Boolean(d) && d.newK + d.newW + d.reviews + d.sentences + d.particles + (d.shadow || 0) + (d.lessons || 0) > 0;
+// XP is a plain sum of work already logged for a day. It is never spent and never lost.
+export const XP = { newK: 5, newW: 3, reviews: 1, sentences: 2, particles: 1, shadow: 1, lessons: 10, tests: 30 };
+export const DAILY_GOAL = 50;
+export const xpOf = (d) => (d ? Object.entries(XP).reduce((n, [k, w]) => n + (Number.isFinite(d[k]) ? d[k] * w : 0), 0) : 0);
+export const xpToday = (state, now = Date.now()) => xpOf(state.days[dayKey(now)]);
+
+// Days studied in a row, where up to 2 days off in any 7 count as rest and keep the run going.
+// A longer gap simply starts a new run from the next day studied: nothing is lost.
+export function streakWithRest(state, now = Date.now(), restPerWeek = 2) {
+  const on = (i) => active(state.days[dayKey(now - i * 864e5)]);
+  let start = on(0) ? 0 : 1;
+  let n = 0;
+  const offs = [];
+  for (let i = start; i < 3650; i++) {
+    if (on(i)) { n++; continue; }
+    offs.push(i);
+    if (offs.filter((o) => o > i - 7).length > restPerWeek) break;
+  }
+  return n;
+}
+
+const active = (d) => Boolean(d) && d.newK + d.newW + d.reviews + d.sentences + d.particles + (d.shadow || 0) + (d.lessons || 0) + (d.tests || 0) > 0;
 
 export const daysStudied = (state) => Object.values(state.days).filter(active).length;
 

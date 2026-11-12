@@ -8,6 +8,7 @@
 "読みます":{"y":"よみます","ro":"yomimasu","m":"read"},
 "学校":{"y":"がっこう","ro":"gakkō","m":"school"},
 "行きます":{"y":"いきます","ro":"ikimasu","m":"go"},
+"行き":{"y":"いき","ro":"iki","m":"go (stem, before ます)"},
 "勉強します":{"y":"べんきょうします","ro":"benkyō shimasu","m":"study"},
 "日本":{"y":"にほん","ro":"Nihon","m":"Japan"},
 "話します":{"y":"はなします","ro":"hanashimasu","m":"talk, speak"},

@@ -201,7 +201,7 @@ export function renderSentence(root, sentence, { hints, review = false, onDone }
   const placed = [];
   let clean = true;
   const blockHtml = (b, cls = '') => `<button class="block ${ROLE_NAMES[b.r]} ${cls}" data-i="${b.i}">
-    <span>${b.t}</span>${hints && b.y ? `<small>${b.y}</small>` : ''}</button>`;
+    <span>${b.t}</span>${b.y && (typeof hints === 'function' ? hints(b) : hints) ? `<small>${b.y}</small>` : ''}</button>`;
 
   root.innerHTML = `
     <div class="card">

@@ -40,15 +40,33 @@ export function mockExam(paper) {
 
 const MIN_QUESTIONS = 10;
 
+const KATAKANA = /^[゠-ヿ]+$/;
+// A rough word class from the vocab list, which has no part of speech: verbs are glossed
+// "to …", and い-adjectives are kanji with a trailing い (きれい and friends count as nouns).
+export function wordKind(v) {
+  if (/^to /.test(v.m)) return 'verb';
+  if (/[一-鿿]い$/.test(v.w)) return 'adj';
+  return 'noun';
+}
+
 // The written questions of a unit, plus word questions drawn from what it teaches.
 export function unitTest(unit, data, rng = Math.random) {
   const taught = unit.lessons.flatMap((l) => l.words || [])
     .map((w) => data.vocab.find((v) => v.w === w)).filter(Boolean);
-  const others = (field, right) => shuffled(data.vocab.filter((v) => v[field] && v[field] !== right), rng).slice(0, 3).map((v) => v[field]);
+  // Wrong options look like the right one: a verb's options are verbs, an adjective's are
+  // adjectives. Readings come from other kanji words, nearest in length, never katakana.
+  const others = (field, right, of) => {
+    const pool = data.vocab.filter((v) => v[field] && v[field] !== right && v !== of
+      && (field === 'm' || (v.w !== v.y && !KATAKANA.test(v.y))));
+    const same = pool.filter((v) => wordKind(v) === wordKind(of));
+    const near = (v) => (field === 'y' ? Math.abs(v.y.length - right.length) + (v.y.at(-1) === right.at(-1) ? 0 : 0.5) : 0);
+    const ranked = shuffled(same.length >= 3 ? same : pool, rng).sort((a, b) => near(a) - near(b));
+    return [...new Set(ranked.map((v) => v[field]))].slice(0, 3);
+  };
   const chosen = shuffled(taught, rng).slice(0, 6);
   const wordQs = chosen.map((v, i) => (i % 2 === 0 && v.w !== v.y
-    ? { id: `${unit.id}-r${i}`, q: `[${v.w}]`, ask: 'How is this read?', o: [v.y, ...others('y', v.y)], w: `${v.w} is read ${v.y}: ${v.m}.`, word: v.w }
-    : { id: `${unit.id}-m${i}`, q: `[${v.w}]`, ask: 'What does this mean?', o: [v.m, ...others('m', v.m)], w: `${v.w} means ${v.m}.`, word: v.w }));
+    ? { id: `${unit.id}-r${i}`, q: `[${v.w}]`, ask: 'How is this read?', o: [v.y, ...others('y', v.y, v)], w: `${v.w} is read ${v.y}: ${v.m}.`, word: v.w }
+    : { id: `${unit.id}-m${i}`, q: `[${v.w}]`, ask: 'What does this mean?', o: [v.m, ...others('m', v.m, v)], w: `${v.w} means ${v.m}.`, word: v.w }));
   const written = (unit.quiz || []).map((q, i) => ({ ...q, id: `${unit.id}-q${i}` }));
   // Units that teach few words borrow fill-the-blank drills, so no test is too short to be fair.
   const blanks = unit.lessons.flatMap((l) => l.drills).filter((d) => d.c)

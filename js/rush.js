@@ -1,6 +1,7 @@
 // Kanji Rush: as many kanji as you can before the clock runs out. Pick each one's
 // meaning, or its reading in kana. A miss costs time unless that's turned off.
-// Free play: it never touches the review schedule.
+// A miss on a kanji you're studying is logged as Shaky, so it comes back sooner in reviews.
+// "Struggling" plays only the kanji you keep missing.
 import { shuffled } from './drills.js';
 import { romaji, toHiragana } from './romaji.js';
 
@@ -34,16 +35,18 @@ export function rushQuestion(pool, all, rng = Math.random, last = null, mode = '
 }
 
 // The key a best score is kept under: each mode and clock has its own record.
-export const bestKey = ({ mode, secs, penalty }) => `${mode}-${secs}${penalty ? '' : '-free'}`;
+export const bestKey = ({ mode, secs, penalty, only }) => `${mode}-${secs}${penalty ? '' : '-free'}${only === 'weak' ? '-weak' : ''}`;
 
 const optHtml = (o, mode) => (mode === 'reading'
   ? `<button class="opt kana" data-o="${o}"><span class="jp">${o}</span><small>${romaji(o)}</small></button>`
   : `<button class="opt" data-o="${o}">${o}</button>`);
 
-// ctx: { view, setTop, pool, all, readOf(kanji), settings, saveSettings(s), best(key), onBest(key, score), onExit }
+// ctx: { view, setTop, pool, weak (struggling kanji), all, onMiss(kanji), readOf(kanji), settings, saveSettings(s), best(key), onBest(key, score), onExit }
 export function startRush(ctx) {
   const { view, setTop } = ctx;
-  const opts = { mode: 'meaning', secs: 60, penalty: true, ...ctx.settings };
+  const opts = { mode: 'meaning', secs: 60, penalty: true, only: 'all', ...ctx.settings };
+  if (!ctx.weak?.length) opts.only = 'all';
+  const pool = () => (opts.only === 'weak' ? ctx.weak : ctx.pool);
   let timer = null;
 
   function intro() {
@@ -54,10 +57,11 @@ export function startRush(ctx) {
         <span class="water" aria-hidden="true">速</span>
         <span class="caps">${opts.secs ? `${opts.secs} seconds` : 'No clock'}</span>
         <h2>Kanji Rush</h2>
-        <p class="sub">${opts.mode === 'reading' ? 'Pick each kanji\'s reading in kana' : 'Pick each kanji\'s meaning'} as fast as you can.${opts.penalty && opts.secs ? ` A miss costs ${PENALTY_MS / 1000} seconds.` : ''} ${ctx.pool.length} kanji in play.</p>
+        <p class="sub">${opts.mode === 'reading' ? 'Pick each kanji\'s reading in kana' : 'Pick each kanji\'s meaning'} as fast as you can.${opts.penalty && opts.secs ? ` A miss costs ${PENALTY_MS / 1000} seconds.` : ''} ${pool().length} kanji in play.</p>
         <button class="btn" id="go">Start</button>
       </section>
       <section class="card rush-set">
+        ${ctx.weak?.length ? `<strong>Kanji</strong>${seg('only', [['all', 'All you\'ve met'], ['weak', `Struggling · ${ctx.weak.length}`]])}` : ''}
         <strong>Answer with</strong>${seg('mode', MODES)}
         <strong>Time</strong>${seg('secs', TIMES.map((s) => [s, s ? `${s}s` : 'Off']))}
         ${opts.secs ? `<strong>Penalty for a miss</strong>${seg('penalty', [[true, `−${PENALTY_MS / 1000}s`], [false, 'None']])}` : ''}
@@ -91,7 +95,7 @@ export function startRush(ctx) {
       <div class="reach"><div class="opts long rush-opts ${opts.mode}" id="ropts"></div></div>`;
     const el = (id) => view.querySelector(`#${id}`);
     const ask = () => {
-      q = rushQuestion(ctx.pool, ctx.all, Math.random, q?.k, opts.mode, ctx.readOf);
+      q = rushQuestion(pool(), ctx.all, Math.random, q?.k, opts.mode, ctx.readOf);
       el('rk').textContent = q.k.k;
       el('ropts').innerHTML = q.options.map((o) => optHtml(o, opts.mode)).join('');
     };
@@ -117,7 +121,7 @@ export function startRush(ctx) {
         combo = 0;
         if (opts.penalty) end.at -= PENALTY_MS;
         card.classList.add('miss');
-        if (!misses.includes(q.k)) misses.push(q.k);
+        if (!misses.includes(q.k)) { misses.push(q.k); ctx.onMiss?.(q.k); }
       }
       el('rscore').textContent = score;
       el('rcombo').textContent = combo >= 3 ? `${combo} in a row` : '';

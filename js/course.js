@@ -225,7 +225,8 @@ export function lessonSteps(unit, lesson, state, data, resume = null) {
   const groups = [];
   for (let i = 0; i < learn.length; i += GROUP) {
     const g = learn.slice(i, i + GROUP);
-    groups.push(...partsFor(g), ...g.map((s) => ({ ...s, type: 'learn' })), ...g.map((s) => ({ ...s, type: 'card', isNew: true })));
+    // Recall runs in reverse order, so it tests memory rather than an echo of the order just seen.
+    groups.push(...partsFor(g), ...g.map((s) => ({ ...s, type: 'learn' })), ...[...g].reverse().map((s) => ({ ...s, type: 'card', isNew: true })));
   }
   const intro = { type: 'lesson', ref: lesson, unit };
   if (more) return [intro, ...groups, { type: 'lessonPart', id: lesson.id }];

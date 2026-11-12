@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { newRecord, rate, isDue, stageOf, isStruggling, CLEARS } from '../js/srs.js';
 import { validNext, explainWrong, orders, tokenize, romajiLine, spoken, setNotes, noteSlotInner, partsHtml, setKanji, linkKanji, peekHtml, soundLine } from '../js/drills.js';
-import { backupJson, parseBackup } from '../js/store.js';
+import { backupJson, parseBackup, xpOf, streakWithRest, dayKey } from '../js/store.js';
+import { quizQuestion, similarKanji, drillKanji, kindFor, readWords } from '../js/quiz.js';
 import { romaji, toHiragana, toKana, judgeReading } from '../js/romaji.js';
 import { speechText } from '../js/tts.js';
 import { matchReading } from '../js/readings.js';
@@ -12,11 +13,11 @@ import {
   UNIT_FILES, mergeCourse, nextUp, isUnlocked, examUnlocked, lessonSteps, LEVELS, levelUnlocked, toBlocks, autoAlts, words, particleItem,
   courseSteps, rankOf, LESSON_NEW, unitStars, unitItems, grammarId, passUnit,
 } from '../js/course.js';
-import { unitTest, mockExam, grade } from '../js/exam.js';
+import { unitTest, mockExam, grade, wordKind } from '../js/exam.js';
 import { checkLogin, hashPassword, userId } from '../js/lock.js';
 import { radioChannels } from '../js/radio.js';
 import { clipId, clipSsml, englishSaid } from '../js/clips.js';
-import { rushQuestion } from '../js/rush.js';
+import { rushQuestion, bestKey } from '../js/rush.js';
 import { makeIndex, search, posName } from '../js/dict.js';
 import { deckOf, emojiOf, homeCard } from '../js/cards.js';
 import {
@@ -1131,4 +1132,71 @@ test('kanji in stories and sound families can be tapped to see what they are', (
   assert.ok(soundLine(by.get('晴')).includes('data-kref="青"'));
   assert.ok(peekHtml('青').includes('blue'));
   assert.ok(peekHtml('甬').includes('a part'), 'a part that is not a kanji still has a card');
+});
+
+test('weak-kanji quiz: one right answer, look-alike distractors, one exact reading', () => {
+  const d = course();
+  const vocab = new Map(d.vocab.map((v) => [v.w, v]));
+  const wordOf = (w) => vocab.get(w) || (d.glossary[w] ? { w, y: d.glossary[w].y, m: d.glossary[w].m } : null);
+  const by = new Map(d.kanji.map((k) => [k.k, k]));
+  const rng = () => 0.3;
+  for (const k of d.kanji) {
+    for (const kind of ['pick', 'read', 'mean']) {
+      const q = quizQuestion(k, kind, { pool: d.kanji, wordOf, rng });
+      assert.equal(q.options.length, 4, `${k.k} ${kind}: four options`);
+      assert.equal(new Set(q.options).size, 4, `${k.k} ${kind}: no repeats`);
+      assert.ok(q.answer >= 0 && q.answer < 4);
+      if (q.kind === 'pick') assert.equal(q.options[q.answer], k.k);
+      if (q.kind === 'mean') assert.equal(q.options[q.answer], k.mean[0]);
+      if (q.kind === 'read') assert.equal(q.options[q.answer], toHiragana(q.word.y), `${k.k}: the word's own reading`);
+    }
+  }
+  // 休 shares 亻 with 体 and 何, so they come first as distractors.
+  const near = similarKanji(by.get('休'), d.kanji, rng).slice(0, 3).map((k) => k.k);
+  assert.ok(near.some((c) => '体何作住'.includes(c)), `look-alikes first: ${near}`);
+  assert.ok(readWords(by.get('三'), wordOf).every((w) => w.w.includes('三') && w.w !== '三'));
+  // Struggling first, then due, no repeats, capped.
+  const [a, b, c] = d.kanji;
+  assert.deepEqual(drillKanji([a, b], [b, c], 2), [a, b]);
+  assert.deepEqual(drillKanji([a], [b, c]), [a, b, c]);
+  assert.deepEqual([0, 1, 2, 3].map((i) => kindFor(i)), ['pick', 'read', 'mean', 'pick']);
+});
+
+test('XP is a sum of logged work, and the streak forgives up to two rest days a week', () => {
+  assert.equal(xpOf({ newK: 2, newW: 1, reviews: 10, sentences: 1, particles: 0, shadow: 0, lessons: 1 }), 10 + 3 + 10 + 2 + 10);
+  assert.equal(xpOf(undefined), 0);
+  const on = { newK: 0, newW: 0, reviews: 1, sentences: 0, particles: 0, shadow: 0, lessons: 0 };
+  const days = (offs) => Object.fromEntries(offs.map((n) => [dayKey(NOW - n * DAY), on]));
+  assert.equal(streakWithRest({ days: days([0, 1, 2, 3]) }, NOW), 4);
+  assert.equal(streakWithRest({ days: days([1, 2, 3]) }, NOW), 3, 'today still open');
+  assert.equal(streakWithRest({ days: days([0, 2, 3, 5, 6]) }, NOW), 5, 'two days off in a week are rest days');
+  assert.equal(streakWithRest({ days: days([0, 4, 5]) }, NOW), 1, 'three days off ends the run');
+  assert.equal(streakWithRest({ days: {} }, NOW), 0);
+});
+
+test('unit-test word options are the same kind of word as the answer', () => {
+  const merged = course();
+  assert.equal(wordKind({ w: '帰る', y: 'かえる', m: 'to go home' }), 'verb');
+  assert.equal(wordKind({ w: '高い', y: 'たかい', m: 'high, expensive' }), 'adj');
+  assert.equal(wordKind({ w: 'ドア', y: 'ドア', m: 'door' }), 'noun');
+  const byM = new Map(merged.vocab.map((v) => [v.m, v]));
+  const byY = new Map(merged.vocab.map((v) => [v.y, v]));
+  for (const unit of merged.units) {
+    for (const q of unitTest(unit, merged).sections[0].questions) {
+      const right = q.o[q.a];
+      if (/-r\d+$/.test(q.id)) {
+        for (const o of q.o) assert.ok(!/^[゠-ヿ]+$/.test(o), `${q.id}: no katakana among readings (${o})`);
+      }
+      if (/-m\d+$/.test(q.id) && wordKind(byM.get(right)) === 'verb') {
+        assert.ok(q.o.every((o) => /^to /.test(o)), `${q.id}: verbs beside a verb: ${q.o}`);
+      }
+    }
+  }
+  assert.ok(byY.size > 0);
+});
+
+test('Rush keeps a separate best for the struggling-only game', () => {
+  assert.equal(bestKey({ mode: 'meaning', secs: 60, penalty: true }), 'meaning-60');
+  assert.equal(bestKey({ mode: 'meaning', secs: 60, penalty: true, only: 'all' }), 'meaning-60');
+  assert.equal(bestKey({ mode: 'reading', secs: 30, penalty: false, only: 'weak' }), 'reading-30-free-weak');
 });
