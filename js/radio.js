@@ -34,7 +34,7 @@ export function radioChannels(state, data) {
     scenes.length > 1 && { id: 'trip', jp: '旅', title: 'All trip scenes', sub: 'Every scene, mixed', items: scenes.flatMap(tripLines), trip: true },
     ...scenes.map((s) => ({ id: `trip-${s.id}`, jp: s.jp, title: s.title, sub: 'Say and hear', items: tripLines(s), trip: true })),
     { id: 'course', jp: '講座', title: 'Your course', sub: 'Every finished lesson', items: done.flatMap(({ lesson }) => lessonItems(lesson, data)) },
-    latest && { id: 'unit', jp: '今', title: `Unit ${latest.n}: ${latest.title}`, sub: 'The unit you\'re on', items: done.filter((d) => d.unit === latest).flatMap(({ lesson }) => lessonItems(lesson, data)) },
+    latest && { id: 'unit', jp: '今', title: `Unit ${latest.n}: ${latest.title}`, sub: 'Latest unit with lessons done', items: done.filter((d) => d.unit === latest).flatMap(({ lesson }) => lessonItems(lesson, data)) },
     { id: 'stories', jp: '物語', title: 'Stories', sub: 'Chapters you\'ve read', items: stories.flatMap((s) => s.lines.map((l) => ({ t: l.t, en: l.en }))), ordered: true },
   ];
   return channels.filter(Boolean).map((c) => ({ ...c, items: unique(c.items) })).filter((c) => c.items.length);

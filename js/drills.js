@@ -173,6 +173,29 @@ export function orders(sentence) {
   return [texts, ...(sentence.alts || []).map((alt) => alt.map((i) => texts[i]))];
 }
 
+// The sheet that slides up after every answer, whatever the exercise: right or wrong, a
+// headline, then what was asked with its reading and meaning, and one Continue.
+export function feedbackSheet({ right, headline, glyph = '', title = '', lines = [] }) {
+  const body = glyph || title || lines.length
+    ? `<div class="sh-body">${glyph ? `<span class="sh-k jp">${glyph}</span>` : ''}
+      <span class="grow">${title ? `<strong>${title}</strong>` : ''}${lines.filter(Boolean).map((l) => `<span class="sh-line">${l}</span>`).join('')}</span></div>`
+    : '';
+  return `<div class="sheet ${right ? 'good' : 'bad'}" role="status">
+    <div class="sh-head"><span class="sh-badge" aria-hidden="true">${right ? '✓' : '✕'}</span><b>${headline}</b></div>
+    ${body}<button class="btn" id="cont">Continue</button></div>`;
+}
+
+export function showSheet(root, opts, onContinue) {
+  root.querySelector('.sheet')?.remove();
+  root.insertAdjacentHTML('beforeend', feedbackSheet(opts));
+  document.body.classList.add('has-sheet');
+  const cont = root.querySelector('#cont');
+  cont.onclick = () => { document.body.classList.remove('has-sheet'); onContinue(); };
+}
+
+// Headline for a finished item: right first time, or got there after a wrong tap.
+const doneHeadline = (clean) => (clean ? 'Correct' : 'Got there');
+
 export function validNext(sentence, placed) {
   const next = new Set();
   for (const order of orders(sentence)) {
@@ -192,10 +215,20 @@ export function explainWrong(sentence, placed, tapped) {
   return lead + (NEXT_HINT[expected?.r] || 'Try another block.');
 }
 
-export function renderSentence(root, sentence, { hints, review = false, onDone }) {
+// One or two spare particles join the tiles, so the last few can't be placed by elimination.
+// は and が stand in for each other too easily to be fair as spares for one another.
+const SPARE = ['を', 'に', 'で', 'へ', 'と', 'も', 'が', 'は'];
+export function decoysFor(sentence, rng = Math.random) {
+  const used = new Set(sentence.blocks.map((b) => b.t));
+  const options = SPARE.filter((p) => !used.has(p) && !(p === 'が' && used.has('は')) && !(p === 'は' && used.has('が')));
+  const n = sentence.blocks.length >= 5 ? 2 : 1;
+  return shuffled(options, rng).slice(0, n).map((t, k) => ({ t, r: 'particle', i: sentence.blocks.length + k, decoy: true }));
+}
+
+export function renderSentence(root, sentence, { hints, glossary = {}, review = false, onDone }) {
   // Keep shuffling until the pool is not already a correct answer.
   const accepted = orders(sentence).map((o) => o.join('|'));
-  let pool = shuffled(sentence.blocks.map((b, i) => ({ ...b, i })));
+  let pool = shuffled([...sentence.blocks.map((b, i) => ({ ...b, i })), ...decoysFor(sentence)]);
   for (let n = 0; n < 8 && accepted.includes(pool.map((b) => b.t).join('|')); n++) pool = shuffled(pool);
 
   const placed = [];
@@ -225,6 +258,14 @@ export function renderSentence(root, sentence, { hints, review = false, onDone }
     const el = e.target.closest('.block');
     if (!el || el.classList.contains('used')) return;
     const block = pool.find((b) => b.i === Number(el.dataset.i));
+    if (block.decoy) {
+      // A spare tile that belongs nowhere: it says so and leaves the pool.
+      clean = false;
+      fb.className = 'fb bad';
+      fb.textContent = `${block.t} doesn't belong in this sentence.`;
+      el.classList.add('used', 'gone');
+      return;
+    }
     if (!validNext(sentence, placed).has(block.t)) {
       clean = false;
       fb.className = 'fb bad';
@@ -244,11 +285,17 @@ export function renderSentence(root, sentence, { hints, review = false, onDone }
     fb.className = 'fb';
     if (placed.length === sentence.blocks.length) {
       ans.classList.add('done');
-      ans.insertAdjacentHTML('beforeend', sayBtn(sentence.blocks.map((b) => b.t).join(' ')));
-      fb.className = 'fb good';
-      fb.textContent = sentence.note || 'Correct.';
-      root.querySelector('#after').innerHTML = '<button class="btn" id="cont">Continue</button>';
-      root.querySelector('#cont').onclick = () => onDone(clean);
+      const said = sentence.blocks.map((b) => b.t).join(' ');
+      ans.insertAdjacentHTML('beforeend', sayBtn(said));
+      fb.textContent = '';
+      fb.className = 'fb';
+      root.querySelectorAll('#pool .block').forEach((b) => b.classList.add('used'));
+      showSheet(root, {
+        right: clean,
+        headline: doneHeadline(clean),
+        title: sentence.en,
+        lines: [`<span class="romaji shown">${romajiLine(sentence.blocks.map((b) => b.t), glossary, '.')}</span>`, sentence.note ? `<span class="small muted">${sentence.note}</span>` : ''],
+      }, () => onDone(clean));
     }
   };
   // Coming back with Previous shows the finished sentence.
@@ -361,12 +408,12 @@ export function renderParticle(root, item, set, cards, { glossary, review = fals
     opts.querySelectorAll('.opt').forEach((b) => { b.disabled = true; });
     root.querySelector('#line').innerHTML = line(choice);
     root.querySelector('#romaji').innerHTML = `${romaji(choice)} ${sayBtn([...before, choice, ...after].join(' '))}`;
+    root.querySelector('#romaji').classList.add('shown');
     const card = cards.find((c) => c.p === choice);
-    fb.className = 'fb good';
-    if (card) fb.textContent = item.note ? `${card.name}. ${item.note}` : `${card.name}: ${card.fn}`;
-    else fb.textContent = item.note || 'Correct.';
-    root.querySelector('#after').innerHTML = '<button class="btn" id="cont">Continue</button>';
-    root.querySelector('#cont').onclick = () => onDone(clean);
+    fb.className = 'fb';
+    fb.textContent = '';
+    const why = card ? (item.note ? `${card.name}. ${item.note}` : `${card.name}: ${card.fn}`) : item.note || '';
+    showSheet(root, { right: clean, headline: doneHeadline(clean), glyph: choice, title: item.en, lines: [why ? `<span class="small">${why}</span>` : ''] }, () => onDone(clean));
   };
   if (review) opts.querySelector(`[data-o="${item.answer}"]`).click();
 }
@@ -414,10 +461,9 @@ export function renderCheck(root, q, { glossary, review = false, onDone }) {
     }
     b.classList.add('right');
     root.querySelectorAll('.choice').forEach((x) => { x.disabled = true; });
-    fb.className = 'fb good';
-    fb.textContent = q.w || 'Correct.';
-    root.querySelector('#after').innerHTML = '<button class="btn" id="cont">Continue</button>';
-    root.querySelector('#cont').onclick = () => onDone(clean);
+    fb.className = 'fb';
+    fb.textContent = '';
+    showSheet(root, { right: clean, headline: doneHeadline(clean), title: show(q.o[0]), lines: [q.w ? `<span class="small">${q.w}</span>` : ''] }, () => onDone(clean));
   };
   if (review) root.querySelector(`.choice[data-o="${q.o[0]}"]`).click();
 }

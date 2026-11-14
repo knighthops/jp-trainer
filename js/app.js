@@ -12,7 +12,7 @@ import { reviewSteps, kanjiId } from './session.js';
 import { quizQuestion, drillKanji, kindFor, DRILL_SECONDS } from './quiz.js';
 import { loadStrokes, mountStrokes } from './strokes.js';
 import {
-  renderSentence, renderParticle, renderCheck, particleCardHtml, bindGloss, glossHtml, glossText, romajiLine, shuffled, glued, setKanji, partsHtml, wordKanjiHtml, kanjiOf, kanjiIn,
+  renderSentence, renderParticle, renderCheck, particleCardHtml, feedbackSheet, showSheet, bindGloss, glossHtml, glossText, romajiLine, shuffled, glued, setKanji, partsHtml, wordKanjiHtml, kanjiOf, kanjiIn,
   setNotes, noteOf, noteSlotInner, noteEditorHtml, togglePeek, peekHtml,
 } from './drills.js';
 import { makeWriteIndex, recognize } from './handwrite.js';
@@ -20,7 +20,8 @@ import {
   UNIT_FILES, mergeCourse, isUnlocked, unitProgress, nextUp, examUnlocked, lessonSteps, words as splitWords,
   LEVELS, levelSentences, levelProgress, levelUnlocked, particleItem, courseSteps, rankOf, RANKS, unitStars, grammarId, passUnit, isWords, lessonStars,
 } from './course.js';
-import { mockExam, unitTest, startExam } from './exam.js';
+import { mockExam, unitTest, startExam, RETAKE_MIN } from './exam.js';
+import { wordQuestion, spellPuzzle, renderWordQ, renderSpell, renderMatch } from './exercises.js';
 import { icons } from './icons.js';
 import { romaji, toHiragana, toKana, judgeReading } from './romaji.js';
 import { matchReading } from './readings.js';
@@ -47,12 +48,6 @@ const TABS = [['today', 'Home'], ['course', 'Course'], ['kanji', 'Kanji'], ['tri
 const tripSeg = (on) => `<nav class="seg" aria-label="Trip"><a href="#/trip" class="${on === 'trip' ? 'on' : ''}">Scenes</a><a href="#/listen" class="${on === 'listen' ? 'on' : ''}">Listen</a></nav>`;
 // Leaving a screen stops whatever it was doing (Radio playback, the Rush timer).
 let screenCleanup = null;
-
-const applyTheme = () => {
-  const t = state.settings.theme;
-  if (t === 'system') document.documentElement.removeAttribute('data-theme');
-  else document.documentElement.dataset.theme = t;
-};
 
 function animate() {
   view.classList.remove('anim');
@@ -174,11 +169,11 @@ function courseCard(next) {
     : next?.type === 'test' ? `Unit ${next.unit.n} test` : 'Course complete';
   const newKanji = next?.type === 'lesson' ? (next.lesson.kanji || []).filter((c) => !state.items[`k:${c}`]).length : 0;
   const lessonMins = next?.type === 'lesson' && !resumable(next) ? 4 : next?.type === 'test' ? 6 : resumable(next) ? 2 : 0;
-  const mins = Math.max(1, Math.round((resumable(next) ? 0 : due * 8) / 60 + lessonMins));
+  const mins = Math.max(1, Math.round((resumable(next) ? 0 : due * 12) / 60 + lessonMins));
   const where = next?.unit ? `Lesson ${next.unit.n}.${next.unit.lessons.indexOf(next.lesson) + 1}` : '';
   const chips = [
     due && !resumable(next) ? `${due} reviews` : '',
-    next?.type === 'lesson' ? (resumable(next) ? `Resume ${where}` : where) : next?.type === 'test' ? `Unit ${next.unit.n} test` : '',
+    next?.type === 'lesson' ? (resumable(next) ? `Resume ${where}` : where) : next?.type === 'test' ? (retryWait(next.unit) ? `Test opens in ${retryWait(next.unit)} min` : `Unit ${next.unit.n} test`) : '',
     newKanji ? `+${newKanji} kanji` : '',
   ].filter(Boolean);
   return `<section class="card hero upnext">
@@ -187,7 +182,7 @@ function courseCard(next) {
     <h2>${label}</h2>
     ${chips.length ? `<div class="plan-chips">${chips.map((c, n) => `${n ? '<span class="arrow" aria-hidden="true">→</span>' : ''}<span class="pchip">${c}</span>`).join('')}</div>` : ''}
     ${go ? `<button class="btn" id="cont">${resumable(next) ? 'Resume' : 'Start'}</button>` : ''}
-    ${due && go && !resumable(next) ? `<button class="hero-link" id="revonly">Only 2 minutes? Just reviews · ${due}</button>` : ''}
+    ${due && go && !resumable(next) ? `<button class="hero-link" id="revonly">Short on time? Just reviews · ${due}</button>` : ''}
     ${!go && due ? `<button class="btn" id="revonly">Review · ${due}</button>` : ''}
   </section>`;
 }
@@ -197,11 +192,15 @@ function goalHome(now = Date.now()) {
   const xp = xpToday(state, now);
   const s = streakWithRest(state, now);
   const share = Math.min(1, xp / DAILY_GOAL);
+  // Days before you first studied are blank, not rest days.
+  const first = Object.keys(state.days).filter((d) => activity(state.days[d]) > 0).sort()[0];
   const days = Array.from({ length: 7 }, (_, i) => {
     const t = now - (6 - i) * DAY_MS;
     const on = activity(state.days[dayKey(t)]) > 0;
+    const before = !first || dayKey(t) < first;
     const wd = '日月火水木金土'[new Date(t).getDay()];
-    return `<span class="wd ${on ? 'on' : i === 6 ? 'now' : 'rest'}"><i>${on ? '' : i === 6 ? '' : '休'}</i><small class="jp">${wd}</small></span>`;
+    const cls = on ? 'on' : i === 6 ? 'now' : before ? 'pre' : 'rest';
+    return `<span class="wd ${cls}"><i>${cls === 'rest' ? '休' : ''}</i><small class="jp">${wd}</small></span>`;
   }).join('');
   return `<section class="card goalhome">
     <div class="gh-top">
@@ -420,9 +419,12 @@ function bumpCombo(clean) {
 
 // The first answer to each item counts for the end screen; a miss is kept to show and redo.
 function tally(step, ok) {
-  if (!run || !step.id || run.seen.has(step.id)) return;
-  run.seen.add(step.id);
-  if (!ok) run.misses.set(step.id, step);
+  // Endless practice reuses one id, so each of its items carries its own key.
+  const key = step.key || step.id;
+  // A missed new item comes back once later in the lesson as practice; only the first try counts.
+  if (!run || !key || step.again || run.seen.has(key)) return;
+  run.seen.add(key);
+  if (!ok) run.misses.set(key, step);
 }
 
 function toast(text) {
@@ -433,6 +435,12 @@ function toast(text) {
   t.textContent = text;
   document.body.append(t);
   setTimeout(() => t.remove(), 1500);
+}
+
+// A new item missed in a lesson comes back once, a few steps later, as practice.
+function requeue(step) {
+  if (!step.isNew || step.again || !run.useSrs) return;
+  run.steps.splice(Math.min(run.i + 4, run.steps.length), 0, { ...step, done: false, result: undefined, q: undefined, again: true });
 }
 
 function record(id, grade) {
@@ -517,6 +525,21 @@ function renderStep() {
     }
     advance();
   };
+  // Lesson exercises. Checks of new items are scheduled like any answer; a miss comes back
+  // once, a few steps on, as practice. Spelling, listening and matching are practice only.
+  const finishExercise = (clean, { srs = true } = {}) => {
+    if (clean === null) { advance(); return; } // "Can't listen now": skipped, not counted.
+    if (!step.done) {
+      step.done = true;
+      run.drills++;
+      if (clean) run.clean++;
+      bumpCombo(clean);
+      tally(step, clean);
+      if (srs && !step.again) record(step.id, clean ? 'good' : 'again');
+      if (!clean) requeue(step);
+    }
+    advance();
+  };
   // A missed sign or line comes back a few steps later in the same session.
   const tripDone = (clean) => {
     if (!clean && !step.done && run.useSrs) run.steps.splice(Math.min(run.i + 4, run.steps.length), 0, { ...step, done: false });
@@ -526,10 +549,19 @@ function renderStep() {
   else if (step.type === 'parts') renderParts(step);
   else if (step.type === 'card') renderCard(step);
   else if (step.type === 'quiz') renderQuiz(step);
+  else if (step.type === 'wordq') {
+    const known = new Set(Object.keys(state.items).filter((id) => id.startsWith('w:')).map((id) => id.slice(2)));
+    step.q ||= wordQuestion(step.ref, data.vocab, step.dir, { known });
+    const tag = step.dir === 'hear' ? 'Listen' : step.dir === 'jp' ? 'Meaning → word' : 'Word → meaning';
+    renderWordQ(view, step.q, { tag, review, onDone: (clean) => finishExercise(clean, { srs: step.dir !== 'hear' }) });
+  } else if (step.type === 'spell') {
+    step.q ||= spellPuzzle(step.ref);
+    renderSpell(view, step.q, { review, onDone: (clean) => finishExercise(clean, { srs: false }) });
+  } else if (step.type === 'match') renderMatch(view, step.pairs, { review, onDone: (clean) => finishExercise(clean, { srs: false }) });
   else if (step.type === 'lesson') renderLesson(step);
   else if (step.type === 'dialogue') renderDialogue(step);
   else if (step.type === 'reading') renderReading(step);
-  else if (step.type === 'sentence') renderSentence(view, step.ref, { hints: state.settings.hints && ((b) => !knownKanji(b.t)), review, onDone: finishDrill });
+  else if (step.type === 'sentence') renderSentence(view, step.ref, { hints: state.settings.hints && ((b) => !knownKanji(b.t)), glossary: data.glossary, review, onDone: finishDrill });
   else if (step.type === 'particle') renderParticle(view, step.ref, step.set, data.particles.cards, { glossary: data.glossary, review, onDone: finishDrill });
   else if (step.type === 'check') {
     renderCheck(view, step.ref, {
@@ -942,13 +974,10 @@ function markedWord(k, w) {
 function answerSheet(k, word, right, headline) {
   const w = word || readingWords(k)[0];
   const m = w ? markedWord(k, w) : null;
-  return `<div class="sheet ${right ? 'good' : 'bad'}" role="status">
-    <div class="sh-head"><span class="sh-badge" aria-hidden="true">${right ? '✓' : '✕'}</span><b>${headline}</b></div>
-    <div class="sh-body"><span class="sh-k jp">${k.k}</span>
-      <span class="grow"><strong>${k.mean.slice(0, 2).join(', ')}</strong>
-        ${m ? `<span class="sh-line">${m.html} ${m.chip}</span><span class="small muted">${romaji(w.y)} · ${w.m}</span>`
-    : `<span class="sh-line jp">${headReading(k)}</span>`}</span></div>
-    <button class="btn" id="cont">Continue</button></div>`;
+  return feedbackSheet({
+    right, headline, glyph: k.k, title: k.mean.slice(0, 2).join(', '),
+    lines: m ? [`${m.html} ${m.chip}`, `<span class="small muted">${romaji(w.y)} · ${w.m}</span>`] : [`<span class="jp">${headReading(k)}</span>`],
+  });
 }
 
 const QUIZ_TAG = { pick: 'Meaning → kanji', read: 'Reading in a word', mean: 'Kanji → meaning' };
@@ -1008,10 +1037,11 @@ function renderQuiz(step) {
       if (right && !step.hinted) run.clean++;
       bumpCombo(right && !step.hinted);
       tally(step, right && !step.hinted);
-      record(step.id, !right ? 'again' : step.hinted ? 'hard' : 'good');
+      if (!step.again) record(step.id, !right ? 'again' : step.hinted ? 'hard' : 'good');
+      if (!right) requeue(step);
     }
     const say = q.kind === 'read' ? `It's ${q.options[q.answer]}` : q.kind === 'pick' ? `It's ${q.k.k}` : `It means ${q.k.mean[0]}`;
-    view.insertAdjacentHTML('beforeend', answerSheet(q.k, q.word, right, right ? (step.hinted ? 'Right, with a hint' : 'Nice') : say));
+    view.insertAdjacentHTML('beforeend', answerSheet(q.k, q.word, right, right ? (step.hinted ? 'Right, with a hint' : 'Correct') : say));
     document.body.classList.add('has-sheet');
     view.querySelector('#cont').onclick = () => { document.body.classList.remove('has-sheet'); advance(); };
   };
@@ -1029,7 +1059,11 @@ function startWeakDrill(list = null, title = '2-minute drill') {
     .sort((a, b) => state.items[kanjiId(a)].due - state.items[kanjiId(b)].due);
   let pick = list?.length ? list : drillKanji(strugglingKanji(), due);
   // Nothing weak or due: a mixed set of kanji you've started, so the button never does nothing.
-  if (!pick.length) pick = shuffled(data.kanji.filter((k) => state.items[kanjiId(k)])).slice(0, 10);
+  // Too few weak ones for two minutes: topped up to at least 8 with other kanji you've started.
+  if (!list?.length && pick.length < 8) {
+    const more = shuffled(data.kanji.filter((k) => state.items[kanjiId(k)] && !pick.includes(k)));
+    pick = [...pick, ...more.slice(0, 10 - pick.length)];
+  }
   if (!pick.length) return;
   const offset = Math.floor(Math.random() * 3);
   const steps = shuffled(pick).map((k, i) => ({ type: 'quiz', kind: kindFor(i, offset), id: kanjiId(k), ref: k }));
@@ -1255,7 +1289,8 @@ const latin = (s) => /[A-Za-z]/.test(s);
 function missLine(step) {
   const r = step.ref || {};
   if (isKanjiStep(step)) return { jp: r.k, en: `${headReading(r)} · ${r.mean[0]}` };
-  if (step.type === 'card') return { jp: r.w, en: `${r.y} · ${r.m}` };
+  if (step.type === 'card' || step.type === 'wordq' || step.type === 'spell') return { jp: r.w, en: `${r.y} · ${r.m}` };
+  if (step.type === 'match') return { jp: step.pairs.map((p) => p.jp).join(' '), en: 'Matching pairs' };
   if (step.type === 'sentence') return { jp: r.blocks.map((b) => b.t).join(''), en: r.en };
   if (step.type === 'particle') return { jp: flat(`${r.before ?? step.set?.noun ?? ''}${r.answer}${r.after ?? ''}`), en: r.en };
   if (step.type === 'check') return { jp: latin(r.q) ? r.q : flat(r.q), en: `Answer: ${latin(r.o[0]) ? r.o[0] : flat(r.o[0])}` };
@@ -1269,13 +1304,13 @@ const missRows = (list, max) => `<div class="misses">${list.slice(0, max).map((s
 
 // Kanji worth watching: the ones missed, and the ones inside missed words (a one-kanji word already has its row).
 function watchKanji(misses) {
-  const list = misses.flatMap((s) => (isKanjiStep(s) ? [s.ref] : s.type === 'card' ? kanjiIn(s.ref.w).filter((k) => k.k !== s.ref.w) : []));
+  const list = misses.flatMap((s) => (isKanjiStep(s) ? [s.ref] : ['card', 'wordq', 'spell'].includes(s.type) ? kanjiIn(s.ref.w).filter((k) => k.k !== s.ref.w) : []));
   return [...new Map(list.map((k) => [k.k, k])).values()].slice(0, 8);
 }
 
 // Go over just the missed items again, as practice: they are already due again soon.
 function redoMisses(misses) {
-  const steps = misses.map((s) => ({ ...s, done: false, result: undefined, q: undefined, hinted: false, relearn: false, isNew: false }));
+  const steps = misses.map((s) => ({ ...s, done: false, result: undefined, q: undefined, hinted: false, relearn: false, isNew: false, again: false }));
   endRun();
   startRun(steps, 'Mistakes', { redo: true });
 }
@@ -1297,14 +1332,22 @@ function renderLessonDone() {
   const kanji = learned.filter((s) => s.kind === 'kanji').map((s) => s.ref.k);
   const words = learned.filter((s) => s.kind === 'word').map((s) => s.ref.w);
   const p = unitProgress(state, unit);
-  const go = nextAction(nextUp(state, data.units));
+  // Part 1 carries on with the rest of this same lesson, whatever the course would pick next.
+  const go = run.part ? { label: 'part 2', go: () => startLesson(unit, lesson) } : nextAction(nextUp(state, data.units));
   const misses = [...run.misses.values()];
   const asked = run.seen.size;
   const stars = lessonStars(asked, misses.length);
+  // The best stars a lesson has earned show on its node on the course map.
+  if (!run.part && stars > (state.course.stars?.[lesson.id] || 0)) {
+    (state.course.stars ||= {})[lesson.id] = stars;
+    save(state);
+  }
   // Kanji to watch: a new one is marked where it flips in; older ones get a tile under To go over.
   const watched = watchKanji(misses);
-  const shaky = new Set(watched.map((k) => k.k));
-  const watch = watched.filter((k) => !kanji.includes(k.k));
+  // A new kanji is marked only when it was missed itself, not inside a word.
+  const shaky = new Set(misses.filter(isKanjiStep).map((s) => s.ref.k));
+  // Older kanji to watch are ones you've started; a kanji the course hasn't taught yet isn't one.
+  const watch = watched.filter((k) => !kanji.includes(k.k) && state.items[`k:${k.k}`]);
   const rows = misses.filter((s) => !isKanjiStep(s));
   const status = run.part ? 'Part 2 has the rest' : p.done === p.total ? `Unit ${unit.n} test is ready` : `${p.done} of ${p.total} lessons in Unit ${unit.n}`;
   // A long streak earns a mention only when there were misses; a clean run says it already.
@@ -1343,13 +1386,15 @@ function renderLessonDone() {
 
 // A short beat after reviews (and any other run): the score, what slipped, and what's next.
 function renderSummary() {
+  // A streak toast from the last answer would sit on top of the finish.
+  document.querySelector('.toast')?.remove();
   if (run.lesson) return renderLessonDone();
   if (run.drill) return renderDrillDone();
   setTop(run.title, { close: true, progress: 100 });
   const misses = [...run.misses.values()];
   const asked = run.seen.size;
   // Reviews lead into their lesson; going over mistakes leads back into the course.
-  const next = run.then || (run.redo ? nextAction(nextUp(state, data.units)) : null);
+  const next = run.then || ((run.redo || run.title === 'Reviews') ? nextAction(nextUp(state, data.units), { skipReviews: true }) : null);
   const up = run.ups[STRONG] + run.ups[STRONG + 1];
   const caps = run.redo ? 'Mistakes gone over' : run.then || run.title === 'Reviews' ? 'Reviews cleared' : 'Session done';
   view.innerHTML = `<section class="card hero done-hero lesson-done beat">
@@ -1561,7 +1606,6 @@ function screenDojo() {
   setTop('Dojo');
   const rush = { mode: 'meaning', secs: 60, penalty: true, ...state.practice.rush };
   const best = rushBest(rushKey(rush));
-  const done = courseSentences().length;
   const action = (id, icon, name, sub, off = false) => `<button class="action" id="${id}" ${off ? 'disabled' : ''}><span class="icbox">${icon}</span>
     <span class="grow"><strong>${name}</strong><span class="small">${sub}</span></span><span class="chev">${icons.chevron}</span></button>`;
   view.innerHTML = `
@@ -1571,43 +1615,26 @@ function screenDojo() {
       <h2>Kanji Rush</h2>
       <span class="sub">Match kanji to their meanings or readings, fast. Set the clock your way.</span>
     </button>
-    ${action('sent', icons.blocks, 'Sentence drill', done ? `${done} sentences from your finished lessons` : 'Finish a course lesson to fill this', !done)}
     ${action('part', icons.practice, 'Particles', 'Guides and unlimited practice, focused on what you miss')}
     ${action('exam', icons.exam, 'JLPT N5 mock exam', 'Only if you plan to sit the exam')}
     <p class="small muted center">Only Kanji Rush misses touch your reviews: they come back sooner.</p>`;
   view.querySelector('#rush').onclick = () => { location.hash = '#/dojo/rush'; };
-  view.querySelector('#sent').onclick = startCourseSentences;
   view.querySelector('#part').onclick = () => { location.hash = '#/dojo/particles'; };
   view.querySelector('#exam').onclick = () => { location.hash = '#/dojo/exam'; };
 }
 
 const backTo = (hash) => ({ close: true, back: true, onClose: () => { location.hash = hash; } });
 
-// Sentence building from lessons you've finished: ones not yet built cleanly come first.
-const courseSentences = () => levelSentences(LEVELS.find((l) => l.course), state, data);
-function startCourseSentences() {
-  const list = courseSentences();
-  if (!list.length) return;
-  const order = [...shuffled(list.filter((s) => !state.practice.sent[s.id])), ...shuffled(list.filter((s) => state.practice.sent[s.id]))];
-  startRun(order.map((s) => ({ type: 'sentence', id: `s:${s.id}`, ref: s })), 'Sentence drill', {
-    onDrill: (step, clean) => {
-      if (clean) {
-        state.practice.sent[step.ref.id] = 1;
-        save(state);
-      }
-    },
-  });
-}
-
 function startParticles(title, choice, lead = []) {
   const stats = state.practice.part;
   // The last few sentences sit out, so the same one never comes straight back.
   const recent = [];
+  let n = 0;
   const nextItem = () => {
     const ref = particleItem(data.bank, { ...choice, stats, recent });
     recent.push(ref.id);
     if (recent.length > 8) recent.shift();
-    return { type: 'particle', id: 'free', ref, set: {} };
+    return { type: 'particle', id: 'free', key: `free-${n++}`, ref, set: {} };
   };
   startRun(lead, title, {
     more: nextItem,
@@ -1664,6 +1691,8 @@ function screenCourse() {
   const passed = units.filter((u) => state.course.passed[u.id]).length;
   const steps = courseSteps(state, units);
   const rank = rankOf(passed);
+  // A brand-new learner is offered a way past what they already know.
+  const fresh = !passed && !Object.keys(state.course.done).length;
   // Units up to two past the current one are shown; the rest fold into one row.
   const here = next?.unit ? units.indexOf(next.unit) : units.length - 1;
   const shown = units.slice(0, here + 2);
@@ -1710,6 +1739,11 @@ function screenCourse() {
     const line = (a, b) => pts.slice(a, b + 1).map(([x, y], n) => `${n ? 'L' : 'M'}${x} ${y}`).join(' ');
     const kanjiChars = u.lessons.flatMap((l) => l.kanji || []);
     const glyph = (s) => (s.test ? '試' : s.l.kanji?.[0] || (isWords(s.l) ? '語' : '文'));
+    // A finished lesson shows the best stars it earned.
+    const lessonStarsHtml = (s) => {
+      const n = !s.test && s.done ? state.course.stars?.[s.l.id] || 0 : 0;
+      return n ? `<span class="tn-stars" aria-label="${n} of 3 stars">${[1, 2, 3].map((i) => `<i class="${i <= n ? 'on' : ''}">★</i>`).join('')}</span>` : '';
+    };
     const sub = (s) => (s.test ? (p.passed ? 'Passed' : p.done === p.total ? 'Ready' : 'Test') : lessonKind(u, s.l).split(' · ')[0]);
     return `<section class="trail-unit">
       <a class="ubanner ${nowAt >= 0 ? 'now' : ''}" href="#/course/${u.id}">
@@ -1728,7 +1762,7 @@ function screenCourse() {
             ${open ? '' : 'disabled'} aria-label="${label}${s.done ? ', done' : now ? ', next' : ''}">
           ${now ? '<span class="tn-start">START</span>' : ''}
           <span class="tn-dot jp"><span>${s.done && s.test ? icons.check : glyph(s)}</span></span>
-          <span class="tn-label ${pts[n][0] > 50 ? 'left' : 'right'}"><b>${label}</b><small>${sub(s)}</small></span></button>`;
+          <span class="tn-label ${pts[n][0] > 50 ? 'left' : 'right'}"><b>${label}</b><small>${sub(s)}</small>${lessonStarsHtml(s)}</span></button>`;
   }).join('')}
       </div></section>`;
   };
@@ -1752,10 +1786,19 @@ function screenCourse() {
       <div class="meter"><i style="width:${(steps.done / steps.total) * 100}%"></i></div>
       <a class="syl-link small" href="#/course/syllabus">See the full N5 syllabus${icons.chevron}</a>
     </section>
+    ${fresh ? `<section class="card placement"><strong>Studied Japanese before?</strong>
+      <p class="small muted">Skip what you know: pass any unit's test and every unit before it is passed too.</p>
+      <button class="btn ghost" id="placeme">Pick a unit to test out of</button></section>` : ''}
     ${body}
-    ${folded ? `<section class="path"><div class="node off fold"><span class="dot">${icons.lock}</span><span class="grow"><span class="label">Units ${shown.length + 1}–${units.length}</span>
-      <span class="small muted">Open as you pass each unit</span></span></div></section>` : ''}
+    ${folded ? `<details class="path fold-list"><summary class="node fold"><span class="dot">${icons.lock}</span><span class="grow"><span class="label">Units ${shown.length + 1}–${units.length}</span>
+      <span class="small muted">Know some already? Open one to test out</span></span><span class="chev">${icons.chevron}</span></summary>
+      ${units.slice(shown.length).map(node).join('')}</details>` : ''}
     <p class="small muted center">★ passed · ★★ most of it remembered · ★★★ mastered</p>`;
+  view.querySelector('#placeme')?.addEventListener('click', () => {
+    const fold = view.querySelector('.fold-list');
+    if (fold) fold.open = true;
+    (fold || view.querySelector('.path .node.off'))?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  });
   view.onclick = (e) => {
     const b = e.target.closest('.tn');
     if (!b || b.disabled) return;
@@ -1785,18 +1828,31 @@ function startLesson(unit, lesson) {
 const resumable = (next) => next?.type === 'lesson' && state.course.current?.lesson === next.lesson.id && state.course.current.i > 0;
 
 // The label and action for whatever the course wants next.
-function nextAction(next) {
+function nextAction(next, { skipReviews = false } = {}) {
   if (!next) return null;
   if (next.type === 'lesson') {
     const name = `${next.unit.n}.${next.unit.lessons.indexOf(next.lesson) + 1}`;
     const lesson = () => startLesson(next.unit, next.lesson);
     if (resumable(next)) return { label: `Resume lesson ${name}`, go: lesson };
     // What's due comes first, then the lesson, in one tap.
-    const due = reviewSteps(state, data);
+    const due = skipReviews ? [] : reviewSteps(state, data);
     if (due.length) return { label: `Review ${due.length} → Lesson ${name}`, go: () => startRun(due, 'Reviews', { useSrs: true, then: { label: `Lesson ${name}`, go: lesson } }) };
     return { label: `Start lesson ${name}`, go: lesson };
   }
-  if (next.type === 'test') return { label: `Take the Unit ${next.unit.n} test`, go: () => runUnitTest(next.unit) };
+  if (next.type === 'test') {
+    const u = next.unit;
+    const test = () => runUnitTest(u);
+    const due = skipReviews ? [] : reviewSteps(state, data);
+    const wait = retryWait(u);
+    // During the break after a fail: reviews if any are due, else the unit's drills, then the test when it opens.
+    if (wait > 0) {
+      return due.length
+        ? { label: `Review ${due.length} · test in ${wait} min`, go: () => startRun(due, 'Reviews', { useSrs: true }) }
+        : { label: `Practise Unit ${u.n} · test in ${wait} min`, go: () => startRun(unitPractice(u), `Unit ${u.n} practice`) };
+    }
+    if (due.length) return { label: `Review ${due.length} → Unit ${u.n} test`, go: () => startRun(due, 'Reviews', { useSrs: true, then: { label: `the Unit ${u.n} test`, go: test } }) };
+    return { label: `Take the Unit ${u.n} test`, go: test };
+  }
   // After the last unit the course is done; the mock exam waits in Dojo for anyone who wants it.
   return null;
 }
@@ -1834,7 +1890,26 @@ const examContext = () => ({
 // A missed question, in the shape the check drill uses: right answer first.
 const asCheck = (q) => ({ id: q.id, q: q.q, ask: q.ask, w: q.w, o: [q.o[q.a], ...q.o.filter((_, i) => i !== q.a)] });
 
+// Minutes left before a failed unit test can be retaken.
+const retryWait = (unit) => Math.max(0, Math.ceil(((state.course.retry?.[unit.id] || 0) - Date.now()) / 60000));
+
+// The unit's grammar drills, shuffled, as practice that doesn't touch the schedule.
+function unitPractice(unit) {
+  return shuffled(unit.lessons.flatMap((l) => l.drills.map((_, n) => `${l.id}-${n}`)).map((id) => {
+    const s = data.sentences.find((x) => x.id === id);
+    if (s) return { type: 'sentence', id: `s:${id}`, ref: s };
+    const c = data.courseChoices.find((x) => x.id === id);
+    return c && { type: 'particle', id: `p:${id}`, ref: c, set: {} };
+  }).filter(Boolean)).slice(0, 10);
+}
+
 function runUnitTest(unit) {
+  // After a fail there's a short break, so a retake tests what you know, not what you remember of the last try.
+  const wait = retryWait(unit);
+  if (wait > 0) {
+    toast(`Retake in ${wait} min. Go over your misses first.`);
+    return;
+  }
   // Testing out of a locked unit covers things not taught yet, so misses there aren't scheduled.
   const wasOpen = isUnlocked(state, data.units, unit);
   const passedBefore = data.units.filter((u) => state.course.passed[u.id]).length;
@@ -1852,7 +1927,10 @@ function runUnitTest(unit) {
         cleared = passUnit(state, data.units, unit);
         // Passing the unit settles its old misses.
         for (const id of Object.keys(state.course.missed)) if (id.startsWith(`${unit.id}-`)) delete state.course.missed[id];
-      } else if (wasOpen) {
+      } else {
+        (state.course.retry ||= {})[unit.id] = Date.now() + RETAKE_MIN * 60000;
+      }
+      if (!result.pass && wasOpen) {
         for (const q of missed) {
           // Missed words go back to reviews, and missed grammar comes back to be re-checked.
           if (q.word) {
@@ -1865,6 +1943,7 @@ function runUnitTest(unit) {
       const drill = () => startRun(missed.map((q) => ({ type: 'check', id: q.id, ref: asCheck(q) })), `Unit ${unit.n} misses`);
       if (!result.pass) {
         return {
+          note: `You can retake it in ${RETAKE_MIN} minutes.${missed.length ? ' Going over your misses first helps.' : ''}`,
           actions: [
             ...(missed.length ? [{ label: `Drill the ${missed.length} ${missed.length === 1 ? 'miss' : 'misses'} now`, run: drill }] : []),
           ],
@@ -1876,17 +1955,18 @@ function runUnitTest(unit) {
       const next = nextUp(state, data.units);
       const go = nextAction(next);
       // Stories unlocked by this pass: the unit's own chapter, plus any from skipped units.
-      const story = [unit, ...cleared].map((u) => storyOf(u.id)).find((s) => s && !state.course.stories?.[s.unit]);
+      const stories = [...new Set([...cleared, unit])].map((u) => storyOf(u.id)).filter((s) => s && !state.course.stories?.[s.unit]);
+      const story = stories[0];
       const skipped = cleared.filter((u) => u !== unit);
       const toGo = rank.next ? rank.next.at - passed : 0;
       return {
         note: `${skipped.length ? `Units ${skipped[0].n}–${unit.n} cleared: testing out passes the units before it too.` : `Unit ${unit.n} cleared.`} ${passed} of ${data.units.length} units passed.`,
         badge: `<div class="rankup ${rose ? '' : 'quiet'}"><span class="jp">${rank.jp}</span><span><small>${rose ? 'New rank' : 'Rank'}</small><b>${rank.en}</b>${rank.next
           ? `<small>${toGo} more ${toGo === 1 ? 'unit' : 'units'} to ${rank.next.en}</small>` : ''}</span></div>
-          ${story ? `<p class="unlock">${icons.story}<span><small>Story unlocked</small><b>${story.title}</b></span></p>` : ''}`,
+          ${stories.length ? `<p class="unlock">${icons.story}<span><small>${stories.length > 1 ? `${stories.length} stories unlocked` : 'Story unlocked'}</small><b>${stories.map((s) => s.title).join(' · ')}</b></span></p>` : ''}`,
         actions: [
           ...(go ? [{ label: next.type === 'lesson' ? `Start Unit ${next.unit.n}` : go.label, run: go.go }] : []),
-          ...(story ? [{ label: 'Read the new story', run: () => { location.hash = `#/course/story/${story.unit}`; } }] : []),
+          ...(story ? [{ label: stories.length > 1 ? `Read “${story.title}”` : 'Read the new story', run: () => { location.hash = `#/course/story/${story.unit}`; } }] : []),
         ],
       };
     },
@@ -2158,7 +2238,7 @@ function screenCards() {
     ${row(`done-${k}`, 'What you\'ve learned', 'from finished lessons')}
     ${row(`all-${k}`, 'All of N5', 'the whole course')}
     <div class="caps sect"><span>By unit</span></div>
-    ${units.map((u) => row(`${u.id}-${k}`, `Unit ${u.n} · ${u.title}`, unitProgress(state, u).done ? '' : 'not started')).join('')}
+    ${units.map((u) => row(`${u.id}-${k}`, `Unit ${u.n} · ${u.title}`, unitProgress(state, u).done || state.course.passed[u.id] ? '' : 'not started')).join('')}
     <p class="small muted center">Flashcards are practice only. They don't change your review schedule.</p>`;
   view.querySelector('#kind').onclick = (e) => {
     const b = e.target.closest('[data-k]');
@@ -2508,14 +2588,19 @@ function screenDict() {
     const q = input.value.trim();
     if (shown[0] && whole(shown[0], q)) open(shown[0]);
   };
+  // A typed search left in the box isn't built on: writing starts a new word.
+  let written = '';
   mountPad(pad, {
     onPick: (e) => {
-      input.value += e.k;
+      if (input.value !== written) written = '';
+      written += e.k;
+      input.value = written;
       kinfo.innerHTML = writtenKanjiHtml(e);
       searchWritten();
     },
     onDelete: () => {
       input.value = [...input.value].slice(0, -1).join('');
+      written = input.value;
       kinfo.innerHTML = '';
       searchWritten();
     },
@@ -2552,6 +2637,13 @@ function screenDict() {
   if (writing) loadWrite().catch(() => {});
 }
 
+// Study aids from Settings, as hooks the stylesheet reads: romaji always, on tap or never,
+// and the colour-coded roles on sentence blocks.
+function applyAids() {
+  document.body.dataset.romaji = state.settings.romaji || 'tap';
+  document.body.classList.toggle('no-roles', state.settings.roles === false);
+}
+
 function screenSettings() {
   setTop('Settings', backTo('#/today'));
   const s = state.settings;
@@ -2562,10 +2654,18 @@ function screenSettings() {
     ${heatmap()}
     <div class="caps sect"><span>Study</span></div>
     <section class="card">
+      <strong>Romaji</strong>
+      <p class="small muted">Training wheels for reading. Unit tests and exams never show it.</p>
+      ${seg('romaji', [['always', 'Always'], ['tap', 'Tap to show'], ['never', 'Never']])}
+    </section>
+    <section class="card">
       <strong>Readings on sentence blocks</strong>${seg('hints', [[true, 'Show'], [false, 'Hide']])}
     </section>
-    <div class="caps sect"><span>Appearance</span></div>
-    <section class="card"><strong>Theme</strong>${seg('theme', [['system', 'System'], ['light', 'Light'], ['dark', 'Dark']])}</section>
+    <section class="card">
+      <strong>Colour-coded word roles</strong>
+      <p class="small muted">Topic, subject, object and verb colours on sentence blocks.</p>
+      ${seg('roles', [[true, 'Show'], [false, 'Hide']])}
+    </section>
     <div class="caps sect"><span>Backup</span></div>
     <section class="card">
       <p class="small muted">Progress lives only on this device, and Safari can clear it. Last backup: <strong>${state.lastBackup ? new Date(state.lastBackup).toLocaleDateString() : 'never'}</strong>.</p>
@@ -2595,7 +2695,7 @@ function screenSettings() {
     if (!b) return;
     s[b.parentElement.dataset.key] = JSON.parse(b.dataset.v);
     save(state);
-    applyTheme();
+    applyAids();
     screenSettings();
   };
 }
@@ -2649,7 +2749,6 @@ async function importBackup(file) {
     Object.assign(state, parsed.state);
     setNotes(state.notes);
     save(state);
-    applyTheme();
     settingsNotice = 'Progress restored from the backup.';
     screenSettings();
   };
@@ -2753,7 +2852,6 @@ function noteClick(e) {
 }
 
 async function init() {
-  applyTheme();
   // Any listen button, on any screen.
   document.addEventListener('click', (e) => {
     const el = e.target.closest('[data-say]');
@@ -2767,6 +2865,9 @@ async function init() {
     noteClick(e);
     const kref = e.target.closest('[data-kref]');
     if (kref) togglePeek(kref);
+    // Romaji set to "Tap to show": a tap on a hidden line reveals it.
+    const ro = e.target.closest('.romaji');
+    if (ro && document.body.dataset.romaji === 'tap' && !e.target.closest('[data-say]')) ro.classList.add('shown');
     const info = e.target.closest('[data-info]');
     if (info) {
       const text = info.closest('.block-sec').querySelector('.explain');
@@ -2785,6 +2886,7 @@ async function init() {
     if (swipe && t.clientX - swipe.x > 80 && Math.abs(t.clientY - swipe.y) < 60) swipeBack?.();
     swipe = null;
   }, { passive: true });
+  applyAids();
   setTop('JP Trainer');
   tabbar.innerHTML = TABS.map(([id, text]) => `<a href="#/${id}" data-tab="${id}">${icons[id]}<span>${text}</span></a>`).join('');
   try {

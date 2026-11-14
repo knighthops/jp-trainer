@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { newRecord, rate, isDue, stageOf, isStruggling, CLEARS } from '../js/srs.js';
-import { validNext, explainWrong, orders, tokenize, romajiLine, spoken, setNotes, noteSlotInner, partsHtml, setKanji, linkKanji, peekHtml, soundLine } from '../js/drills.js';
+import { validNext, explainWrong, decoysFor, orders, tokenize, romajiLine, spoken, setNotes, noteSlotInner, partsHtml, setKanji, linkKanji, peekHtml, soundLine } from '../js/drills.js';
 import { backupJson, parseBackup, xpOf, streakWithRest, dayKey } from '../js/store.js';
 import { quizQuestion, similarKanji, drillKanji, kindFor, readWords } from '../js/quiz.js';
 import { romaji, toHiragana, toKana, judgeReading } from '../js/romaji.js';
@@ -11,9 +11,10 @@ import { matchReading } from '../js/readings.js';
 import { reviewSteps, kanjiId, talkId } from '../js/session.js';
 import {
   UNIT_FILES, mergeCourse, nextUp, isUnlocked, examUnlocked, lessonSteps, LEVELS, levelUnlocked, toBlocks, autoAlts, words, particleItem,
-  courseSteps, rankOf, LESSON_NEW, unitStars, unitItems, grammarId, passUnit, lessonStars,
+  courseSteps, rankOf, LESSON_NEW, wordsNeededEarly, unitStars, unitItems, grammarId, passUnit, lessonStars,
 } from '../js/course.js';
 import { unitTest, mockExam, grade, wordKind } from '../js/exam.js';
+import { wordQuestion, kanaTiles, spellPuzzle, sameMeaning } from '../js/exercises.js';
 import { checkLogin, hashPassword, userId } from '../js/lock.js';
 import { radioChannels } from '../js/radio.js';
 import { clipId, clipSsml, englishSaid } from '../js/clips.js';
@@ -199,7 +200,9 @@ test('a new learner has nothing to review, and the course starts at the first le
   assert.equal(nextUp(blank(), merged.units).lesson.id, 'u01a');
   assert.equal(steps[0].type, 'lesson');
   assert.equal(steps.at(-1).type, 'lessonEnd');
-  assert.equal(steps.filter((s) => s.type === 'learn').length, steps.filter((s) => s.type === 'card').length);
+  // Every new item is taught, then checked with a question (not a self-rating).
+  assert.equal(steps.filter((s) => s.type === 'learn').length, steps.filter((s) => s.isNew && ['quiz', 'wordq'].includes(s.type)).length);
+  assert.ok(!steps.some((s) => s.type === 'card'));
 });
 
 test('reviews take what is due, oldest first, in a short block', () => {
@@ -278,6 +281,8 @@ test('course sentences get word roles and accept swapped phrases', () => {
   assert.deepEqual(blocks.map((b) => b.r), ['topic', 'particle', 'other', 'particle', 'object', 'particle', 'verb']);
   assert.deepEqual(autoAlts(blocks), [[0, 1, 4, 5, 2, 3, 6]]);
   assert.deepEqual(toBlocks('今 何時 です か', g).map((b) => b.r), ['other', 'other', 'verb', 'particle']);
+  // Every word of a phrase shares its role: 田中 and さん are both the topic.
+  assert.deepEqual(toBlocks('田中 さん は 医者 です', g).map((b) => b.r), ['topic', 'topic', 'particle', 'other', 'verb']);
   assert.deepEqual(autoAlts(toBlocks('私 は 学生 です', g)), []);
   assert.deepEqual(autoAlts(toBlocks('九時 から 五時 まで です', g)), []);
 });
@@ -375,6 +380,36 @@ test('unit tests mix written and word questions, and options keep their answers'
   const all = Object.fromEntries(list.map((q) => [q.id, q.a]));
   assert.equal(grade(exam, all).pass, true);
   assert.equal(grade(exam, {}).pass, false);
+});
+
+test('unit test wrong options lean on shared kanji and words already met', () => {
+  const merged = course();
+  const unit = merged.units.find((u) => u.lessons.some((l) => (l.words || []).includes('大学')));
+  if (!unit) return;
+  let shared = 0;
+  for (let n = 0; n < 150; n++) {
+    const q = unitTest(unit, merged).sections[0].questions.find((x) => x.word === '大学' && x.ask === 'What does this mean?');
+    if (!q) continue;
+    const wrong = q.o.filter((_, i) => i !== q.a);
+    const words = merged.vocab.filter((v) => wrong.includes(v.m)).map((v) => v.w);
+    if (words.some((w) => w.includes('大') || w.includes('学'))) shared++;
+  }
+  assert.ok(shared >= 1);
+});
+
+test('sentence building adds spare particles that never fit', () => {
+  const g = course().glossary;
+  for (const text of ['私 は 学生 です', '私 は 図書館 で 本 を 読みます', '猫 が 好き です']) {
+    const s = { blocks: toBlocks(text, g) };
+    for (let n = 0; n < 20; n++) {
+      const d = decoysFor(s);
+      assert.ok(d.length >= 1 && d.length <= 2);
+      for (const b of d) {
+        assert.ok(b.decoy && !s.blocks.some((x) => x.t === b.t), b.t);
+        assert.ok(!(b.t === 'が' && text.includes('は')) && !(b.t === 'は' && text.includes('が')), text);
+      }
+    }
+  }
 });
 
 test('mock exam scoring follows the JLPT N5 rules', () => {
@@ -546,8 +581,75 @@ test('new items are recalled in small groups, soon after they are taught', () =>
   const unit = merged.units.find((u) => u.n === 4);
   // A new-parts card before a group isn't teaching an item, so it doesn't count here.
   const types = lessonSteps(unit, unit.lessons[0], blank(), merged).map((s) => s.type).filter((t) => t !== 'parts');
-  const firstCard = types.indexOf('card');
-  assert.ok(firstCard > 0 && firstCard <= 5, `first recall at step ${firstCard}`);
+  const firstCheck = types.findIndex((t) => t === 'quiz' || t === 'wordq');
+  assert.ok(firstCheck > 0 && firstCheck <= 3, `first check at step ${firstCheck}`);
+});
+
+test('lessons mix in matching, spelling and listening, and grammar between new items', () => {
+  const merged = course();
+  const unit = merged.units.find((u) => u.n === 4);
+  const steps = lessonSteps(unit, unit.lessons[0], blank(), merged);
+  const types = steps.map((s) => s.type);
+  assert.ok(types.includes('match'), types.join());
+  assert.ok(types.some((t) => t === 'sentence' || t === 'particle'));
+  // Some grammar comes before the last new item is checked.
+  const lastCheck = types.findLastIndex((t) => t === 'quiz' || t === 'wordq');
+  const firstDrill = types.findIndex((t) => t === 'sentence' || t === 'particle');
+  assert.ok(firstDrill < lastCheck, `${firstDrill} < ${lastCheck}`);
+});
+
+test('a lesson teaches the words its drills use before the course would', () => {
+  const merged = course();
+  const [unit] = merged.units;
+  const early = wordsNeededEarly(unit, unit.lessons[0], merged);
+  assert.ok(early.includes('医者'), early.join());
+  const steps = lessonSteps(unit, unit.lessons[0], blank(), merged);
+  assert.ok(steps.some((s) => s.type === 'learn' && s.id === 'w:医者'));
+  // No drill in any lesson uses a word first taught in a later lesson, beyond the cap.
+  const order = merged.units.flatMap((u) => u.lessons.map((l) => ({ u, l })));
+  for (const { u, l } of order) assert.ok(wordsNeededEarly(u, l, merged).length <= 4);
+});
+
+test('no lesson drill comes before the new words it uses are taught', () => {
+  const merged = course();
+  for (const unit of merged.units) {
+    for (const lesson of unit.lessons) {
+      const steps = lessonSteps(unit, lesson, blank(), merged);
+      const taughtAt = new Map(steps.map((s, i) => [s.type === 'learn' ? s.id : null, i]).filter(([id]) => id));
+      steps.forEach((s, i) => {
+        for (const id of s.uses || []) assert.ok(!taughtAt.has(id) || taughtAt.get(id) < i, `${lesson.id}: ${id} at ${taughtAt.get(id)}, drill at ${i}`);
+      });
+    }
+  }
+});
+
+test('overlapping meanings never stand as each other\'s wrong option', () => {
+  assert.ok(sameMeaning('half past', 'half'));
+  assert.ok(sameMeaning('pupil, school student', 'student'));
+  assert.ok(!sameMeaning('university', 'school'));
+  const { vocab } = course();
+  for (const v of vocab.slice(0, 120)) {
+    const q = wordQuestion(v, vocab, 'en');
+    q.options.forEach((o, n) => { if (n !== q.answer) assert.ok(!sameMeaning(o, v.m), `${v.w}: ${o} vs ${v.m}`); });
+  }
+});
+
+test('word questions and spelling tiles are fair', () => {
+  const { vocab } = course();
+  const v = vocab.find((x) => x.w === '学生') || vocab.find((x) => /[一-龯]/.test(x.w));
+  for (const dir of ['en', 'jp', 'hear']) {
+    const q = wordQuestion(v, vocab, dir);
+    assert.equal(q.options.length, 4);
+    assert.equal(new Set(q.options).size, 4);
+    assert.equal(q.options[q.answer], dir === 'jp' ? v.w : v.m);
+  }
+  assert.deepEqual(kanaTiles('がっこう'), ['が', 'っ', 'こ', 'う']);
+  assert.deepEqual(kanaTiles('しゃしん'), ['しゃ', 'し', 'ん']);
+  assert.deepEqual(kanaTiles('コーヒー'), ['コー', 'ヒー']);
+  const p = spellPuzzle({ w: '学生', y: 'がくせい', m: 'student' });
+  assert.deepEqual(p.tiles, ['が', 'く', 'せ', 'い']);
+  const spares = p.pool.filter((b) => b.spare).map((b) => b.t);
+  assert.ok(spares.length >= 1 && spares.every((t) => !p.tiles.includes(t)), spares.join());
 });
 
 test('a resumed lesson rebuilds the same steps even after cards were rated', () => {

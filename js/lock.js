@@ -1,7 +1,6 @@
 // The login screen. The site is public, so the repo holds only salted hashes:
 // no username or password in plain text. This keeps visitors out of the app, but
 // it doesn't encrypt it: the code and study content can still be read on GitHub.
-import { load } from './store.js';
 
 const SESSION = 'jp-trainer.session';
 const ACCOUNTS = {
@@ -58,15 +57,9 @@ export function logOut() {
   location.reload();
 }
 
-function applySavedTheme() {
-  const { theme } = load().settings;
-  if (theme !== 'system') document.documentElement.dataset.theme = theme;
-}
-
 // Resolves once someone is signed in. index.html loads the app after that.
 export function gate() {
   if (currentUser()) return Promise.resolve();
-  applySavedTheme();
   document.getElementById('top').innerHTML = '<div class="top-in"><span class="mark" aria-hidden="true">学</span><h1>JP Trainer</h1></div>';
   const view = document.getElementById('view');
   view.innerHTML = `<div class="login">

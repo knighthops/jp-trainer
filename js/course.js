@@ -43,9 +43,12 @@ export function toBlocks(text, glossary) {
   let verb = list.length - 1;
   while (verb > 0 && PARTICLES.has(list[verb])) verb--;
   const after = { は: 'topic', が: 'subject', を: 'object' };
+  // A word takes the role of the particle that closes its phrase: in 田中 さん は, both
+  // 田中 and さん are the topic.
+  const closer = (i) => list.slice(i + 1).find((w) => PARTICLES.has(w));
   return list.map((t, i) => {
     const y = glossary[t]?.y;
-    const r = PARTICLES.has(t) ? 'particle' : i === verb ? 'verb' : after[list[i + 1]] || 'other';
+    const r = PARTICLES.has(t) ? 'particle' : i === verb ? 'verb' : after[closer(i)] || 'other';
     return { t, r, ...(y && y !== t ? { y } : {}) };
   });
 }
@@ -181,7 +184,23 @@ export function rankOf(passed) {
 // New items per sitting, so one lesson fits a short trip. Bigger lessons come in parts.
 export const LESSON_NEW = 8;
 // New items are taught and then recalled in small groups, so recall comes soon after learning.
-const GROUP = 4;
+// New items are taught two at a time, each pair checked straight after, so you answer
+// something within the first few steps.
+const GROUP = 2;
+
+// Function words the grammar cards explain themselves; they're not taught as vocabulary.
+const NOT_TAUGHT_EARLY = new Set(['では', 'じゃ', 'ここ', 'そこ', 'あそこ', 'どこ']);
+const EARLY_MAX = 4;
+export function wordsNeededEarly(unit, lesson, data) {
+  const order = (data.units || []).flatMap((u) => u.lessons);
+  const at = order.indexOf(lesson);
+  if (at < 0) return [];
+  const first = new Map();
+  order.forEach((l, i) => (l.words || []).forEach((w) => { if (!first.has(w)) first.set(w, i); }));
+  const vocab = new Set((data.vocab || []).map((v) => v.w));
+  const used = (lesson.drills || []).flatMap((d) => String(d.b || d.c || '').split(/\s+/));
+  return [...new Set(used)].filter((w) => vocab.has(w) && first.get(w) > at && !NOT_TAUGHT_EARLY.has(w)).slice(0, EARLY_MAX);
+}
 
 // `resume` ({ fresh, part }) rebuilds a lesson that was left part-way with the same items.
 export function lessonSteps(unit, lesson, state, data, resume = null) {
@@ -189,7 +208,11 @@ export function lessonSteps(unit, lesson, state, data, resume = null) {
     .map((ref) => ({ kind: 'kanji', id: `k:${ref.k}`, ref }));
   // A word that is just one of this lesson's kanji is taught by the kanji card.
   const glyphs = new Set(kanji.map((k) => k.ref.k));
-  const vocab = (lesson.words || []).filter((w) => !glyphs.has(w)).map((w) => data.vocab.find((v) => v.w === w)).filter(Boolean)
+  // Words this lesson's drills use that the course only teaches later are taught here first,
+  // so no drill asks for a word you haven't met (医者 in Lesson 1.1, taught in 1.3).
+  // Those come first, so the lesson's first drills can use them.
+  const lessonWords = [...new Set([...wordsNeededEarly(unit, lesson, data), ...(lesson.words || [])])];
+  const vocab = lessonWords.filter((w) => !glyphs.has(w)).map((w) => data.vocab.find((v) => v.w === w)).filter(Boolean)
     .map((ref) => ({ kind: 'word', id: `w:${ref.w}`, ref }));
   const all = [...kanji, ...vocab];
   const waiting = resume ? all.filter((s) => resume.fresh.includes(s.id)) : all.filter((s) => !state.items[s.id]);
@@ -222,19 +245,45 @@ export function lessonSteps(unit, lesson, state, data, resume = null) {
       ? [{ type: 'parts', id: `parts:${g.map((s) => s.id).join(',')}`, ref: list, kanji: users }]
       : [];
   };
+  // Checked, not self-rated: a kanji by its meaning, a word by its meaning.
+  const check = (s) => (s.kind === 'kanji' ? { ...s, type: 'quiz', kind: 'mean', isNew: true } : { ...s, type: 'wordq', dir: 'en', isNew: true });
+  const drills = lesson.drills.map((d, n) => {
+    const id = `${lesson.id}-${n}`;
+    // The words a drill uses, so it can wait until they've been taught.
+    const uses = String(d.b || d.c || '').split(/\s+/).map((w) => `w:${w}`);
+    const s = data.sentences.find((x) => x.id === id);
+    if (s) return { type: 'sentence', id: `s:${id}`, ref: s, uses };
+    return { type: 'particle', id: `p:${id}`, ref: data.courseChoices.find((c) => c.id === id), set: {}, uses };
+  });
+  // The lesson's grammar is practised between the pairs of new items, not saved for the end,
+  // each drill as soon as every new word it uses has been taught.
+  const newIds = new Set(learn.map((s) => s.id));
+  const taught = new Set();
+  const ready = (d) => d.uses.every((id) => !newIds.has(id) || taught.has(id));
+  const spread = [...drills];
   const groups = [];
   for (let i = 0; i < learn.length; i += GROUP) {
     const g = learn.slice(i, i + GROUP);
-    // Recall runs in reverse order, so it tests memory rather than an echo of the order just seen.
-    groups.push(...partsFor(g), ...g.map((s) => ({ ...s, type: 'learn' })), ...[...g].reverse().map((s) => ({ ...s, type: 'card', isNew: true })));
+    // Checks run in reverse order, so they test memory rather than an echo of the order just seen.
+    groups.push(...partsFor(g), ...g.map((s) => ({ ...s, type: 'learn' })), ...[...g].reverse().map(check));
+    g.forEach((s) => taught.add(s.id));
+    const k = spread.findIndex(ready);
+    if (k >= 0) groups.push(spread.splice(k, 1)[0]);
   }
+  // A lesson split in parts keeps the drills whose words this part taught, up to two, for the
+  // end of the part; the last part has the rest.
+  if (more) spread.splice(0, spread.length, ...spread.filter(ready).slice(0, Math.max(0, 2 - (drills.length - spread.length))));
+  // Then the new items together: match the pairs, spell a reading, and one word by ear.
+  const extra = [];
+  const fresh = learn.map((s) => (s.kind === 'kanji' ? { jp: s.ref.k, en: s.ref.mean[0] } : { jp: s.ref.w, en: s.ref.m }));
+  if (fresh.length >= 3) extra.push({ type: 'match', key: `match:${lesson.id}`, pairs: fresh.slice(0, 5) });
+  const newWords = learn.filter((s) => s.kind === 'word').map((s) => s.ref);
+  const spell = newWords.find((v) => /[一-龯々]/.test(v.w) && v.w !== v.y && v.y.length <= 7);
+  if (spell) extra.push({ type: 'spell', key: `spell:${spell.w}`, ref: spell });
+  const heard = newWords.find((v) => v !== spell) || newWords[0];
+  if (heard) extra.push({ type: 'wordq', dir: 'hear', key: `hear:${heard.w}`, ref: heard });
   const intro = { type: 'lesson', ref: lesson, unit };
-  if (more) return [intro, ...groups, { type: 'lessonPart', id: lesson.id }];
-  const drills = lesson.drills.map((_, n) => `${lesson.id}-${n}`).map((id) => {
-    const s = data.sentences.find((x) => x.id === id);
-    if (s) return { type: 'sentence', id: `s:${id}`, ref: s };
-    return { type: 'particle', id: `p:${id}`, ref: data.courseChoices.find((c) => c.id === id), set: {} };
-  });
+  if (more) return [intro, ...groups, ...extra, ...spread, { type: 'lessonPart', id: lesson.id }];
   // The dialogue (listening) closes the last grammar lesson; the reading closes the Words lesson.
   const isLast = unit.lessons.filter((l) => !isWords(l)).at(-1) === lesson;
   const dialogue = isLast && unit.dialogue
@@ -246,7 +295,8 @@ export function lessonSteps(unit, lesson, state, data, resume = null) {
   return [
     intro,
     ...groups,
-    ...drills,
+    ...extra,
+    ...spread,
     ...dialogue,
     ...reading,
     { type: 'lessonEnd', id: lesson.id },

@@ -17,7 +17,7 @@ const defaults = () => ({
   notes: {},
   // date: the day you fly, "YYYY-MM-DD", for the countdown.
   trip: { date: null },
-  settings: { newPerDay: 4, hints: true, theme: 'system', radioEnglish: true, radioSlow: false, radioText: true },
+  settings: { newPerDay: 4, hints: true, romaji: 'tap', roles: true, radioEnglish: true, radioSlow: false, radioText: true },
 });
 
 const isObject = (x) => x !== null && typeof x === 'object' && !Array.isArray(x);

@@ -64,6 +64,15 @@ export const WHY = {
   shape: 'Follow the shape of the guide.',
 };
 
+// From memory there's no guide or dot to point at (until a second miss shows the stroke).
+export const WHY_MEMORY = {
+  tap: 'Draw the stroke as a line.',
+  backwards: 'Right place, wrong way round. Start from the other end.',
+  start: 'Not quite where this stroke starts. Try once more.',
+  end: 'Close, but this stroke ends somewhere else.',
+  shape: 'Not quite the shape of this stroke. Try once more.',
+};
+
 const reduced = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 const ns = 'http://www.w3.org/2000/svg';
 
@@ -203,7 +212,7 @@ export function mountStrokes(root, c, ctx = {}) {
       }
       slips++;
       missesHere++;
-      msg.textContent = WHY[verdict.why];
+      msg.textContent = (memory && missesHere < 2 ? WHY_MEMORY : WHY)[verdict.why];
       box.classList.remove('shake2');
       void box.offsetWidth;
       box.classList.add('shake2');

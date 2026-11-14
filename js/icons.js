@@ -25,7 +25,7 @@ export const icons = {
   upload: svg('<path d="M12 16V5M7 9l5-5 5 5M5 20h14"/>'),
   listen: svg('<path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3.5" y="14" width="4" height="6" rx="1.5"/><rect x="16.5" y="14" width="4" height="6" rx="1.5"/>'),
   dojo: svg('<path d="M3 9 12 4l9 5M5 9v11M19 9v11M3 20h18M9 20v-6h6v6"/>'),
-  gear: svg('<circle cx="12" cy="12" r="3"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7"/>'),
+  gear: svg('<circle cx="12" cy="12" r="3"/><path d="M10.3 3.5h3.4l.5 2.4 1.6.9 2.3-.8 1.7 2.9-1.8 1.6v1.9l1.8 1.6-1.7 2.9-2.3-.8-1.6.9-.5 2.4h-3.4l-.5-2.4-1.6-.9-2.3.8-1.7-2.9 1.8-1.6v-1.9L4.2 8.9l1.7-2.9 2.3.8 1.6-.9Z"/>'),
   play: svg('<path d="M8 5.5v13l10.5-6.5Z" fill="currentColor"/>'),
   pause: svg('<path d="M8 5v14M16 5v14" stroke-width="3"/>'),
   prev: svg('<path d="M6 5v14M19 5.5v13L9 12Z"/>'),

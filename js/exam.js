@@ -4,8 +4,12 @@
 // so a mock exam can be resumed.
 import { words, PASS_SHARE } from './course.js';
 import { shuffled, romajiLine, bindGloss, glossHtml } from './drills.js';
+import { sameMeaning } from './exercises.js';
 import { speakLines, cancel, SLOW, NORMAL } from './tts.js';
 import { icons } from './icons.js';
+
+// After a failed unit test, a short break before the next try, so it can't be passed by memorising answers.
+export const RETAKE_MIN = 10;
 
 function seeded(text) {
   let h = 2166136261;
@@ -54,14 +58,21 @@ export function unitTest(unit, data, rng = Math.random) {
   const taught = unit.lessons.flatMap((l) => l.words || [])
     .map((w) => data.vocab.find((v) => v.w === w)).filter(Boolean);
   // Wrong options look like the right one: a verb's options are verbs, an adjective's are
-  // adjectives. Readings come from other kanji words, nearest in length, never katakana.
+  // adjectives. Words sharing a kanji come first (大学 next to 大人 and 学生), then words from
+  // the course so far. Readings come from other kanji words, nearest in length, never katakana.
+  const known = new Set(data.units.slice(0, data.units.indexOf(unit) + 1).flatMap((u) => u.lessons.flatMap((l) => l.words || [])));
   const others = (field, right, of) => {
     const pool = data.vocab.filter((v) => v[field] && v[field] !== right && v !== of
+      && (field !== 'm' || !sameMeaning(v.m, right))
       && (field === 'm' || (v.w !== v.y && !KATAKANA.test(v.y))));
     const same = pool.filter((v) => wordKind(v) === wordKind(of));
-    const near = (v) => (field === 'y' ? Math.abs(v.y.length - right.length) + (v.y.at(-1) === right.at(-1) ? 0 : 0.5) : 0);
+    const kanji = [...of.w].filter((c) => /[一-龯]/.test(c));
+    const near = (v) => (kanji.some((c) => v.w.includes(c)) ? 0 : known.has(v.w) ? 1 : 2)
+      + (field === 'y' ? (Math.abs(v.y.length - right.length) + (v.y.at(-1) === right.at(-1) ? 0 : 0.5)) / 10 : 0);
     const ranked = shuffled(same.length >= 3 ? same : pool, rng).sort((a, b) => near(a) - near(b));
-    return [...new Set(ranked.map((v) => v[field]))].slice(0, 3);
+    const out = [];
+    for (const v of ranked) if (out.length < 3 && !out.some((o) => o === v[field] || (field === 'm' && sameMeaning(o, v.m)))) out.push(v[field]);
+    return out;
   };
   const chosen = shuffled(taught, rng).slice(0, 6);
   const wordQs = chosen.map((v, i) => (i % 2 === 0 && v.w !== v.y
@@ -122,7 +133,8 @@ const audioLines = (q) => [
 export function startExam(ctx, exam, { mode = 'exam', resume = null } = {}) {
   const { view, setTop, glossary } = ctx;
   const timed = mode === 'exam' && exam.scoring === 'jlpt';
-  const help = mode === 'practice' || exam.scoring === 'unit';
+  // Unit tests check what you know, so they give no romaji or tap-to-translate either.
+  const help = mode === 'practice';
   const once = mode === 'exam' && exam.scoring === 'jlpt';
   const st = resume || { key: exam.key, mode, sec: 0, i: 0, answers: {}, plays: {}, endAt: null, started: false };
   let tick = null;
@@ -163,7 +175,8 @@ export function startExam(ctx, exam, { mode = 'exam', resume = null } = {}) {
         'Once a section ends, you can\'t go back to it.']
       : exam.scoring === 'jlpt'
         ? ['There is no clock. Romaji and tappable words are available, and audio can be replayed.', 'This is good for learning, but it won\'t tell you how you\'d do on the day.']
-        : [`Score ${Math.round(PASS_SHARE * 100)}% to pass. You can go back and change answers before you finish, and you can retake it.`];
+        : [`Score ${Math.round(PASS_SHARE * 100)}% to pass. There's no romaji, and words can't be tapped.`,
+          `You can go back and change answers before you finish. If you don't pass, you can retake it after a ${RETAKE_MIN}-minute break.`];
     view.innerHTML = `<section class="card">
         <span class="caps">${exam.title}</span>
         <h3>${s.title}</h3>

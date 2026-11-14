@@ -4,6 +4,9 @@ import { isDue } from './srs.js';
 import { grammarId, grammarDrills } from './course.js';
 import { tripReviewSteps } from './trip.js';
 
+// Recalled fewer times than this, an item is reviewed by a checked question, not a self-rating.
+export const YOUNG = 3;
+
 export const kanjiId = (k) => `k:${k.k}`;
 export const wordId = (w) => `w:${w.w}`;
 export const sentenceId = (s) => `s:${s.id}`;
@@ -26,11 +29,19 @@ export function reviewSteps(state, data, now = Date.now(), { cards = 15, grammar
       const drill = options[Math.floor(rng() * options.length)];
       return drill && { ...drill, id, grammar: { unit, lesson } };
     }).filter(Boolean);
+  // Young items are checked with a question, alternating which way round; once an item has
+  // been recalled a few times it's a card again, with a typed reading when it's Strong.
+  const asked = (s) => {
+    const reps = items[s.id]?.reps || 0;
+    if (reps >= YOUNG) return s;
+    if (s.kind === 'kanji') return { ...s, type: 'quiz', kind: reps % 2 ? 'read' : 'mean' };
+    return { ...s, type: 'wordq', dir: reps % 2 ? 'jp' : 'en' };
+  };
   return [
     ...pick([
       ...data.kanji.map((x) => ({ type: 'card', kind: 'kanji', id: kanjiId(x), ref: x })),
       ...data.vocab.map((x) => ({ type: 'card', kind: 'word', id: wordId(x), ref: x })),
-    ], cards),
+    ], cards).map(asked),
     ...grammarSteps,
     // Trip signs, lines and announcements that are due.
     ...tripReviewSteps(data.trip || [], items, now, trip),
