@@ -1,5 +1,5 @@
-// Handwritten kanji lookup, all on the device. data/write.json holds every jōyō and
-// jinmeiyō kanji as its KanjiVG strokes, each cut to PTS evenly spaced points, plus
+// Handwritten kanji and kana lookup, all on the device. data/write.json holds every jōyō and
+// jinmeiyō kanji and every full-size kana as KanjiVG strokes, each cut to PTS evenly spaced points, plus
 // KANJIDIC2 meanings and readings. A drawing is matched stroke by stroke against them.
 //
 // The match forgives the things people get wrong when copying a sign: size and place
@@ -97,10 +97,11 @@ export function distance(drawn, ref) {
   return (cost + MISSING * Math.abs(n - m)) / Math.max(n, m);
 }
 
-// The file as lookups: [{ k, ref, mean, on, kun, freq }].
+// The file as lookups: [{ k, ref, mean, on, kun, freq, kind }]. kind is 'h' for
+// hiragana, 'k' for katakana, 'm' for the repeat mark 々, and empty for a kanji.
 export function makeWriteIndex(file) {
-  return file.k.map(([k, code, mean, on, kun, freq]) => ({
-    k, ref: normalize(decodeStrokes(code)), mean, on, kun, freq,
+  return file.k.map(([k, code, mean, on, kun, freq, kind = '']) => ({
+    k, ref: normalize(decodeStrokes(code)), mean, on, kun, freq, kind,
   }));
 }
 
@@ -113,7 +114,7 @@ export function recognize(index, strokes, { box = 1, limit = 10 } = {}) {
   const scored = [];
   for (const e of index) {
     if (Math.abs(e.ref.n - d.n) > slack) continue;
-    scored.push([distance(d, e.ref) + (e.freq ? 0 : RARE), e]);
+    scored.push([distance(d, e.ref) + (e.freq || e.kind ? 0 : RARE), e]);
   }
   scored.sort((a, b) => a[0] - b[0]);
   return scored.slice(0, limit).map(([, e]) => e);

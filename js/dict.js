@@ -10,33 +10,49 @@ export const TAUGHT = 8;
 
 const JP = /[぀-ヿ㐀-鿿々]/;
 // Words that start a gloss but don't help find it: "to eat", "a cat", "the sea".
-const lead = (s) => s.replace(/^(to|a|an|the) /, '');
+// "to get tired" and "I'm sorry" are found by "tired" and "sorry".
+const lead = (s) => s.replace(/^(to|a|an|the) /, '').replace(/^(get|become|be|i'm|i am) (?=\S)/, '');
+const tidy = (s) => s.toLowerCase().replace(/\([^)]*\)/g, ' ').replace(/[^a-z0-9' -]/g, ' ').replace(/\s+/g, ' ').trim();
 // "cat (esp. the domestic cat)" is found by "cat", not by what's in brackets.
-const clean = (s) => lead(s.toLowerCase().replace(/\([^)]*\)/g, ' ').replace(/[^a-z0-9' -]/g, ' ').replace(/\s+/g, ' ').trim());
+const clean = (s) => lead(tidy(s));
 
 // One entry per row, with what search needs worked out once.
 export function makeIndex(rows) {
-  return rows.map(([w, y, m, pos, f, alt]) => {
+  return rows.map(([w, y, m, pos, f, alt, freq = 0]) => {
     const senses = m.split('|').map((s) => s.split('; '));
     return {
-      w: w || y, y, pos, f, senses,
+      w: w || y, y, pos, f, senses, freq,
       // Shown as written: kana for words usually written in kana.
       head: !w || f & KANA_ONLY ? y : w,
       forms: [w, y, ...(alt ? alt.split(',') : [])].filter(Boolean).map(toHiragana),
-      // Each gloss cleaned, with the number of the sense it belongs to.
-      gl: senses.flatMap((s, n) => s.map((g) => [clean(g), n])),
+      // Each gloss cleaned, with its sense number, its place in that sense, and whether it's a verb ("to exit").
+      gl: senses.flatMap((s, n) => s.map((g, i) => [clean(g), n, i, /^to /.test(tidy(g))])),
     };
   });
 }
 
-// How well one entry matches English text: exact gloss beats a gloss that starts or ends
-// with it ("railway station"), which beats a word inside a gloss. The first sense counts most.
-function englishScore(e, q) {
+// Plurals ("women", "lockers") also find the singular gloss, a little lower.
+const IRREGULAR = { men: 'man', women: 'woman', children: 'child', people: 'person', feet: 'foot', teeth: 'tooth', mice: 'mouse' };
+export function singular(q) {
+  const last = q.split(' ').pop();
+  const one = IRREGULAR[last] || (/ies$/.test(last) ? `${last.slice(0, -3)}y`
+    : /(ss|us)$/.test(last) ? null
+      : /(ch|sh|x|ss|us)es$/.test(last) ? last.slice(0, -2)
+        : /s$/.test(last) ? last.slice(0, -1) : null);
+  return one && one !== last ? q.replace(/[a-z']+$/, one) : null;
+}
+
+// How well one entry matches English text: exact gloss beats a gloss that ends with it
+// ("railway station"), which beats one that starts with it, which beats a word inside a
+// gloss. The first sense counts most, and the first gloss in a sense a little more.
+// "exit" leans to the noun 出口 and "to exit" to the verb 出る.
+function englishScore(e, q, verb) {
   let best = 0;
-  for (const [g, n] of e.gl) {
-    const cut = Math.min(n, 2) * 30;
+  for (const [g, n, i, isVerb] of e.gl) {
+    const cut = Math.min(n, 2) * 30 - (i === 0 ? 4 : 0) + (isVerb === verb ? 0 : 12);
+    const words = g.split(' ').length;
     if (g === q) best = Math.max(best, 100 - cut);
-    else if (g.endsWith(` ${q}`) && g.split(' ').length <= 3) best = Math.max(best, 72 - cut);
+    else if (g.endsWith(` ${q}`) && words <= 3) best = Math.max(best, (words === 2 ? 70 : 62) - cut);
     else if (g.startsWith(`${q} `)) best = Math.max(best, 60 - cut);
     else if (` ${g} `.includes(` ${q} `)) best = Math.max(best, 40 - cut);
     else if (q.length >= 3 && (g.startsWith(q) || g.includes(` ${q}`))) best = Math.max(best, 22 - cut);
@@ -54,8 +70,8 @@ function kanaScore(e, q, inside = true) {
   return best;
 }
 
-// Course words, then N5 words, then everyday ones lead among equal matches.
-const boost = (e) => (e.f & TAUGHT ? 14 : 0) + (e.f & N5 ? 10 : 0) + (e.f & COMMON ? 6 : 0);
+// Course words, N5 words, everyday ones and words met often in real sentences lead among equal matches.
+const boost = (e) => (e.f & TAUGHT ? 14 : 0) + (e.f & N5 ? 10 : 0) + (e.f & COMMON ? 6 : 0) + e.freq * 1.5;
 
 // Results for what's typed so far: English, kana, kanji or romaji ("neko").
 export function search(index, query, limit = 8) {
@@ -67,15 +83,17 @@ export function search(index, query, limit = 8) {
     scoreOf = (e) => kanaScore(e, q);
   } else {
     const q = clean(raw);
+    const verb = /^to /.test(tidy(raw));
     if (!q) return [];
     // Romaji counts once it spells kana cleanly ("neko"). When the text is also a real
     // English word ("rain", not ライン), the English matches come first.
     const kana = toKana(raw.replace(/\s+/g, ''), { done: true });
     const asKana = /^[぀-ゟー]+$/.test(kana) ? kana : '';
     let english = 0;
-    for (const e of index) english = Math.max(english, englishScore(e, q));
+    for (const e of index) english = Math.max(english, englishScore(e, q, verb));
     const weight = english >= 60 ? 0.4 : 0.85;
-    scoreOf = (e) => Math.max(englishScore(e, q), asKana ? kanaScore(e, asKana, false) * weight : 0);
+    const one = singular(q);
+    scoreOf = (e) => Math.max(englishScore(e, q, verb), one ? englishScore(e, one, verb) - 3 : 0, asKana ? kanaScore(e, asKana, false) * weight : 0);
   }
   const hits = [];
   for (const e of index) {

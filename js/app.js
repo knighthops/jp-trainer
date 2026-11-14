@@ -2239,7 +2239,14 @@ function loadWrite() {
 }
 
 // A kanji picked from the pad: the course's own card for kanji it teaches, else KANJIDIC2's.
+const PARTICLE_SAYS = { は: 'wa', へ: 'e', を: 'o' };
 function writtenKanjiHtml(e) {
+  if (e.kind === 'h' || e.kind === 'k') {
+    const said = PARTICLE_SAYS[e.k];
+    return `<div class="kpeek"><span class="kp-g jp">${e.k}</span><div>
+      <strong>${e.kind === 'h' ? 'Hiragana' : 'Katakana'} · ${romaji(e.k)}</strong>
+      <div class="small">${said ? `As a particle it's said "${said}", as in わたし${e.k}.` : e.kind === 'k' ? 'Used for foreign words and names.' : ''}</div></div></div>`;
+  }
   if (kanjiOf(e.k)) return peekHtml(e.k);
   const reads = [e.on, e.kun.replace(/\./g, '')].filter(Boolean).join('・');
   return `<div class="kpeek"><span class="kp-g jp">${e.k}</span><div>
@@ -2256,7 +2263,7 @@ function mountPad(pad, { onPick, onDelete }) {
   let strokes = [];
   let drawn = null;
   let shown = [];
-  const hint = '<span class="small muted">Write one kanji. Suggestions show up here.</span>';
+  const hint = '<span class="small muted">Write one kanji or kana. Suggestions show up here.</span>';
   const line = (pts) => `M${pts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join('L')}`;
   const redraw = () => { ink.innerHTML = strokes.map((s) => `<path d="${line(s.length > 1 ? s : [s[0], s[0]])}"/>`).join(''); };
   const suggest = async () => {
@@ -2269,7 +2276,7 @@ function mountPad(pad, { onPick, onDelete }) {
       return;
     }
     shown = recognize(index, strokes, { box: 109 });
-    cands.innerHTML = shown.map((e, i) => `<button class="hw-c jp" data-i="${i}" aria-label="${e.k}: ${escHtml(e.mean.split(';')[0])}">${e.k}</button>`).join('');
+    cands.innerHTML = shown.map((e, i) => `<button class="hw-c jp" data-i="${i}" aria-label="${e.k}${e.mean ? `: ${escHtml(e.mean.split(';')[0])}` : ''}">${e.k}</button>`).join('');
   };
   const clear = () => { strokes = []; redraw(); suggest(); };
   const toBox = (e) => {
@@ -2307,14 +2314,42 @@ function mountPad(pad, { onPick, onDelete }) {
   cands.innerHTML = hint;
 }
 
+// A sample of each Browse topic, shown big on its tile.
+const TOPIC_MARK = { numbers: '一二三', counters: '〜つ', time: '今日', directions: '右左', phrases: 'どうぞ', responses: 'はい', questions: '何？' };
+const RECENT_MAX = 8;
+const TYPE_HINT = 'English, kana, kanji or romaji';
+let dictTopic = null;
+
 function screenDict() {
   setTop('Dictionary', backTo('#/today'));
-  const padOpen = !!state.settings.writePad;
+  let writing = !!state.settings.writePad;
+  const recentHtml = () => {
+    const list = state.settings.dictRecent || [];
+    return list.length ? `<div class="caps sect"><span>Recent</span><button class="dlink" id="recentclear">Clear</button></div>
+      <div class="dchips">${list.map((w) => `<button class="dchip jp" data-find="${escHtml(w)}">${escHtml(w)}</button>`).join('')}</div>` : '';
+  };
+  const topicsHtml = () => {
+    const t = BROWSE.find((b) => b.id === dictTopic);
+    if (t) {
+      return `<button class="dlink dback" id="topicback">${icons.back}<span>All topics</span></button>
+        <div class="caps sect"><span>${t.title}</span><span>${t.items.length} words</span></div>
+        <section class="card list dtopic">${t.items.map(([w, y, en]) => `<div class="row brow"><button class="grow" data-find="${escHtml(w.replace('…', ''))}">
+          <span><span class="jp">${w}</span> <span class="small muted">${w === y ? '' : `<span class="jp">${y}</span> · `}${romaji(y)}</span></span>
+          <span class="small">${en}</span></button>${sayBtn(y)}</div>`).join('')}</section>`;
+    }
+    return `<div class="caps sect"><span>Browse</span><span>${BROWSE.length} topics</span></div>
+      <div class="dtopics">${BROWSE.map((b) => `<button class="dtile" data-topic="${b.id}">
+        <span class="dtile-m jp">${TOPIC_MARK[b.id] || b.items[0][0]}</span>
+        <strong>${b.title}</strong><span class="small muted">${b.items.length} words</span></button>`).join('')}</div>`;
+  };
   view.innerHTML = `
     <div class="dsearch">${icons.search}<input id="q" type="search" enterkeyhint="search" autocomplete="off" autocapitalize="off"
       spellcheck="false" placeholder="English, kana, kanji or romaji" aria-label="Search the dictionary" value="${escHtml(dictQuery)}">
-      <button class="dpen${padOpen ? ' on' : ''}" id="pen" aria-label="Write a kanji by hand" aria-pressed="${padOpen}">${icons.practice}</button></div>
-    <section class="card hw" id="hw"${padOpen ? '' : ' hidden'}>
+      <button class="dclear" id="qclear" aria-label="Clear the search"${dictQuery ? '' : ' hidden'}>${icons.close}</button></div>
+    <div class="seg dmode" role="tablist" aria-label="How to search">
+      <button role="tab" data-mode="type" class="${writing ? '' : 'on'}" aria-selected="${!writing}">${icons.search}<span>Type</span></button>
+      <button role="tab" data-mode="write" class="${writing ? 'on' : ''}" aria-selected="${writing}">${icons.practice}<span>Write</span></button></div>
+    <section class="card hw" id="hw"${writing ? '' : ' hidden'}>
       <div class="hw-cands" id="cands"></div>
       <div class="hw-box"><svg class="sk-svg hw-svg" viewBox="0 0 109 109" role="img" aria-label="Writing pad">
         <path class="sk-grid" d="M54.5 0V109M0 54.5H109"/><g class="hw-ink"></g><path class="sk-live hw-live"/></svg></div>
@@ -2324,21 +2359,34 @@ function screenDict() {
     <div id="kinfo"></div>
     <div id="detail"></div>
     <div id="results" class="dlist"></div>
-    <div id="browse">
-      ${BROWSE.map((b) => `<details class="card browse"><summary><strong>${b.title}</strong><span class="small muted">${b.items.length}</span></summary>
-        <div class="list">${b.items.map(([w, y, en]) => `<div class="row brow"><button class="grow" data-find="${escHtml(w.replace('…', ''))}">
-          <span class="jp">${w}</span> <span class="small muted">${w === y ? '' : `<span class="jp">${y}</span> · `}${romaji(y)}</span>
-          <span class="small">${en}</span></button>${sayBtn(y)}</div>`).join('')}</div></details>`).join('')}
-      <p class="small muted center">About 23,000 everyday words from JMdict, all offline. Tap a word in a list to look it up.</p>
+    <div id="browse" class="dbrowse">
+      <div id="recent" class="dbrowse">${recentHtml()}</div>
+      <div id="topics" class="dbrowse">${topicsHtml()}</div>
+      <p class="small muted center dfoot">About 23,000 everyday words from JMdict, all offline.</p>
     </div>`;
   const input = view.querySelector('#q');
+  const qclear = view.querySelector('#qclear');
   const results = view.querySelector('#results');
   const detail = view.querySelector('#detail');
   const browse = view.querySelector('#browse');
+  const recent = view.querySelector('#recent');
+  const topics = view.querySelector('#topics');
+  const kinfo = view.querySelector('#kinfo');
+  const pad = view.querySelector('#hw');
   let shown = [];
   let timer = null;
+
+  // Words you opened, newest first, so a sign you looked up is one tap away later.
+  const remember = (e) => {
+    const list = (state.settings.dictRecent || []).filter((w) => w !== e.head);
+    state.settings.dictRecent = [e.head, ...list].slice(0, RECENT_MAX);
+    save(state);
+    recent.innerHTML = recentHtml();
+  };
+  const open = (e) => { detail.innerHTML = dictCard(e); remember(e); };
   const show = async (pick = false) => {
     dictQuery = input.value;
+    qclear.hidden = !dictQuery;
     detail.innerHTML = '';
     browse.hidden = !!dictQuery.trim();
     if (!dictQuery.trim()) { results.innerHTML = ''; return; }
@@ -2353,37 +2401,52 @@ function screenDict() {
     shown = search(index, dictQuery, 20);
     results.innerHTML = shown.length ? shown.map(dictRow).join('')
       : `<p class="small muted center">Nothing found for "${escHtml(dictQuery)}". Try a simpler word, or type it in kana.</p>`;
-    if (pick && shown.length) detail.innerHTML = dictCard(shown[0]);
+    if (pick && shown.length) open(shown[0]);
   };
-  input.oninput = () => { clearTimeout(timer); timer = setTimeout(show, 120); };
+  const find = (w) => { input.value = w; kinfo.innerHTML = ''; show(true).then(() => window.scrollTo(0, 0)); };
+  input.oninput = () => { kinfo.innerHTML = ''; clearTimeout(timer); timer = setTimeout(show, 120); };
   input.onkeydown = (e) => {
     if (e.key !== 'Enter') return;
     clearTimeout(timer);
     input.blur();
     show(true);
   };
+  qclear.onclick = () => {
+    input.value = '';
+    kinfo.innerHTML = '';
+    show();
+    if (!writing) input.focus({ preventScroll: true });
+  };
   results.onclick = (e) => {
     const b = e.target.closest('.dres');
     if (!b) return;
-    detail.innerHTML = dictCard(shown[Number(b.dataset.i)]);
+    open(shown[Number(b.dataset.i)]);
     input.blur();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
   browse.onclick = (e) => {
-    const b = e.target.closest('[data-find]');
-    if (!b) return;
-    input.value = b.dataset.find;
-    show(true).then(() => window.scrollTo(0, 0));
+    const f = e.target.closest('[data-find]');
+    if (f) { find(f.dataset.find); return; }
+    const t = e.target.closest('[data-topic]');
+    if (t || e.target.closest('#topicback')) {
+      dictTopic = t ? t.dataset.topic : null;
+      topics.innerHTML = topicsHtml();
+      if (topics.getBoundingClientRect().top < 0) topics.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      return;
+    }
+    if (e.target.closest('#recentclear')) {
+      state.settings.dictRecent = [];
+      save(state);
+      recent.innerHTML = '';
+    }
   };
-  const kinfo = view.querySelector('#kinfo');
-  const pad = view.querySelector('#hw');
-  const pen = view.querySelector('#pen');
+
   // Each kanji you pick joins the search, so writing 出 then 口 looks up 出口.
   const searchWritten = async () => {
     await show();
     const q = input.value.trim();
     const hit = shown[0];
-    if (hit && (hit.w === q || hit.head === q || hit.forms.includes(q))) detail.innerHTML = dictCard(hit);
+    if (hit && (hit.w === q || hit.head === q || hit.forms.includes(q))) open(hit);
   };
   mountPad(pad, {
     onPick: (e) => {
@@ -2397,22 +2460,35 @@ function screenDict() {
       searchWritten();
     },
   });
-  input.addEventListener('input', () => { kinfo.innerHTML = ''; });
-  pen.onclick = () => {
-    const open = pad.hidden;
-    pad.hidden = !open;
-    pen.classList.toggle('on', open);
-    pen.setAttribute('aria-pressed', String(open));
-    state.settings.writePad = open;
+
+  // Type or Write. While writing, tapping the search box doesn't raise the keyboard over the pad.
+  const setMode = (write) => {
+    writing = write;
+    pad.hidden = !write;
+    input.inputMode = write ? 'none' : 'text';
+    input.placeholder = write ? 'What you write shows up here' : TYPE_HINT;
+    view.querySelectorAll('.dmode button').forEach((b) => {
+      const on = (b.dataset.mode === 'write') === write;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-selected', String(on));
+    });
+    state.settings.writePad = write;
     save(state);
-    if (open) { input.blur(); loadWrite().catch(() => {}); } else input.focus({ preventScroll: true });
   };
+  view.querySelector('.dmode').onclick = (e) => {
+    const b = e.target.closest('[data-mode]');
+    if (!b || (b.dataset.mode === 'write') === writing) return;
+    setMode(!writing);
+    if (writing) { input.blur(); loadWrite().catch(() => {}); } else input.focus({ preventScroll: true });
+  };
+  input.inputMode = writing ? 'none' : 'text';
+  input.placeholder = writing ? 'What you write shows up here' : TYPE_HINT;
 
   if (dictQuery) show();
-  else if (!padOpen) input.focus({ preventScroll: true });
+  else if (!writing) input.focus({ preventScroll: true });
   // Start loading while you type the first letters, or before the first stroke.
   loadDict().catch(() => {});
-  if (padOpen) loadWrite().catch(() => {});
+  if (writing) loadWrite().catch(() => {});
 }
 
 function screenSettings() {

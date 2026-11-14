@@ -4,7 +4,7 @@
 <style>body{font:14px/1.5 system-ui,sans-serif;margin:24px;max-width:900px}</style></head>
 <body>
 <h1>Build the handwriting lookup data</h1>
-<p>Reads every jōyō and jinmeiyō kanji from KANJIDIC2 (<code>.dict/kanjidic2-en-3.6.2.json</code>), takes its strokes from KanjiVG
+<p>Reads every jōyō and jinmeiyō kanji from KANJIDIC2 (<code>.dict/kanjidic2-en-3.6.2.json</code>) and adds full-size hiragana and katakana, takes their strokes from KanjiVG
 (<code>.dict/kanjivg-20260714.xml.gz</code>, from github.com/KanjiVG/kanjivg/releases), and writes <code>data/write.json</code> for <code>js/handwrite.js</code>.
 Run <code>tools/serve.ps1</code>, then open this page.</p>
 <div id="out">Loading…</div>
@@ -63,9 +63,22 @@ try {
   // Most used first, so a tie goes to the kanji you're likelier to meet.
   rows.sort((a, b) => (a[5] || 9999) - (b[5] || 9999));
 
+  // Kana, so a sign's okurigana and particles can be written too. Small kana (っ, ゃ) look
+  // the same as full-size ones once scaled, so only the full-size ones are kept, plus 々 and ー.
+  const SKIP = new Set([...'ぁぃぅぇぉっゃゅょゎゕゖゐゑゔァィゥェォッャュョヮヵヶヰヱヴヷヸヹヺ']);
+  const kana = [];
+  for (let cp = 0x3041; cp <= 0x30fc; cp++) {
+    const c = String.fromCodePoint(cp);
+    if (!/[ぁ-ゖァ-ヺー]/.test(c)) continue;
+    if (SKIP.has(c) || !strokes.has(c)) continue;
+    kana.push([c, encodeStrokes(strokes.get(c).map(sample)), '', '', '', 0, cp >= 0x30a0 ? 'k' : 'h']);
+  }
+  kana.push(['々', encodeStrokes(strokes.get('々').map(sample)), 'repeat the kanji before', '', '', 0, 'm']);
+  rows.push(...kana);
+
   const body = `{"source":"Strokes from KanjiVG (kanjivg.tagaini.net) by Ulrich Apel, CC BY-SA 3.0. Meanings and readings from KANJIDIC2 (EDRDG), CC BY-SA 4.0.",\n"k":[\n${rows.map((r) => JSON.stringify(r)).join(',\n')}\n]}\n`;
   const res = await fetch('save-write', { method: 'POST', body }).catch(() => null);
-  out.innerHTML = `<p>${rows.length} kanji, ${(body.length / 1024).toFixed(0)} KB. ${res?.status === 204 ? 'Saved data/write.json.' : "Couldn't save: run tools/serve.ps1."}</p>
+  out.innerHTML = `<p>${rows.length - kana.length} kanji and ${kana.length} kana, ${(body.length / 1024).toFixed(0)} KB. ${res?.status === 204 ? 'Saved data/write.json.' : "Couldn't save: run tools/serve.ps1."}</p>
     <p>No KanjiVG strokes for ${missing.length}: ${missing.join(' ')}</p>
     <p>Stroke count differs from KANJIDIC2 for ${wrongCount.length}: ${wrongCount.join(' ')}</p>`;
 } catch (err) {

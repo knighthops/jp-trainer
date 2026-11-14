@@ -975,12 +975,21 @@ test('dictionary file, if built: has the course words and every row is well form
   const dict = optional('dict');
   if (!dict) return;
   assert.ok(dict.words.length > 15000);
-  for (const r of dict.words) assert.ok(r.length === 6 && r[1] && r[2] && Number.isInteger(r[4]), JSON.stringify(r));
+  for (const r of dict.words) assert.ok(r.length === 7 && r[1] && r[2] && Number.isInteger(r[4]) && r[6] >= 0 && r[6] <= 15, JSON.stringify(r));
   const index = makeIndex(dict.words);
   const d = course();
   const taught = new Set(d.units.flatMap((u) => u.lessons.flatMap((l) => l.words || [])));
   const found = new Set(index.flatMap((e) => [e.w, e.y, ...e.forms]));
   assert.deepEqual([...taught].filter((w) => !found.has(w) && !found.has(toHiragana(w))), []);
+  // What a sign or a menu says comes first: the everyday word, not a rare one sharing the gloss.
+  const top = (q) => search(index, q, 1)[0]?.head;
+  const want = {
+    station: '駅', exit: '出口', meat: '肉', danger: '危険', free: '無料', beer: 'ビール', cash: '現金', temple: '寺',
+    park: '公園', tired: '疲れる', chair: 'いす', buses: 'バス', women: '女', 'to exit': '出る', eki: '駅',
+  };
+  assert.deepEqual(Object.keys(want).filter((q) => top(q) !== want[q]).map((q) => `${q}: ${top(q)}`), []);
+  // A course word in kana flags only the entry it means: どう (how), not 堂 (temple).
+  assert.ok(!(index.find((e) => e.w === '堂').f & 8));
 });
 
 test('flashcards: decks by unit, all of N5 and finished lessons, with a picture where there is one', () => {
@@ -1241,10 +1250,22 @@ test('handwriting finds a kanji from a messy drawing', () => {
   const box = 300;
   const mouth = [[[40, 60], [42, 160]], [[42, 60], [150, 58], [148, 158]], [[146, 156], [44, 157]]]
     .map((s) => s.map(([x, y]) => ({ x, y })));
-  assert.equal(recognize(index, mouth, { box })[0].k, '口');
+  // Katakana ロ is drawn the same way, so the two come first and second either way round.
+  assert.deepEqual(recognize(index, mouth, { box }).slice(0, 2).map((e) => e.k).sort(), ['ロ', '口']);
   // 出 with its last two strokes swapped still comes first.
   const exit = decodeStrokes(row('出')[1]).map((s) => s.map((p) => ({ x: p.x * 200 + 30, y: p.y * 230 + 20 })));
   [exit[3], exit[4]] = [exit[4], exit[3]];
   assert.equal(recognize(index, exit, { box })[0].k, '出');
   assert.deepEqual(recognize(index, [], { box }), []);
+});
+
+test('handwriting knows kana: は traced from a phone drawing', () => {
+  const index = makeWriteIndex(json('write'));
+  assert.ok(index.some((e) => e.k === 'ア' && e.kind === 'k'));
+  assert.ok(!index.some((e) => e.k === 'っ'), 'small kana are left out');
+  // Screen pixels from an iPhone screenshot: the pad spans x 170-753, y 652-1235.
+  const ha = [[[290, 785], [305, 950], [325, 1130]], [[485, 905], [600, 895], [665, 870]],
+    [[573, 745], [580, 900], [590, 1000], [580, 1080], [540, 1125], [490, 1110], [468, 1070], [500, 1050], [600, 1050], [660, 1060], [720, 1115]]]
+    .map((s) => s.map(([x, y]) => ({ x: x - 170, y: y - 652 })));
+  assert.equal(recognize(index, ha, { box: 583 })[0].k, 'は');
 });

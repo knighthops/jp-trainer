@@ -9,7 +9,8 @@
 <body>
 <h1>Build data/dict.json</h1>
 <p>Makes the app's offline dictionary from JMdict (<code>.dict/jmdict-eng-3.6.2.json</code>): every common word,
-every word on the N5 list (<code>.dict/jlpt/n5.csv</code>) and every word the course teaches. Open it from <code>tools/serve.ps1</code>.</p>
+every word on the N5 list (<code>.dict/jlpt/n5.csv</code>) and every word the course teaches. Each word gets a frequency score from
+Tatoeba's Japanese sentences (<code>.dict/jpn_sentences_detailed.tsv</code>). Open it from <code>tools/serve.ps1</code>.</p>
 <div id="out">Loading. JMdict is large, so this takes a few seconds.</div>
 <script type="module">
 import { mergeCourse, UNIT_FILES } from '../js/course.js';
@@ -34,6 +35,16 @@ try {
   const data = { kanji, vocab, glossary, sentences: [], particles: {}, papers: [] };
   mergeCourse(data, units);
   taught = new Set(data.units.flatMap((u) => u.lessons.flatMap((l) => l.words || [])));
+  // What each kana-only course or N5 word means, from the glossary and the N5 list's third column.
+  const STOP = new Set(['the', 'and', 'one', 'for', 'something', 'someone', 'etc']);
+  const wordsOf = (s) => String(s).toLowerCase().split(/[^a-z]+/).filter((w) => w.length > 2 && !STOP.has(w));
+  const kanaMeaning = new Map();
+  const means = (t, m) => { if (!/[一-龯々]/.test(t)) kanaMeaning.set(t, new Set([...(kanaMeaning.get(t) || []), ...wordsOf(m)])); };
+  for (const [w, g] of Object.entries(glossary)) means(w, g.m);
+  for (const line of csv.split(/\r?\n/).slice(1)) {
+    const m = line.match(/^([^,]*),[^,]*,(?:"([^"]*)"|([^,]*))/);
+    if (m) means(m[1].split(';')[0].trim().replace(/^～/, ''), m[2] ?? m[3]);
+  }
   const rows = [];
   for (const e of jm.words) {
     const kanjiForms = e.kanji.filter(plain);
@@ -51,8 +62,22 @@ try {
       || kanaForms.find((k) => !head || k.appliesToKanji.includes('*') || k.appliesToKanji.includes(head.text)) || kanaForms[0];
     const senses = e.sense.filter((s) => s.gloss.length && (!head || s.appliesToKanji.includes('*') || s.appliesToKanji.includes(head.text))).slice(0, 4);
     if (!senses.length) continue;
-    const uk = senses[0].misc.includes('uk') || (taught.has(kana.text) && !taught.has(head?.text));
-    const flags = (isN5 ? 1 : 0) | (uk ? 2 : 0) | (common ? 4 : 0) | (isTaught ? 8 : 0);
+    // N5 and course flags go by this entry's own spelling: the course's どう (how) mustn't
+    // flag 堂 (temple), read どう too. A course or N5 word written in kana counts for an
+    // entry with kanji only when their meanings share a word (いす "chair" is 椅子).
+    const ukSense = senses[0].misc.includes('uk');
+    const glossWords = new Set(senses.slice(0, 2).flatMap((s) => s.gloss.flatMap((g) => wordsOf(g.text))));
+    const sameMeaning = (t) => [...(kanaMeaning.get(t) || [])].some((w) => glossWords.has(w));
+    const kanaOk = !kanjiForms.length || ukSense;
+    // When the course says what a kana word means, the meaning must match even for kana-only
+    // entries: its だんだん (gradually) isn't the dialect だんだん (thank you).
+    const own = (t) => kanjiForms.some((f) => f.text === t)
+      || (texts.includes(t) && (kanaMeaning.get(t)?.size ? sameMeaning(t) : kanaOk));
+    const ownN5 = texts.some((t) => n5.has(t) && own(t));
+    const ownTaught = texts.some((t) => taught.has(t) && own(t));
+    // Shown in kana when JMdict says so, or when the course teaches it in kana (きれい, not 綺麗).
+    const uk = ukSense || (taught.has(kana.text) && own(kana.text) && !taught.has(head?.text));
+    const flags = (ownN5 ? 1 : 0) | (uk ? 2 : 0) | (common ? 4 : 0) | (ownTaught ? 8 : 0);
     const alt = [...new Set(texts.filter((t) => t !== head?.text && t !== kana.text))].slice(0, 4).join(',');
     rows.push([
       head?.text || '', kana.text,
@@ -63,7 +88,49 @@ try {
   // A course or N5 spelling can also belong to a rare entry (猫 read ねこま): drop those when a common entry has it.
   const strong = new Set(rows.filter((r) => r[4] & 4).map((r) => r[0] || r[1]));
   for (let i = rows.length - 1; i >= 0; i--) if (!(rows[i][4] & 4) && strong.has(rows[i][0] || rows[i][1])) rows.splice(i, 1);
-  const text = `{"source":"JMdict (EDRDG, CC BY-SA 4.0) via jmdict-simplified ${jm.version}, ${jm.dictDate}",\n"words":[\n${rows.map((r) => JSON.stringify(r)).join(',\n')}\n]}\n`;
+
+  // How often each word turns up in Tatoeba's Japanese sentences, as a 0-15 score
+  // (log2 of the count), so a search can put 駅 above 停留所 for "station". Each word is
+  // counted as it's shown: kana for words usually written in kana. Single kana are skipped.
+  // Verbs and い adjectives change their ending (寒い, 寒かった, 寒くない), so those are
+  // counted by their stem followed by any hiragana.
+  // A one-kanji word counts only standing alone (駅 in 駅へ, not in 東京駅).
+  const counts = new Map();
+  const stems = new Map();
+  const countedOf = (r) => (!r[0] || r[4] & 2 ? r[1] : r[0]);
+  const stemOf = (r) => {
+    const s = countedOf(r);
+    return /^(v1|v5|vk|adj-i)/.test(r[3]) && /[一-龯々]/.test(s) && /[ぁ-ゖ]$/.test(s) ? s.slice(0, -1) : null;
+  };
+  for (const r of rows) {
+    const shown = countedOf(r);
+    const stem = stemOf(r);
+    if (stem) stems.set(stem, 0);
+    else if (shown.length > 1 || /[一-龯々]/.test(shown)) counts.set(shown, 0);
+  }
+  const KANJI = /[一-龯々]/;
+  const tsv = await get('../.dict/jpn_sentences_detailed.tsv').then((r) => r.text());
+  let sentences = 0;
+  for (const line of tsv.split('\n')) {
+    const s = line.split('\t')[2];
+    if (!s) continue;
+    sentences++;
+    for (let i = 0; i < s.length; i++) {
+      for (let n = 1; n <= 8 && i + n <= s.length; n++) {
+        const sub = s.slice(i, i + n);
+        const c = counts.get(sub);
+        if (c !== undefined && (n > 1 || !(KANJI.test(s[i - 1] || '') || KANJI.test(s[i + 1] || '')))) counts.set(sub, c + 1);
+        const st = stems.get(sub);
+        if (st !== undefined && /[ぁ-ゖ]/.test(s[i + n] || '')) stems.set(sub, st + 1);
+      }
+    }
+  }
+  for (const r of rows) {
+    const stem = stemOf(r);
+    const n = (stem ? stems.get(stem) : counts.get(countedOf(r))) || 0;
+    r.push(Math.min(15, Math.round(Math.log2(1 + n))));
+  }
+  const text = `{"source":"JMdict (EDRDG, CC BY-SA 4.0) via jmdict-simplified ${jm.version}, ${jm.dictDate}. Frequency from ${sentences} Tatoeba sentences (CC BY 2.0 FR).",\n"words":[\n${rows.map((r) => JSON.stringify(r)).join(',\n')}\n]}\n`;
   const save = await fetch('save-dict', { method: 'POST', body: text }).catch(() => null);
   window.__built = { rows: rows.length, bytes: text.length, n5: rows.filter((r) => r[4] & 1).length, taught: rows.filter((r) => r[4] & 8).length, saved: save?.status === 204 };
   // Course words JMdict has no plain entry for, such as inflected forms, are reported, not added.
