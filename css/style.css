@@ -746,6 +746,17 @@ details.more[open] summary::after{content:"−"}
 .hw-row .btn{flex:1;min-height:44px;padding:0 10px}
 .hw-row .btn:last-child{flex:0 0 64px}
 #kinfo:empty,#detail:empty{display:none}
+#detail{scroll-margin-top:calc(var(--head) + env(safe-area-inset-top) + 64px)}
+/* Write mode: the best word for what you've written, right under the search bar. */
+.dmatch{display:flex;align-items:center;gap:12px;min-height:60px;padding:8px 10px 8px 14px;text-align:left;border-radius:14px;background:var(--card);box-shadow:inset 0 0 0 1px var(--line),var(--shadow);color:var(--ink)}
+.dmatch[hidden]{display:none}
+.dmatch.whole{box-shadow:inset 0 0 0 2px var(--accent),var(--shadow)}
+.dmatch .grow{display:flex;flex-direction:column;min-width:0}
+.dm-w{font-size:22px;font-weight:600;flex:none;max-width:45%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dm-tag{flex:none;font-size:12px;font-weight:700;padding:3px 8px;border-radius:8px;background:var(--accent-soft);color:var(--accent)}
+.dmatch.whole{animation:dmpop .3s cubic-bezier(.3,1.5,.5,1)}
+@keyframes dmpop{0%{transform:scale(.97)}60%{transform:scale(1.015)}100%{transform:scale(1)}}
+@media (prefers-reduced-motion: reduce){.dmatch.whole{animation:none}}
 .dlist{display:flex;flex-direction:column;background:var(--card);border-radius:18px;box-shadow:inset 0 0 0 1px var(--line),var(--shadow);overflow:hidden}
 .dlist:empty{display:none}
 .dlist>p{padding:18px}

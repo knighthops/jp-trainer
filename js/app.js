@@ -2346,6 +2346,7 @@ function screenDict() {
     <div class="dsearch">${icons.search}<input id="q" type="search" enterkeyhint="search" autocomplete="off" autocapitalize="off"
       spellcheck="false" placeholder="English, kana, kanji or romaji" aria-label="Search the dictionary" value="${escHtml(dictQuery)}">
       <button class="dclear" id="qclear" aria-label="Clear the search"${dictQuery ? '' : ' hidden'}>${icons.close}</button></div>
+    <button class="dmatch" id="match" hidden></button>
     <div class="seg dmode" role="tablist" aria-label="How to search">
       <button role="tab" data-mode="type" class="${writing ? '' : 'on'}" aria-selected="${!writing}">${icons.search}<span>Type</span></button>
       <button role="tab" data-mode="write" class="${writing ? 'on' : ''}" aria-selected="${writing}">${icons.practice}<span>Write</span></button></div>
@@ -2384,12 +2385,34 @@ function screenDict() {
     recent.innerHTML = recentHtml();
   };
   const open = (e) => { detail.innerHTML = dictCard(e); remember(e); };
+  const whole = (e, q) => e.w === q || e.head === q || e.forms.includes(toHiragana(q));
+  // While writing, the best word for what you've written sits right under the search bar,
+  // so you see it without scrolling past the pad. It says "Word" once the characters spell one.
+  const match = view.querySelector('#match');
+  const updateMatch = () => {
+    const q = input.value.trim();
+    const hit = writing && q ? shown[0] : null;
+    match.hidden = !hit;
+    if (!hit) return;
+    const done = whole(hit, q);
+    match.classList.toggle('whole', done);
+    match.setAttribute('aria-label', `${done ? 'Word found' : 'Best match'}: ${hit.head}, ${hit.senses[0][0]}. Open it.`);
+    match.innerHTML = `<span class="dm-w jp">${escHtml(hit.head)}</span>
+      <span class="grow"><span class="small">${hit.head === hit.y ? '' : `<span class="jp">${escHtml(hit.y)}</span> · `}${romaji(hit.y)}</span>
+        <span class="dres-m">${escHtml(hit.senses[0].join('; '))}</span></span>
+      ${done ? '<span class="dm-tag">Word</span>' : ''}<span class="chev">${icons.chevron}</span>`;
+  };
+  match.onclick = () => {
+    if (!shown[0]) return;
+    open(shown[0]);
+    detail.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  };
   const show = async (pick = false) => {
     dictQuery = input.value;
     qclear.hidden = !dictQuery;
     detail.innerHTML = '';
     browse.hidden = !!dictQuery.trim();
-    if (!dictQuery.trim()) { results.innerHTML = ''; return; }
+    if (!dictQuery.trim()) { results.innerHTML = ''; shown = []; updateMatch(); return; }
     let index;
     try {
       index = await loadDict();
@@ -2401,6 +2424,7 @@ function screenDict() {
     shown = search(index, dictQuery, 20);
     results.innerHTML = shown.length ? shown.map(dictRow).join('')
       : `<p class="small muted center">Nothing found for "${escHtml(dictQuery)}". Try a simpler word, or type it in kana.</p>`;
+    updateMatch();
     if (pick && shown.length) open(shown[0]);
   };
   const find = (w) => { input.value = w; kinfo.innerHTML = ''; show(true).then(() => window.scrollTo(0, 0)); };
@@ -2445,8 +2469,7 @@ function screenDict() {
   const searchWritten = async () => {
     await show();
     const q = input.value.trim();
-    const hit = shown[0];
-    if (hit && (hit.w === q || hit.head === q || hit.forms.includes(q))) open(hit);
+    if (shown[0] && whole(shown[0], q)) open(shown[0]);
   };
   mountPad(pad, {
     onPick: (e) => {
@@ -2474,6 +2497,7 @@ function screenDict() {
     });
     state.settings.writePad = write;
     save(state);
+    updateMatch();
   };
   view.querySelector('.dmode').onclick = (e) => {
     const b = e.target.closest('[data-mode]');
