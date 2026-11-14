@@ -19,6 +19,7 @@ import { radioChannels } from '../js/radio.js';
 import { clipId, clipSsml, englishSaid } from '../js/clips.js';
 import { rushQuestion, bestKey } from '../js/rush.js';
 import { judgeStroke, resample } from '../js/strokes.js';
+import { makeWriteIndex, recognize, decodeStrokes, encodeStrokes } from '../js/handwrite.js';
 import { makeIndex, search, posName } from '../js/dict.js';
 import { deckOf, emojiOf, homeCard } from '../js/cards.js';
 import {
@@ -1225,4 +1226,25 @@ test('a traced stroke is checked for start, end, direction and shape', () => {
   // A bend that starts and ends right but wanders off the line in between.
   const bent = resample([{ x: 15, y: 55 }, { x: 55, y: 95 }, { x: 95, y: 50 }], 24);
   assert.equal(judgeStroke(bent, want).why, 'shape');
+});
+
+test('handwriting finds a kanji from a messy drawing', () => {
+  const file = json('write');
+  const index = makeWriteIndex(file);
+  assert.ok(index.length > 2800, 'jōyō and jinmeiyō kanji');
+  const row = (c) => file.k.find((r) => r[0] === c);
+  // Strokes survive the round trip to within one step of the 64-step grid.
+  const one = decodeStrokes(row('出')[1]);
+  assert.equal(one.length, 5);
+  assert.equal(decodeStrokes(encodeStrokes(one)).length, 5);
+  // 口 drawn small, off to one side, in a 300 box, with the bottom stroke drawn backwards.
+  const box = 300;
+  const mouth = [[[40, 60], [42, 160]], [[42, 60], [150, 58], [148, 158]], [[146, 156], [44, 157]]]
+    .map((s) => s.map(([x, y]) => ({ x, y })));
+  assert.equal(recognize(index, mouth, { box })[0].k, '口');
+  // 出 with its last two strokes swapped still comes first.
+  const exit = decodeStrokes(row('出')[1]).map((s) => s.map((p) => ({ x: p.x * 200 + 30, y: p.y * 230 + 20 })));
+  [exit[3], exit[4]] = [exit[4], exit[3]];
+  assert.equal(recognize(index, exit, { box })[0].k, '出');
+  assert.deepEqual(recognize(index, [], { box }), []);
 });

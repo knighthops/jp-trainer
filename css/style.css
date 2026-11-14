@@ -727,6 +727,22 @@ details.more[open] summary::after{content:"−"}
 .dsearch input{flex:1;min-width:0;height:100%;border:0;background:none;font:inherit;font-size:17px;color:var(--ink)}
 .dsearch input:focus{outline:none}
 .dsearch input::-webkit-search-cancel-button{display:none}
+.dpen{display:grid;place-items:center;width:40px;height:40px;margin-right:-8px;border-radius:10px;color:var(--mute);flex:none}
+.dpen svg.ic{width:21px;height:21px}
+.dpen.on{background:var(--ink);color:var(--on-ink)}
+/* Handwriting pad: suggestions on top, in thumb reach of the drawing. */
+.hw{margin-top:10px;padding:10px}
+.hw-cands{display:flex;gap:6px;align-items:center;height:50px;overflow-x:auto;scrollbar-width:none;padding:0 2px}
+.hw-cands::-webkit-scrollbar{display:none}
+.hw-cands>span{margin:auto}
+.hw-c{flex:none;width:46px;height:46px;border-radius:10px;font-size:28px;line-height:1;background:var(--paper);box-shadow:inset 0 0 0 1px var(--line);color:var(--ink)}
+.hw-c:first-child{background:var(--ink);color:var(--on-ink);box-shadow:none}
+.hw-box{width:min(250px,100%);aspect-ratio:1;margin:8px auto;border-radius:16px;background:var(--paper);box-shadow:inset 0 0 0 1px var(--line)}
+.hw-ink path{stroke:var(--ink);stroke-width:3.6}
+.hw-row{display:flex;gap:8px}
+.hw-row .btn{flex:1;min-height:44px;padding:0 10px}
+.hw-row .btn:last-child{flex:0 0 64px}
+#kinfo:not(:empty){margin-top:10px}
 .dlist{display:flex;flex-direction:column;background:var(--card);border-radius:18px;box-shadow:inset 0 0 0 1px var(--line),var(--shadow);overflow:hidden}
 .dlist:empty{display:none}
 .dlist>p{padding:18px}

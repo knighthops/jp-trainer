@@ -51,6 +51,9 @@ document.addEventListener('gesturestart', (e) => e.preventDefault());
     document.head.append(map);
   }
 
+  // Keeps a copy of the app for when there's no signal (sw.js).
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+
   try {
     const { gate } = await import('./js/lock.js');
     await gate();

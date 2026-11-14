@@ -30,6 +30,7 @@ export const icons = {
   pause: svg('<path d="M8 5v14M16 5v14" stroke-width="3"/>'),
   prev: svg('<path d="M6 5v14M19 5.5v13L9 12Z"/>'),
   next: svg('<path d="M18 5v14M5 5.5v13L15 12Z"/>'),
+  erase: svg('<path d="M9 5h10a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H9l-6-7Z"/><path d="m12 9 5 6M17 9l-5 6"/>'),
   search: svg('<circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/>'),
   bolt: svg('<path d="M13 3 5 13.5h6L10 21l8-10.5h-6Z"/>'),
   story: svg('<path d="M4 5.5c2.5-1 5.5-1 8 .5v14c-2.5-1.5-5.5-1.5-8-.5ZM20 5.5c-2.5-1-5.5-1-8 .5v14c2.5-1.5 5.5-1.5 8-.5Z"/>'),

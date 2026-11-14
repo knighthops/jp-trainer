@@ -13,8 +13,9 @@ import { quizQuestion, drillKanji, kindFor, DRILL_SECONDS } from './quiz.js';
 import { loadStrokes, mountStrokes } from './strokes.js';
 import {
   renderSentence, renderParticle, renderCheck, particleCardHtml, bindGloss, glossHtml, glossText, romajiLine, shuffled, glued, setKanji, partsHtml, wordKanjiHtml, kanjiOf, kanjiIn,
-  setNotes, noteOf, noteSlotInner, noteEditorHtml, togglePeek,
+  setNotes, noteOf, noteSlotInner, noteEditorHtml, togglePeek, peekHtml,
 } from './drills.js';
+import { makeWriteIndex, recognize } from './handwrite.js';
 import {
   UNIT_FILES, mergeCourse, isUnlocked, unitProgress, nextUp, examUnlocked, lessonSteps, words as splitWords,
   LEVELS, levelSentences, levelProgress, levelUnlocked, particleItem, courseSteps, rankOf, RANKS, unitStars, grammarId, passUnit, isWords,
@@ -1004,7 +1005,6 @@ function renderQuiz(step) {
     view.insertAdjacentHTML('beforeend', answerSheet(q.k, q.word, right, right ? (step.hinted ? 'Right, with a hint' : 'Nice') : say));
     document.body.classList.add('has-sheet');
     view.querySelector('#cont').onclick = () => { document.body.classList.remove('has-sheet'); advance(); };
-    if (q.kind === 'read' && right) speak(q.word.y);
   };
   opts.onclick = (e) => {
     const b = e.target.closest('[data-n]');
@@ -2228,11 +2228,100 @@ function dictCard(e) {
   </section>`;
 }
 
+// Handwriting: about 3,000 kanji as strokes, loaded the first time the pad opens.
+let writeIndex = null;
+function loadWrite() {
+  writeIndex ||= fetch(`data/write.json${new URL(import.meta.url).search}`)
+    .then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(makeWriteIndex)
+    .catch((err) => { writeIndex = null; throw err; });
+  return writeIndex;
+}
+
+// A kanji picked from the pad: the course's own card for kanji it teaches, else KANJIDIC2's.
+function writtenKanjiHtml(e) {
+  if (kanjiOf(e.k)) return peekHtml(e.k);
+  const reads = [e.on, e.kun.replace(/\./g, '')].filter(Boolean).join('・');
+  return `<div class="kpeek"><span class="kp-g jp">${e.k}</span><div>
+    <strong>${escHtml(e.mean || 'No English meaning listed')}</strong>${reads ? ` <span class="jp kp-r">${escHtml(reads)}</span>` : ''}
+    <div class="small">${e.freq ? `One of the 2,500 most used kanji (#${e.freq})` : 'A less common kanji'}</div></div></div>`;
+}
+
+// The writing pad: draw a kanji, tap the right one from the suggestions, and it's added to the search.
+function mountPad(pad, { onPick, onDelete }) {
+  const svg = pad.querySelector('svg');
+  const ink = svg.querySelector('.hw-ink');
+  const live = svg.querySelector('.hw-live');
+  const cands = pad.querySelector('#cands');
+  let strokes = [];
+  let drawn = null;
+  let shown = [];
+  const hint = '<span class="small muted">Write one kanji. Suggestions show up here.</span>';
+  const line = (pts) => `M${pts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join('L')}`;
+  const redraw = () => { ink.innerHTML = strokes.map((s) => `<path d="${line(s.length > 1 ? s : [s[0], s[0]])}"/>`).join(''); };
+  const suggest = async () => {
+    if (!strokes.length) { shown = []; cands.innerHTML = hint; return; }
+    let index;
+    try {
+      index = await loadWrite();
+    } catch {
+      cands.innerHTML = '<span class="small muted">The kanji list didn\'t load. Check your connection and try again.</span>';
+      return;
+    }
+    shown = recognize(index, strokes, { box: 109 });
+    cands.innerHTML = shown.map((e, i) => `<button class="hw-c jp" data-i="${i}" aria-label="${e.k}: ${escHtml(e.mean.split(';')[0])}">${e.k}</button>`).join('');
+  };
+  const clear = () => { strokes = []; redraw(); suggest(); };
+  const toBox = (e) => {
+    const pt = new DOMPoint(e.clientX, e.clientY).matrixTransform(svg.getScreenCTM().inverse());
+    return { x: pt.x, y: pt.y };
+  };
+  svg.onpointerdown = (e) => {
+    e.preventDefault();
+    svg.setPointerCapture(e.pointerId);
+    drawn = [toBox(e)];
+  };
+  svg.onpointermove = (e) => {
+    if (!drawn) return;
+    drawn.push(toBox(e));
+    live.setAttribute('d', line(drawn));
+  };
+  svg.onpointerup = () => {
+    if (!drawn) return;
+    strokes.push(drawn);
+    drawn = null;
+    live.setAttribute('d', '');
+    redraw();
+    suggest();
+  };
+  svg.onpointercancel = () => { drawn = null; live.setAttribute('d', ''); };
+  cands.onclick = (e) => {
+    const b = e.target.closest('[data-i]');
+    if (!b) return;
+    onPick(shown[Number(b.dataset.i)]);
+    clear();
+  };
+  pad.querySelector('#hwundo').onclick = () => { strokes.pop(); redraw(); suggest(); };
+  pad.querySelector('#hwclear').onclick = clear;
+  pad.querySelector('#hwdel').onclick = onDelete;
+  cands.innerHTML = hint;
+}
+
 function screenDict() {
   setTop('Dictionary', backTo('#/today'));
+  const padOpen = !!state.settings.writePad;
   view.innerHTML = `
     <div class="dsearch">${icons.search}<input id="q" type="search" enterkeyhint="search" autocomplete="off" autocapitalize="off"
-      spellcheck="false" placeholder="English, kana, kanji or romaji" aria-label="Search the dictionary" value="${escHtml(dictQuery)}"></div>
+      spellcheck="false" placeholder="English, kana, kanji or romaji" aria-label="Search the dictionary" value="${escHtml(dictQuery)}">
+      <button class="dpen${padOpen ? ' on' : ''}" id="pen" aria-label="Write a kanji by hand" aria-pressed="${padOpen}">${icons.practice}</button></div>
+    <section class="card hw" id="hw"${padOpen ? '' : ' hidden'}>
+      <div class="hw-cands" id="cands"></div>
+      <div class="hw-box"><svg class="sk-svg hw-svg" viewBox="0 0 109 109" role="img" aria-label="Writing pad">
+        <path class="sk-grid" d="M54.5 0V109M0 54.5H109"/><g class="hw-ink"></g><path class="sk-live hw-live"/></svg></div>
+      <div class="hw-row"><button class="btn ghost" id="hwundo">Undo</button><button class="btn ghost" id="hwclear">Clear</button>
+        <button class="btn ghost" id="hwdel" aria-label="Delete the last character">${icons.erase}</button></div>
+    </section>
+    <div id="kinfo"></div>
     <div id="detail"></div>
     <div id="results" class="dlist"></div>
     <div id="browse">
@@ -2286,10 +2375,44 @@ function screenDict() {
     input.value = b.dataset.find;
     show(true).then(() => window.scrollTo(0, 0));
   };
+  const kinfo = view.querySelector('#kinfo');
+  const pad = view.querySelector('#hw');
+  const pen = view.querySelector('#pen');
+  // Each kanji you pick joins the search, so writing 出 then 口 looks up 出口.
+  const searchWritten = async () => {
+    await show();
+    const q = input.value.trim();
+    const hit = shown[0];
+    if (hit && (hit.w === q || hit.head === q || hit.forms.includes(q))) detail.innerHTML = dictCard(hit);
+  };
+  mountPad(pad, {
+    onPick: (e) => {
+      input.value += e.k;
+      kinfo.innerHTML = writtenKanjiHtml(e);
+      searchWritten();
+    },
+    onDelete: () => {
+      input.value = [...input.value].slice(0, -1).join('');
+      kinfo.innerHTML = '';
+      searchWritten();
+    },
+  });
+  input.addEventListener('input', () => { kinfo.innerHTML = ''; });
+  pen.onclick = () => {
+    const open = pad.hidden;
+    pad.hidden = !open;
+    pen.classList.toggle('on', open);
+    pen.setAttribute('aria-pressed', String(open));
+    state.settings.writePad = open;
+    save(state);
+    if (open) { input.blur(); loadWrite().catch(() => {}); } else input.focus({ preventScroll: true });
+  };
+
   if (dictQuery) show();
-  else input.focus({ preventScroll: true });
-  // Start loading while you type the first letters.
+  else if (!padOpen) input.focus({ preventScroll: true });
+  // Start loading while you type the first letters, or before the first stroke.
   loadDict().catch(() => {});
+  if (padOpen) loadWrite().catch(() => {});
 }
 
 function screenSettings() {
@@ -2496,9 +2619,13 @@ async function init() {
   applyTheme();
   // Any listen button, on any screen.
   document.addEventListener('click', (e) => {
-    unlockSpeech();
-    unlockAudio();
     const el = e.target.closest('[data-say]');
+    // Any sound, even a silent unlock, pauses music from other apps on iPhone. So the app
+    // only claims audio in Trip and Listen, or when you tap a listen button.
+    if (el || e.target.closest('a[href^="#/listen"], a[href^="#/trip"]') || /^#\/(listen|trip)/.test(location.hash)) {
+      unlockSpeech();
+      unlockAudio();
+    }
     if (el) speak(el.dataset.say);
     noteClick(e);
     const kref = e.target.closest('[data-kref]');

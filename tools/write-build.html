@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Build handwriting data</title>
+<style>body{font:14px/1.5 system-ui,sans-serif;margin:24px;max-width:900px}</style></head>
+<body>
+<h1>Build the handwriting lookup data</h1>
+<p>Reads every jōyō and jinmeiyō kanji from KANJIDIC2 (<code>.dict/kanjidic2-en-3.6.2.json</code>), takes its strokes from KanjiVG
+(<code>.dict/kanjivg-20260714.xml.gz</code>, from github.com/KanjiVG/kanjivg/releases), and writes <code>data/write.json</code> for <code>js/handwrite.js</code>.
+Run <code>tools/serve.ps1</code>, then open this page.</p>
+<div id="out">Loading…</div>
+<script type="module">
+import { encodeStrokes } from '../js/handwrite.js';
+
+const out = document.getElementById('out');
+const get = (p) => fetch(p, { cache: 'no-store' }).then((r) => { if (!r.ok) throw new Error(`${p}: ${r.status}`); return r; });
+const BOX = 109;
+const GRADES = new Set([1, 2, 3, 4, 5, 6, 8, 9, 10]); // 1-6 and 8 are jōyō, 9-10 jinmeiyō.
+try {
+  const [kd, xml] = await Promise.all([
+    get('../.dict/kanjidic2-en-3.6.2.json').then((r) => r.json()),
+    get('../.dict/kanjivg-20260714.xml.gz').then((r) => new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).text()),
+  ]);
+  const doc = new DOMParser().parseFromString(xml, 'application/xml');
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  document.body.append(svg);
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  svg.append(path);
+  const sample = (d) => {
+    path.setAttribute('d', d);
+    const len = path.getTotalLength();
+    return Array.from({ length: 40 }, (_, i) => {
+      const p = path.getPointAtLength((len * i) / 39);
+      return { x: p.x / BOX, y: p.y / BOX };
+    });
+  };
+
+  // Stroke paths by character, in order. Variant drawings (ids with a dash) are skipped.
+  const strokes = new Map();
+  for (const k of doc.getElementsByTagName('kanji')) {
+    const id = k.getAttribute('id');
+    if (id.includes('-')) continue;
+    const c = String.fromCodePoint(parseInt(id.split('_')[1], 16));
+    const paths = [...k.getElementsByTagName('path')]
+      .map((p) => [Number(p.getAttribute('id').match(/-s(\d+)$/)?.[1]), p.getAttribute('d')])
+      .sort((a, b) => a[0] - b[0]);
+    strokes.set(c, paths.map(([, d]) => d));
+  }
+
+  const rows = [];
+  const missing = [];
+  const wrongCount = [];
+  for (const ch of kd.characters) {
+    if (!GRADES.has(ch.misc.grade)) continue;
+    const c = ch.literal;
+    const list = strokes.get(c);
+    if (!list) { missing.push(c); continue; }
+    if (!ch.misc.strokeCounts.includes(list.length)) wrongCount.push(c);
+    const groups = ch.readingMeaning?.groups || [];
+    const reads = (type) => groups.flatMap((g) => g.readings.filter((r) => r.type === type).map((r) => r.value));
+    const mean = groups.flatMap((g) => g.meanings.filter((m) => m.lang === 'en').map((m) => m.value)).slice(0, 4).join('; ');
+    rows.push([c, encodeStrokes(list.map(sample)), mean, reads('ja_on').slice(0, 3).join('、'), reads('ja_kun').slice(0, 4).join('、'), ch.misc.frequency || 0]);
+  }
+  // Most used first, so a tie goes to the kanji you're likelier to meet.
+  rows.sort((a, b) => (a[5] || 9999) - (b[5] || 9999));
+
+  const body = `{"source":"Strokes from KanjiVG (kanjivg.tagaini.net) by Ulrich Apel, CC BY-SA 3.0. Meanings and readings from KANJIDIC2 (EDRDG), CC BY-SA 4.0.",\n"k":[\n${rows.map((r) => JSON.stringify(r)).join(',\n')}\n]}\n`;
+  const res = await fetch('save-write', { method: 'POST', body }).catch(() => null);
+  out.innerHTML = `<p>${rows.length} kanji, ${(body.length / 1024).toFixed(0)} KB. ${res?.status === 204 ? 'Saved data/write.json.' : "Couldn't save: run tools/serve.ps1."}</p>
+    <p>No KanjiVG strokes for ${missing.length}: ${missing.join(' ')}</p>
+    <p>Stroke count differs from KANJIDIC2 for ${wrongCount.length}: ${wrongCount.join(' ')}</p>`;
+} catch (err) {
+  out.textContent = `Failed: ${err.message}`;
+}
+</script>
+</body>
+</html>
