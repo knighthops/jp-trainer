@@ -11,7 +11,7 @@ import { matchReading } from '../js/readings.js';
 import { reviewSteps, kanjiId, talkId } from '../js/session.js';
 import {
   UNIT_FILES, mergeCourse, nextUp, isUnlocked, examUnlocked, lessonSteps, LEVELS, levelUnlocked, toBlocks, autoAlts, words, particleItem,
-  courseSteps, rankOf, LESSON_NEW, unitStars, unitItems, grammarId, passUnit,
+  courseSteps, rankOf, LESSON_NEW, unitStars, unitItems, grammarId, passUnit, lessonStars,
 } from '../js/course.js';
 import { unitTest, mockExam, grade, wordKind } from '../js/exam.js';
 import { checkLogin, hashPassword, userId } from '../js/lock.js';
@@ -1268,4 +1268,13 @@ test('handwriting knows kana: は traced from a phone drawing', () => {
     [[573, 745], [580, 900], [590, 1000], [580, 1080], [540, 1125], [490, 1110], [468, 1070], [500, 1050], [600, 1050], [660, 1060], [720, 1115]]]
     .map((s) => s.map(([x, y]) => ({ x: x - 170, y: y - 652 })));
   assert.equal(recognize(index, ha, { box: 583 })[0].k, 'は');
+});
+
+test('a lesson earns 1 star for finishing, 2 for 80% right first try, 3 for no mistakes', () => {
+  assert.equal(lessonStars(10, 0), 3);
+  assert.equal(lessonStars(0, 0), 3, 'nothing to get wrong is a clean run');
+  assert.equal(lessonStars(10, 2), 2, 'exactly 80% earns two');
+  assert.equal(lessonStars(10, 3), 1);
+  assert.equal(lessonStars(4, 1), 1, '75% is one');
+  assert.equal(lessonStars(5, 1), 2);
 });

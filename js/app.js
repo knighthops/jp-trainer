@@ -1,5 +1,5 @@
 // Routing and screens.
-import { load, save, dayStats, daysStudied, dayKey, backupJson, parseBackup, xpToday, DAILY_GOAL, streakWithRest, XP } from './store.js';
+import { load, save, dayStats, daysStudied, dayKey, backupJson, parseBackup, xpToday, DAILY_GOAL, streakWithRest } from './store.js';
 import { renderListen } from './listen.js';
 import { speak, speakLines, speakStep, cancel, sayBtn, setReadings, unlockSpeech, NORMAL, SLOW } from './tts.js';
 import { setRecorded, unlockAudio, hasClips } from './clips.js';
@@ -18,7 +18,7 @@ import {
 import { makeWriteIndex, recognize } from './handwrite.js';
 import {
   UNIT_FILES, mergeCourse, isUnlocked, unitProgress, nextUp, examUnlocked, lessonSteps, words as splitWords,
-  LEVELS, levelSentences, levelProgress, levelUnlocked, particleItem, courseSteps, rankOf, RANKS, unitStars, grammarId, passUnit, isWords,
+  LEVELS, levelSentences, levelProgress, levelUnlocked, particleItem, courseSteps, rankOf, RANKS, unitStars, grammarId, passUnit, isWords, lessonStars,
 } from './course.js';
 import { mockExam, unitTest, startExam } from './exam.js';
 import { icons } from './icons.js';
@@ -68,7 +68,7 @@ let swipeBack = null;
 // arrow at the top. `jump` turns the count into "Back to N" after Previous.
 // `confirm` asks for a second tap on Exit, so a stray thumb doesn't end a session.
 function setTop(title, {
-  close = false, onClose = endRun, onPrev = null, count = '', progress = null, back = false, jump = null, confirm = false,
+  close = false, onClose = endRun, onPrev = null, count = '', progress = null, back = false, jump = null, confirm = false, combo: asking = false,
 } = {}) {
   const barred = close && !back;
   document.body.classList.toggle('has-runbar', barred);
@@ -83,8 +83,8 @@ function setTop(title, {
     runbar.innerHTML = '';
     return;
   }
-  // A run of right answers shows as a small combo pill; it turns solid at three.
-  const combo = run?.combo >= 2 ? `<span class="combo ${run.combo >= 3 ? 'hot' : ''}" aria-label="${run.combo} right in a row">×${run.combo}</span>` : '';
+  // A run of right answers shows as a small combo pill on questions; it turns solid at three.
+  const combo = asking && run?.combo >= 2 ?`<span class="combo ${run.combo >= 3 ? 'hot' : ''}" aria-label="${run.combo} right in a row">×${run.combo}</span>` : '';
   top.innerHTML = `<div class="top-in slim"><h1>${title}</h1>${combo}</div>
     ${progress === null ? '' : `<div class="progress"><i style="width:${progress}%"></i></div>`}`;
   runbar.innerHTML = `
@@ -357,19 +357,18 @@ function screenRadio(id) {
 const kanjiKnown = () => Object.keys(state.items).filter((id) => id.startsWith('k:')).length;
 
 // `lesson` ({ unit, lesson }) marks a course lesson: its place is saved, and it ends on a lesson-complete screen.
-// `then` runs when the steps run out, in place of the summary.
-// What moved up during reviews that flowed into a lesson, so the lesson's end screen can show it.
-let carried = null;
+// `then` ({ label, go }) is what follows, offered on the end screen: reviews lead into their lesson.
+// `redo` marks a run of mistakes gone over again.
 const starMap = () => Object.fromEntries((data.units || []).map((u) => [u.id, unitStars(state, u)]));
 
-function startRun(steps, title, { useSrs = false, browse = false, start = 0, more = null, onDrill = null, lesson = null, then = null, drill = null } = {}) {
-  const from = carried || { ups: [0, 0, 0, 0], stars: starMap(), kanji: kanjiKnown(), started: Date.now(), xp: xpToday(state), combo: 0, best: 0 };
-  carried = null;
+function startRun(steps, title, { useSrs = false, browse = false, start = 0, more = null, onDrill = null, lesson = null, then = null, drill = null, redo = false } = {}) {
   run = {
-    steps: [...steps], i: start, title, useSrs, browse, more, onDrill, lesson, then, drill,
-    kanjiBefore: from.kanji, ups: from.ups, starsBefore: from.stars, clean: 0, drills: 0, cards: 0,
-    // For the end screen: how long it took, XP earned, and the longest run of right answers.
-    started: from.started, xpBefore: from.xp, combo: from.combo, bestCombo: from.best,
+    steps: [...steps], i: start, title, useSrs, browse, more, onDrill, lesson, then, drill, redo,
+    kanjiBefore: kanjiKnown(), ups: [0, 0, 0, 0], starsBefore: starMap(), clean: 0, drills: 0, cards: 0,
+    // Each run starts its own combo; the end screen shows the longest.
+    combo: 0, bestCombo: 0,
+    // First answers only: what was asked, and what was missed (by id, in order).
+    seen: new Set(), misses: new Map(),
   };
   document.body.classList.add('in-run');
   renderStep();
@@ -419,6 +418,13 @@ function bumpCombo(clean) {
   if (clean && run.combo >= 4 && run.combo % 4 === 0) toast(`${run.combo} in a row`);
 }
 
+// The first answer to each item counts for the end screen; a miss is kept to show and redo.
+function tally(step, ok) {
+  if (!run || !step.id || run.seen.has(step.id)) return;
+  run.seen.add(step.id);
+  if (!ok) run.misses.set(step.id, step);
+}
+
 function toast(text) {
   document.querySelector('.toast')?.remove();
   const t = document.createElement('div');
@@ -448,6 +454,9 @@ function record(id, grade) {
   save(state);
 }
 
+// Steps that teach rather than ask: no combo pill on these.
+const TEACHING = new Set(['learn', 'parts', 'lesson', 'dialogue', 'reading', 'particleCard', 'tripLearn']);
+
 function renderStep() {
   clearStep();
   window.scrollTo(0, 0);
@@ -455,14 +464,6 @@ function renderStep() {
   if (run.i >= run.steps.length) {
     // Browsing has nothing to summarize, so it just closes.
     if (run.browse) return endRun();
-    // Reviews before a lesson flow straight into it.
-    if (run.then) {
-      const then = run.then;
-      carried = { ups: run.ups, stars: run.starsBefore, kanji: run.kanjiBefore, started: run.started, xp: run.xpBefore, combo: run.combo, best: run.bestCombo };
-      clearStep();
-      run = null;
-      return then();
-    }
     return renderSummary();
   }
   const step = run.steps[run.i];
@@ -499,6 +500,7 @@ function renderStep() {
     // A session with answers to lose asks before it closes. Browsing just closes.
     // A role-play is one long step, so it asks from its first turn.
     confirm: !run.browse && (run.i > 0 || step.type === 'tripPlay'),
+    combo: !TEACHING.has(step.type),
   });
   view.innerHTML = '';
   // Steps reached with Previous show the answer and don't count again.
@@ -509,6 +511,7 @@ function renderStep() {
       run.drills++;
       if (clean) run.clean++;
       bumpCombo(clean);
+      tally(step, clean);
       record(step.id, clean ? 'good' : 'again');
       run.onDrill?.(step, clean);
     }
@@ -538,6 +541,7 @@ function renderStep() {
           run.drills++;
           if (clean) run.clean++;
           bumpCombo(clean);
+          tally(step, clean);
           if (step.missed && clean) {
             delete state.course.missed[step.id];
             save(state);
@@ -552,7 +556,10 @@ function renderStep() {
       others: data.talkPhrases.map((p) => p.en),
       review,
       onDone: (right) => {
-        if (!step.done) record(step.id, right ? 'good' : 'again');
+        if (!step.done) {
+          tally(step, right);
+          record(step.id, right ? 'good' : 'again');
+        }
         step.done = true;
         advance();
       },
@@ -571,6 +578,7 @@ function renderStep() {
           step.done = true;
           run.drills++;
           if (grade !== 'again') run.clean++;
+          tally(step, grade !== 'again');
           record(step.id, grade);
           // A forgotten line comes back later in this session.
           if (grade === 'again' && run.useSrs) run.steps.splice(Math.min(run.i + 4, run.steps.length), 0, { ...step, done: false });
@@ -809,6 +817,7 @@ function finishCard(step, grade) {
   if (step.hinted && (grade === 'good' || grade === 'easy')) grade = 'hard';
   record(step.id, grade);
   if (grade !== 'hard') bumpCombo(grade !== 'again');
+  tally(step, grade !== 'again');
   run.cards++;
   step.done = true;
   // A forgotten card comes back later in this session, opening on its breakdown.
@@ -934,8 +943,7 @@ function answerSheet(k, word, right, headline) {
   const w = word || readingWords(k)[0];
   const m = w ? markedWord(k, w) : null;
   return `<div class="sheet ${right ? 'good' : 'bad'}" role="status">
-    <div class="sh-head"><span class="sh-badge" aria-hidden="true">${right ? '✓' : '✕'}</span><b>${headline}</b>
-      ${right ? `<span class="sh-xp">+${XP.reviews} XP</span>` : ''}</div>
+    <div class="sh-head"><span class="sh-badge" aria-hidden="true">${right ? '✓' : '✕'}</span><b>${headline}</b></div>
     <div class="sh-body"><span class="sh-k jp">${k.k}</span>
       <span class="grow"><strong>${k.mean.slice(0, 2).join(', ')}</strong>
         ${m ? `<span class="sh-line">${m.html} ${m.chip}</span><span class="small muted">${romaji(w.y)} · ${w.m}</span>`
@@ -999,6 +1007,7 @@ function renderQuiz(step) {
       run.drills++;
       if (right && !step.hinted) run.clean++;
       bumpCombo(right && !step.hinted);
+      tally(step, right && !step.hinted);
       record(step.id, !right ? 'again' : step.hinted ? 'hard' : 'good');
     }
     const say = q.kind === 'read' ? `It's ${q.options[q.answer]}` : q.kind === 'pick' ? `It's ${q.k.k}` : `It means ${q.k.mean[0]}`;
@@ -1211,7 +1220,19 @@ function screenStory(unitId) {
   screenCleanup = () => { playing = -1; cancel(); };
 }
 
-// The end of a course lesson: what was gained, how far the course has come, and the next step.
+// Rings start empty and fill once on screen, so the gain is something you watch happen.
+function fillRings() {
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    view.querySelectorAll('[data-fill]').forEach((el) => {
+      const fill = el.closest('section').querySelector('.ring .fill');
+      if (fill) fill.setAttribute('stroke-dasharray', `${Math.round(Number(el.dataset.fill) * 100)} 100`);
+    });
+  }));
+}
+
+/* ---------- End screens ---------- */
+// No XP and no sound here: the score, the stars and what to go over are the reward.
+
 // What got stronger in this run: items that reached Strong or Mastered, and units that earned a star.
 function memoryHtml() {
   const strong = run.ups[STRONG];
@@ -1223,6 +1244,50 @@ function memoryHtml() {
     strong ? `${stageChip({ interval: 3 })} +${strong}` : '', mastered ? `${stageChip({ interval: 21 })} +${mastered}` : ''].filter(Boolean).join(' ')}</span></div>` : ''}`;
 }
 
+const comboRow = () => (run.bestCombo >= 3
+  ? `<div class="row"><span class="grow">Best run of right answers</span><span class="num combo-n">×${run.bestCombo}</span></div>` : '');
+
+const isKanjiStep = (s) => s.type === 'quiz' || (s.type === 'card' && s.kind === 'kanji');
+const flat = (s) => String(s ?? '').replace(/[[\]]/g, '').replace(/ +/g, '');
+const latin = (s) => /[A-Za-z]/.test(s);
+
+// One missed item as a line of Japanese, and its meaning or the right answer.
+function missLine(step) {
+  const r = step.ref || {};
+  if (isKanjiStep(step)) return { jp: r.k, en: `${headReading(r)} · ${r.mean[0]}` };
+  if (step.type === 'card') return { jp: r.w, en: `${r.y} · ${r.m}` };
+  if (step.type === 'sentence') return { jp: r.blocks.map((b) => b.t).join(''), en: r.en };
+  if (step.type === 'particle') return { jp: flat(`${r.before ?? step.set?.noun ?? ''}${r.answer}${r.after ?? ''}`), en: r.en };
+  if (step.type === 'check') return { jp: latin(r.q) ? r.q : flat(r.q), en: `Answer: ${latin(r.o[0]) ? r.o[0] : flat(r.o[0])}` };
+  return { jp: flat(r.t), en: r.m || r.en || '' };
+}
+
+const missRows = (list, max) => `<div class="misses">${list.slice(0, max).map((s) => {
+  const m = missLine(s);
+  return `<div class="miss ${[...m.jp].length > 5 ? 'long' : ''}"><b class="jp">${m.jp}</b><span>${m.en}</span></div>`;
+}).join('')}${list.length > max ? `<p class="small muted">and ${list.length - max} more</p>` : ''}</div>`;
+
+// Kanji worth watching: the ones missed, and the ones inside missed words (a one-kanji word already has its row).
+function watchKanji(misses) {
+  const list = misses.flatMap((s) => (isKanjiStep(s) ? [s.ref] : s.type === 'card' ? kanjiIn(s.ref.w).filter((k) => k.k !== s.ref.w) : []));
+  return [...new Map(list.map((k) => [k.k, k])).values()].slice(0, 8);
+}
+
+// Go over just the missed items again, as practice: they are already due again soon.
+function redoMisses(misses) {
+  const steps = misses.map((s) => ({ ...s, done: false, result: undefined, q: undefined, hinted: false, relearn: false, isNew: false }));
+  endRun();
+  startRun(steps, 'Mistakes', { redo: true });
+}
+
+const STAR = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.6l2.85 5.95 6.5.8-4.8 4.5 1.25 6.45L12 17.15 6.2 20.3l1.25-6.45-4.8-4.5 6.5-.8z"/></svg>';
+const bigStars = (n) => `<div class="bigstars" role="img" aria-label="${n} of 3 stars">${[1, 2, 3]
+  .map((i) => `<span class="bs ${i <= n ? 'on' : ''}" style="--d:${i}">${STAR}</span>`).join('')}</div>`;
+
+const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+const nextLabel = (go) => go.label.replace(/^Start lesson/, 'Next: Lesson');
+
+// The end of a course lesson: stars for how it went, what to go over, and the next step.
 function renderLessonDone() {
   const { unit, lesson } = run.lesson;
   setTop(run.title, { close: true, progress: 100 });
@@ -1230,105 +1295,80 @@ function renderLessonDone() {
   const seen = new Set();
   const learned = run.steps.filter((s) => s.type === 'learn' && !seen.has(s.id) && seen.add(s.id));
   const kanji = learned.filter((s) => s.kind === 'kanji').map((s) => s.ref.k);
-  const words = learned.filter((s) => s.kind === 'word').length;
-  const kanjiNow = kanjiKnown();
-  // After a resume, the count at the start already held some of this lesson's kanji, so "before" comes from the gain.
-  const kanjiFrom = Math.min(run.kanjiBefore, Math.max(0, kanjiNow - kanji.length));
-  const steps = courseSteps(state, data.units);
+  const words = learned.filter((s) => s.kind === 'word').map((s) => s.ref.w);
   const p = unitProgress(state, unit);
-  const next = nextUp(state, data.units);
-  const go = nextAction(next);
-  const perfect = run.drills > 0 && run.clean === run.drills;
-  const status = run.part ? 'More new items are waiting in part 2.'
-    : p.done === p.total ? `Unit ${unit.n} test is ready.` : `${p.done} of ${p.total} lessons in Unit ${unit.n}.`;
-  view.innerHTML = `<section class="card hero done-hero lesson-done">
-      <div class="burst" aria-hidden="true">${icons.check}</div>
-      <span class="caps">${run.part ? 'Part done' : perfect ? 'Clean run' : 'Lesson done'}</span>
-      <h2>${name}${run.part ? ', part 1' : ''}</h2>
+  const go = nextAction(nextUp(state, data.units));
+  const misses = [...run.misses.values()];
+  const asked = run.seen.size;
+  const stars = lessonStars(asked, misses.length);
+  // Kanji to watch: a new one is marked where it flips in; older ones get a tile under To go over.
+  const watched = watchKanji(misses);
+  const shaky = new Set(watched.map((k) => k.k));
+  const watch = watched.filter((k) => !kanji.includes(k.k));
+  const rows = misses.filter((s) => !isKanjiStep(s));
+  const status = run.part ? 'Part 2 has the rest' : p.done === p.total ? `Unit ${unit.n} test is ready` : `${p.done} of ${p.total} lessons in Unit ${unit.n}`;
+  // A long streak earns a mention only when there were misses; a clean run says it already.
+  const streak = misses.length && run.bestCombo >= 5 ? ` · best streak <b>×${run.bestCombo}</b>` : '';
+  const verdict = run.part ? 'Part 1 done' : ['', 'Lesson done', 'Great lesson', 'Flawless'][stars];
+  view.innerHTML = `<section class="card hero done-hero fin">
+      ${bigStars(stars)}
+      <span class="caps">${verdict}</span>
+      <h2>${name}</h2>
+      ${asked ? `<p class="sub"><b>${asked - misses.length}</b> of ${asked} right first try${streak}</p>` : ''}
       <div class="unit-strip">${pips(unit, run.part ? null : lesson.id)}<span class="small">${status}</span></div>
     </section>
-    ${statTrio()}
-    ${kanji.length || words ? `<section class="card gained">
-      <div class="kod-head"><span class="caps">${kanji.length ? `Kanji gained · +${kanji.length}` : 'Words gained'}</span>
-        ${words ? `<span class="small muted">+${words} ${words === 1 ? 'word' : 'words'}</span>` : ''}</div>
-      ${kanji.length ? `<div class="flips">${kanji.map((c, n) => `<span class="flip jp" style="--d:${n}">${c}</span>`).join('')}</div>` : ''}
-      <div class="row tight"><span class="grow small muted">Kanji collected</span><span class="num">${kanjiNow > kanjiFrom ? `${kanjiFrom} → ` : ''}<b>${kanjiNow}</b> / ${data.kanji.length}</span></div>
-      <div class="meter two"><i style="width:${(kanjiFrom / data.kanji.length) * 100}%"></i><i class="new" style="width:${((kanjiNow - kanjiFrom) / data.kanji.length) * 100}%"></i></div>
+    ${kanji.length ? `<section class="card">
+      <div class="kod-head"><span class="caps">New kanji · +${kanji.length}</span><span class="small muted">${kanjiKnown()} of ${data.kanji.length} collected</span></div>
+      <div class="flips">${kanji.map((c, n) => `<span class="flip jp ${shaky.has(c) ? 'watch' : ''}" style="--d:${n}"${shaky.has(c) ? ' title="Missed once: watch this one"' : ''}>${c}</span>`).join('')}</div>
+      ${kanji.some((c) => shaky.has(c)) ? '<p class="watch-key small muted">Missed once · worth a second look</p>' : ''}
+    </section>` : words.length ? `<section class="card">
+      <span class="caps">New words · +${words.length}</span>
+      <div class="wchips">${words.map((w, n) => `<span class="wchip jp" style="--d:${n}">${w}</span>`).join('')}</div>
     </section>` : ''}
-    <section class="card list">
-      ${comboRow()}
-      ${memoryHtml()}
-      <div class="row"><span class="grow">Course<div class="meter"><i style="width:${(steps.done / steps.total) * 100}%"></i></div></span><span class="num">${steps.done} / ${steps.total}</span></div>
-    </section>
-    ${goalCard()}
+    ${rows.length || watch.length ? `<section class="card goover">
+      <span class="caps">To go over</span>
+      ${watch.length ? `<div class="kts" aria-label="Kanji to watch">${watch.map((k, n) => `<span class="kt left jp" style="--i:${n}">${k.k}<small>${k.mean[0]}</small></span>`).join('')}</div>` : ''}
+      ${rows.length ? missRows(rows, 3) : ''}
+    </section>` : ''}
     <div class="dock stack">
-      ${go ? `<button class="btn" id="go">${run.part ? 'Keep going: part 2' : `Next: ${go.label.replace(/^(Take the|Start|Open the) /, '')}`}</button>` : ''}
-      <button class="btn ghost" id="fin">Done for now</button>
+      ${go ? `<button class="btn" id="go">${run.part ? 'Keep going: part 2' : nextLabel(go)}</button>` : ''}
+      ${misses.length ? `<div class="pair"><button class="btn ghost" id="redo">Redo ${plural(misses.length, 'mistake')}</button><button class="btn ghost" id="fin">Done</button></div>`
+    : `<button class="btn ghost" id="fin">Done for now</button>`}
     </div>`;
-  view.querySelector('#go')?.addEventListener('click', () => {
-    endRun();
-    go.go();
-  });
+  view.querySelector('#go')?.addEventListener('click', () => { endRun(); go.go(); });
+  view.querySelector('#redo')?.addEventListener('click', () => redoMisses(misses));
   view.querySelector('#fin').onclick = endRun;
   animate();
-  fillRings();
 }
 
-// The three numbers every session ends on: XP earned, share right first time, and time taken.
-function statTrio() {
-  const xp = Math.max(0, xpToday(state) - run.xpBefore);
-  const secs = Math.round((Date.now() - run.started) / 1000);
-  const time = secs < 60 ? `${secs}s` : `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
-  const acc = run.drills ? `${Math.round((run.clean / run.drills) * 100)}%` : '—';
-  const tile = (v, k, cls = '') => `<div class="trio-t ${cls}"><b>${v}</b><span>${k}</span></div>`;
-  const mid = run.drills ? tile(acc, 'Right first time') : tile(run.cards, run.cards === 1 ? 'Card recalled' : 'Cards recalled');
-  return `<section class="trio">${tile(`+${xp}`, 'XP', 'xp')}${mid}${tile(time, 'Time')}</section>`;
-}
-
-const comboRow = () => (run.bestCombo >= 3
-  ? `<div class="row"><span class="grow">Best run of right answers</span><span class="num combo-n">×${run.bestCombo}</span></div>` : '');
-
-// Today's XP against the daily goal, as a ring that fills when the screen opens.
-function goalCard() {
-  const xp = xpToday(state);
-  const share = Math.min(1, xp / DAILY_GOAL);
-  return `<section class="card goalcard ${share >= 1 ? 'met' : ''}">
-    <div class="ringbox small">${ringSvg(0)}<span class="ringtext"><b>${xp}</b><small>of ${DAILY_GOAL}</small></span></div>
-    <div class="grow"><span class="caps">Daily goal</span>
-      <strong>${share >= 1 ? 'Goal met for today' : `${DAILY_GOAL - xp} XP to today's goal`}</strong>
-      <span class="small muted">About one lesson a day. Rest days never break anything.</span></div>
-    <span hidden data-fill="${share}"></span></section>`;
-}
-
-// Rings start empty and fill once on screen, so the gain is something you watch happen.
-function fillRings() {
-  requestAnimationFrame(() => requestAnimationFrame(() => {
-    view.querySelectorAll('[data-fill]').forEach((el) => {
-      const fill = el.closest('section').querySelector('.ring .fill');
-      if (fill) fill.setAttribute('stroke-dasharray', `${Math.round(Number(el.dataset.fill) * 100)} 100`);
-    });
-  }));
-}
-
+// A short beat after reviews (and any other run): the score, what slipped, and what's next.
 function renderSummary() {
   if (run.lesson) return renderLessonDone();
   if (run.drill) return renderDrillDone();
   setTop(run.title, { close: true, progress: 100 });
-  const share = run.drills ? run.clean / run.drills : 1;
-  const cards = run.cards ? `<div class="row"><span class="grow">Cards rated</span><span class="num">${run.cards}</span></div>` : '';
-  view.innerHTML = `<section class="card hero done-hero lesson-done">
+  const misses = [...run.misses.values()];
+  const asked = run.seen.size;
+  // Reviews lead into their lesson; going over mistakes leads back into the course.
+  const next = run.then || (run.redo ? nextAction(nextUp(state, data.units)) : null);
+  const up = run.ups[STRONG] + run.ups[STRONG + 1];
+  const caps = run.redo ? 'Mistakes gone over' : run.then || run.title === 'Reviews' ? 'Reviews cleared' : 'Session done';
+  view.innerHTML = `<section class="card hero done-hero lesson-done beat">
       <div class="burst" aria-hidden="true">${icons.check}</div>
-      <span class="caps">${run.drills && share === 1 ? 'Clean run' : 'Session done'}</span>
-      <h2>${share >= 0.8 ? 'Nice work' : 'Good effort'}</h2>
-      <p class="sub">${run.useSrs ? 'Your next reviews are scheduled.' : 'Practice does not change your review schedule.'}</p>
+      <span class="caps">${caps}</span>
+      ${asked ? `<h2>${asked - misses.length} <small>/ ${asked}</small></h2>
+      <p class="sub">${misses.length ? 'right first try' : 'All right first try'}${up ? ` · ${up} moved up` : ''}</p>`
+    : `<h2>Done</h2>${run.cards ? `<p class="sub">${plural(run.cards, 'card')} rated</p>` : ''}`}
     </section>
-    ${statTrio()}
-    ${memoryHtml() || cards || comboRow() ? `<section class="card list">${cards}${comboRow()}${memoryHtml()}</section>` : ''}
-    ${run.useSrs ? goalCard() : ''}
-    <div class="dock"><button class="btn" id="fin">Finish</button></div>`;
+    ${misses.length ? `<section class="card goover"><span class="caps">${run.redo ? 'Still slipping' : 'Slipped'} · ${misses.length}</span>${missRows(misses, 3)}</section>` : ''}
+    <div class="dock stack">
+      ${next ? `<button class="btn" id="go">${run.then ? `On to ${next.label}` : nextLabel(next)}</button>` : ''}
+      ${run.redo && misses.length ? `<div class="pair"><button class="btn ghost" id="redo">Go over ${misses.length} again</button><button class="btn ghost" id="fin">Done</button></div>`
+    : `<button class="btn ${next ? 'ghost' : ''}" id="fin">${next ? 'Done for now' : 'Finish'}</button>`}
+    </div>`;
+  view.querySelector('#go')?.addEventListener('click', () => { endRun(); next.go(); });
+  view.querySelector('#redo')?.addEventListener('click', () => redoMisses(misses));
   view.querySelector('#fin').onclick = endRun;
   animate();
-  fillRings();
 }
 
 // The drill's payoff: which kanji left your struggling list, and which come back tomorrow.
@@ -1343,15 +1383,13 @@ function renderDrillDone() {
       <div class="burst" aria-hidden="true">${icons.check}</div>
       <span class="caps">2-minute drill</span>
       <h2>${run.clean} <small>/ ${run.drills}</small> right first time</h2>
-      <p class="sub">${cleared.length ? `${cleared.length} ${cleared.length === 1 ? 'kanji' : 'kanji'} off your struggling list.` : 'Every right answer brings a kanji closer to leaving the list.'}</p>
+      <p class="sub">${cleared.length ? `${cleared.length} kanji off your struggling list.` : 'Every right answer brings a kanji closer to leaving the list.'}</p>
     </section>
-    ${statTrio()}
     ${cleared.length ? `<section class="card"><span class="caps">Cleared from struggling</span>
       <div class="kts">${cleared.map((k) => tile(k, 'clear')).join('')}</div></section>` : ''}
     ${shaky.length ? `<section class="card"><span class="caps">Still shaky · back soon</span>
       <div class="kts">${shaky.map((k) => tile(k, 'left')).join('')}</div></section>` : ''}
-    ${comboRow() ? `<section class="card list">${comboRow()}${memoryHtml()}</section>` : ''}
-    ${goalCard()}
+    ${comboRow() || memoryHtml() ? `<section class="card list">${comboRow()}${memoryHtml()}</section>` : ''}
     <div class="dock stack">
       ${more ? '<button class="btn" id="again">Another 2 minutes</button>' : ''}
       <button class="btn ${more ? 'ghost' : ''}" id="fin">Done</button>
@@ -1359,7 +1397,6 @@ function renderDrillDone() {
   view.querySelector('#again')?.addEventListener('click', () => { endRun(); startWeakDrill(); });
   view.querySelector('#fin').onclick = endRun;
   animate();
-  fillRings();
 }
 
 /* ---------- Other tabs ---------- */
@@ -1756,7 +1793,7 @@ function nextAction(next) {
     if (resumable(next)) return { label: `Resume lesson ${name}`, go: lesson };
     // What's due comes first, then the lesson, in one tap.
     const due = reviewSteps(state, data);
-    if (due.length) return { label: `Review ${due.length} → Lesson ${name}`, go: () => startRun(due, 'Reviews', { useSrs: true, then: lesson }) };
+    if (due.length) return { label: `Review ${due.length} → Lesson ${name}`, go: () => startRun(due, 'Reviews', { useSrs: true, then: { label: `Lesson ${name}`, go: lesson } }) };
     return { label: `Start lesson ${name}`, go: lesson };
   }
   if (next.type === 'test') return { label: `Take the Unit ${next.unit.n} test`, go: () => runUnitTest(next.unit) };

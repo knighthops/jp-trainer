@@ -359,6 +359,12 @@ export function unitStrength(state, unit) {
   };
 }
 
+// Stars for one run of a lesson, from first answers only: ★ finished, ★★ 80% right, ★★★ no mistakes.
+export function lessonStars(asked, missed) {
+  if (!missed) return 3;
+  return asked > 0 && (asked - missed) / asked >= 0.8 ? 2 : 1;
+}
+
 // ★ passed the test, ★★ 80% of its items strong, ★★★ 80% mastered.
 export function unitStars(state, unit) {
   if (!state.course.passed[unit.id]) return 0;
