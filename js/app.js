@@ -260,8 +260,9 @@ function kanjiHomeCard() {
     <a class="kod-head kh-link" href="#/kanji"><span class="caps">N5 kanji · ${total - none} of ${total} started</span><span class="chev">${icons.chevron}</span></a>
     <div class="stagebar" aria-hidden="true">${seg(mastered, 'm')}${seg(strong, 's')}${seg(learn, 'l')}${seg(none, 'n')}</div>
     <div class="stagekey">
-      <span><i class="m"></i><span class="jp">極</span> ${mastered}</span><span><i class="s"></i><span class="jp">強</span> ${strong}</span>
-      <span><i class="l"></i><span class="jp">習</span> ${learn}</span><span><i class="n"></i>Not yet ${none}</span></div>
+      <span><i class="m"></i><span class="jp">極</span> Mastered <b>${mastered}</b></span>
+      <span><i class="s"></i><span class="jp">強</span> Strong <b>${strong}</b></span>
+      <span><i class="l"></i><span class="jp">習</span> Learning <b>${learn}</b></span></div>
     ${drill.length ? `<button class="weakrow" id="weak">
       <span class="wk-glyphs jp" aria-hidden="true">${drill.slice(0, 3).map((k) => k.k).join('')}</span>
       <span class="grow"><strong>2-minute kanji drill</strong>

@@ -1023,6 +1023,7 @@ body.has-sheet main{padding-bottom:230px}
 .stagekey{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13px;color:var(--ink2);font-variant-numeric:tabular-nums}
 .stagekey>span{display:inline-flex;align-items:center;gap:5px}
 .stagekey i{width:9px;height:9px;border-radius:3px}
+.stagekey b{font-weight:600;color:var(--ink)}
 .weakrow{display:flex;align-items:center;gap:12px;width:100%;text-align:left;min-height:64px;padding:10px 12px;margin-top:2px;border-radius:16px;background:var(--paper);box-shadow:0 3px 0 var(--line)}
 .weakrow:active{transform:translateY(2px);box-shadow:0 1px 0 var(--line)}
 .wk-glyphs{font-size:24px;font-weight:600;letter-spacing:-.02em;color:var(--bad);flex:none;min-width:58px}
