@@ -11,7 +11,7 @@ import { matchReading } from '../js/readings.js';
 import { reviewSteps, kanjiId, talkId } from '../js/session.js';
 import {
   UNIT_FILES, mergeCourse, nextUp, isUnlocked, examUnlocked, lessonSteps, LEVELS, levelUnlocked, toBlocks, autoAlts, words, particleItem,
-  courseSteps, rankOf, LESSON_NEW, wordsNeededEarly, unitStars, unitItems, grammarId, passUnit, lessonStars,
+  courseSteps, rankOf, LESSON_NEW, wordsNeededEarly, unitStars, unitItems, grammarId, passUnit, lessonStars, isTaught, choiceShown, lessonParts, tokenWords,
 } from '../js/course.js';
 import { unitTest, mockExam, grade, wordKind } from '../js/exam.js';
 import { wordQuestion, kanaTiles, spellPuzzle, sameMeaning } from '../js/exercises.js';
@@ -1379,4 +1379,67 @@ test('a lesson earns 1 star for finishing, 2 for 80% right first try, 3 for no m
   assert.equal(lessonStars(10, 3), 1);
   assert.equal(lessonStars(4, 1), 1, '75% is one');
   assert.equal(lessonStars(5, 1), 2);
+});
+
+// Hard rule: walking the whole course part by part, no drill shows a word (in its sentence,
+// its answer or a wrong option) that hasn't been taught by then.
+test('no question asks for anything the course has not taught yet', () => {
+  const merged = course();
+  const state = blank();
+  const order = merged.units.flatMap((u) => u.lessons);
+  for (const unit of merged.units) {
+    for (const lesson of unit.lessons) {
+      const at = order.indexOf(lesson);
+      for (let part = 0; part < 10; part++) {
+        const steps = lessonSteps(unit, lesson, state, merged);
+        const here = new Set();
+        for (const s of steps) {
+          if (s.type === 'learn') here.add(s.id);
+          const knows = (w) => isTaught(w, state, merged, at, here);
+          for (const id of s.uses || []) assert.ok(knows(id.slice(2)), `${lesson.id} part ${part + 1}: ${s.id} uses ${id}`);
+          if (s.type === 'particle' && s.ref) {
+            const shown = choiceShown(s.ref, knows, merged);
+            assert.ok(shown, `${s.id} has no taught wrong option`);
+            for (const o of shown.options) for (const w of tokenWords(o, merged)) assert.ok(knows(w), `${s.id} offers ${o}`);
+          }
+        }
+        for (const id of here) state.items[id] = newRecord();
+        if (steps.at(-1).type === 'lessonEnd') break;
+      }
+      state.course.done[lesson.id] = 1;
+    }
+  }
+});
+
+test('Words: free time keeps 掃除 for the part that teaches it', () => {
+  const merged = course();
+  const unit = merged.units.find((u) => u.lessons.some((l) => l.id === 'u06w'));
+  const lesson = unit.lessons.find((l) => l.id === 'u06w');
+  const state = blank();
+  for (const l of merged.units.flatMap((u) => u.lessons)) {
+    if (l === lesson) break;
+    state.course.done[l.id] = 1;
+  }
+  const first = lessonSteps(unit, lesson, state, merged);
+  assert.ok(!first.some((s) => s.id === 's:u06w-1' || s.id === 'p:u06w-1'), 'the 掃除 drill came up in part 1');
+  // Conjugated verbs and noun + する count as the word they're built on.
+  assert.deepEqual(tokenWords('習いました', merged), ['習う']);
+  assert.deepEqual(tokenWords('掃除したり', merged), ['掃除']);
+  assert.deepEqual(tokenWords('会社員', merged), []);
+});
+
+test('a lesson in parts says how many parts it has and which one is next', () => {
+  const merged = course();
+  const unit = merged.units.find((u) => u.lessons.some((l) => l.id === 'u06w'));
+  const lesson = unit.lessons.find((l) => l.id === 'u06w');
+  const state = blank();
+  const total = lessonSteps(unit, lesson, state, merged);
+  let parts = lessonParts(unit, lesson, state, merged);
+  assert.ok(parts.count > 1);
+  assert.equal(parts.index, 0);
+  assert.equal(parts.sizes.reduce((a, b) => a + b, 0) > LESSON_NEW, true);
+  state.course.parts = { [lesson.id]: parts.sizes };
+  for (const s of total.filter((x) => x.type === 'learn')) state.items[s.id] = newRecord();
+  parts = lessonParts(unit, lesson, state, merged);
+  assert.equal(parts.index, 1);
 });

@@ -20,8 +20,12 @@ const kindOf = (v) => (/^to /.test(v.m) ? 'verb' : /[一-龯]い$/.test(v.w) ? '
 
 // Three wrong options that look like the right one: the same kind of word, sharing a kanji
 // if possible, then words from the course, then any.
-export function similarWords(v, vocab, { known = new Set(), rng = Math.random } = {}) {
-  const pool = vocab.filter((x) => x !== v && x.w !== v.w && !sameMeaning(x.m, v.m));
+// `only` (word → bool) keeps wrong options to words you've been taught. A Japanese option
+// never breaks it; an English meaning falls back to the whole list only when too few are left.
+export function similarWords(v, vocab, { known = new Set(), rng = Math.random, only = null, dir = 'en' } = {}) {
+  const all = vocab.filter((x) => x !== v && x.w !== v.w && !sameMeaning(x.m, v.m));
+  const taught = only ? all.filter((x) => only(x.w)) : all;
+  const pool = taught.length >= 3 || dir === 'jp' ? taught : all;
   const same = pool.filter((x) => kindOf(x) === kindOf(v));
   const kanji = [...v.w].filter((c) => KANJI.test(c));
   const rank = (x) => (kanji.some((c) => x.w.includes(c)) ? 0 : known.has(x.w) ? 1 : 2);
@@ -38,7 +42,7 @@ export function similarWords(v, vocab, { known = new Set(), rng = Math.random } 
 // 'hear' plays the word (on a tap) and asks the meaning.
 export function wordQuestion(v, vocab, dir, opts = {}) {
   const rng = opts.rng || Math.random;
-  const list = shuffled([v, ...similarWords(v, vocab, opts)], rng);
+  const list = shuffled([v, ...similarWords(v, vocab, { ...opts, dir })], rng);
   return { dir, word: v, options: list.map((x) => (dir === 'jp' ? x.w : x.m)), answer: list.indexOf(v) };
 }
 

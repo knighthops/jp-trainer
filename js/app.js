@@ -17,7 +17,7 @@ import {
 } from './drills.js';
 import { makeWriteIndex, recognize } from './handwrite.js';
 import {
-  UNIT_FILES, mergeCourse, isUnlocked, unitProgress, nextUp, examUnlocked, lessonSteps, words as splitWords,
+  UNIT_FILES, mergeCourse, isUnlocked, unitProgress, nextUp, examUnlocked, lessonSteps, words as splitWords, isTaught, choiceShown, lessonParts, drillWords,
   LEVELS, levelSentences, levelProgress, levelUnlocked, particleItem, courseSteps, rankOf, RANKS, unitStars, grammarId, passUnit, isWords, lessonStars,
 } from './course.js';
 import { mockExam, unitTest, startExam, RETAKE_MIN } from './exam.js';
@@ -63,7 +63,7 @@ let swipeBack = null;
 // arrow at the top. `jump` turns the count into "Back to N" after Previous.
 // `confirm` asks for a second tap on Exit, so a stray thumb doesn't end a session.
 function setTop(title, {
-  close = false, onClose = endRun, onPrev = null, count = '', progress = null, back = false, jump = null, confirm = false, combo: asking = false,
+  close = false, onClose = endRun, onPrev = null, count = '', progress = null, back = false, jump = null, confirm = false, combo: asking = false, parts = null,
 } = {}) {
   const barred = close && !back;
   document.body.classList.toggle('has-runbar', barred);
@@ -80,8 +80,15 @@ function setTop(title, {
   }
   // A run of right answers shows as a small combo pill on questions; it turns solid at three.
   const combo = asking && run?.combo >= 2 ?`<span class="combo ${run.combo >= 3 ? 'hot' : ''}" aria-label="${run.combo} right in a row">×${run.combo}</span>` : '';
-  top.innerHTML = `<div class="top-in slim"><h1>${title}</h1>${combo}</div>
-    ${progress === null ? '' : `<div class="progress"><i style="width:${progress}%"></i></div>`}`;
+  // A lesson in parts names the part beside the title, and its bar has one segment per part.
+  const pill = parts ? `<span class="partpill" aria-label="Part ${parts.index + 1} of ${parts.count}">${parts.sizes
+    .map((_, i) => `<i class="${i <= parts.index ? 'on' : ''}"></i>`).join('')}${parts.index + 1}/${parts.count}</span>` : '';
+  const bar = progress === null ? ''
+    : parts ? `<div class="progress parts" aria-hidden="true">${parts.sizes.map((k, i) => `<b class="${i < parts.index ? 'done' : ''}" style="flex:${Math.max(1, k)}">${
+      i === parts.index ? `<i style="width:${progress}%"></i>` : ''}</b>`).join('')}</div>`
+      : `<div class="progress"><i style="width:${progress}%"></i></div>`;
+  top.innerHTML = `<div class="top-in slim"><h1>${title}</h1>${pill}${combo}</div>
+    ${bar}`;
   runbar.innerHTML = `
     <button id="rbexit"><span class="rbi">${icons.close}</span><span class="rbl">Exit</span></button>
     <button id="rbprev" ${onPrev ? '' : 'disabled'}><span class="rbi">${icons.back}</span><span class="rbl">Previous</span></button>
@@ -158,6 +165,21 @@ function kanjiDeck(now = Date.now()) {
   }));
 }
 
+// A lesson's parts as a trail of nodes, one per part. Each state is done, just (finished this
+// sitting), now (where you are), next (the one after a part you just finished) or ''.
+function partTrail(sizes, states, { big = false } = {}) {
+  const at = states.findIndex((s) => s === 'now' || s === 'next');
+  const name = at >= 0 ? `Part ${at + 1} of ${states.length}` : `All ${states.length} parts done`;
+  return `<ol class="ptrail ${big ? 'big' : ''}" aria-label="${name}">${states.map((s, i) => {
+    const inner = s === 'done' || s === 'just' ? icons.check : `<span>${i + 1}</span>`;
+    const k = sizes[i];
+    const label = big
+      ? (s === 'just' ? 'Just now' : s === 'done' ? 'Done' : s === 'next' ? `Next · ${k}` : `${k} words`)
+      : (s === 'done' || s === 'just' ? `${k} learned` : s === 'now' ? `${k} new` : `${k} words`);
+    return `<li class="pt ${s}"><span class="pt-dot">${inner}</span><small>${label}</small></li>`;
+  }).join('')}</ol>`;
+}
+
 // Home's hero: the one next thing to do, how long it takes, and what it gives.
 function courseCard(next) {
   const units = data.units || [];
@@ -171,9 +193,13 @@ function courseCard(next) {
   const lessonMins = next?.type === 'lesson' && !resumable(next) ? 4 : next?.type === 'test' ? 6 : resumable(next) ? 2 : 0;
   const mins = Math.max(1, Math.round((resumable(next) ? 0 : due * 12) / 60 + lessonMins));
   const where = next?.unit ? `Lesson ${next.unit.n}.${next.unit.lessons.indexOf(next.lesson) + 1}` : '';
+  // A lesson in parts shows them as a trail, and the chip and button name the part.
+  const parts = next?.type === 'lesson' ? lessonParts(next.unit, next.lesson, state, data) : null;
+  const multi = parts?.count > 1;
+  const partName = multi ? `part ${parts.index + 1}` : '';
   const chips = [
     due && !resumable(next) ? `${due} reviews` : '',
-    next?.type === 'lesson' ? (resumable(next) ? `Resume ${where}` : where) : next?.type === 'test' ? (retryWait(next.unit) ? `Test opens in ${retryWait(next.unit)} min` : `Unit ${next.unit.n} test`) : '',
+    next?.type === 'lesson' ? `${resumable(next) ? 'Resume ' : ''}${where}${multi ? ` · ${partName} of ${parts.count}` : ''}` : next?.type === 'test' ? (retryWait(next.unit) ? `Test opens in ${retryWait(next.unit)} min` : `Unit ${next.unit.n} test`) : '',
     newKanji ? `+${newKanji} kanji` : '',
   ].filter(Boolean);
   return `<section class="card hero upnext">
@@ -181,7 +207,8 @@ function courseCard(next) {
     <span class="caps">Up next${go ? ` · about ${mins} min` : ''}</span>
     <h2>${label}</h2>
     ${chips.length ? `<div class="plan-chips">${chips.map((c, n) => `${n ? '<span class="arrow" aria-hidden="true">→</span>' : ''}<span class="pchip">${c}</span>`).join('')}</div>` : ''}
-    ${go ? `<button class="btn" id="cont">${resumable(next) ? 'Resume' : 'Start'}</button>` : ''}
+    ${multi ? partTrail(parts.sizes, parts.sizes.map((_, i) => (i < parts.index ? 'done' : i === parts.index ? 'now' : ''))) : ''}
+    ${go ? `<button class="btn" id="cont">${resumable(next) ? 'Resume' : 'Start'}${multi ? ` ${partName}` : ''}</button>` : ''}
     ${due && go && !resumable(next) ? `<button class="hero-link" id="revonly">Short on time? Just reviews · ${due}</button>` : ''}
     ${!go && due ? `<button class="btn" id="revonly">Review · ${due}</button>` : ''}
   </section>`;
@@ -484,6 +511,7 @@ function renderStep() {
         state.course.done[step.id] = Date.now();
         // The lesson's grammar point starts its own reviews.
         state.items[`g:${step.id}`] ||= rate(newRecord(), 'good');
+        if (state.course.parts) delete state.course.parts[step.id];
       } else run.part = true;
       if (state.course.current?.lesson === step.id) delete state.course.current;
       save(state);
@@ -509,6 +537,7 @@ function renderStep() {
     // A role-play is one long step, so it asks from its first turn.
     confirm: !run.browse && (run.i > 0 || step.type === 'tripPlay'),
     combo: !TEACHING.has(step.type),
+    parts: runParts(),
   });
   view.innerHTML = '';
   // Steps reached with Previous show the answer and don't count again.
@@ -551,7 +580,12 @@ function renderStep() {
   else if (step.type === 'quiz') renderQuiz(step);
   else if (step.type === 'wordq') {
     const known = new Set(Object.keys(state.items).filter((id) => id.startsWith('w:')).map((id) => id.slice(2)));
-    step.q ||= wordQuestion(step.ref, data.vocab, step.dir, { known });
+    if (!step.q) {
+      const only = knowsNow();
+      step.q = wordQuestion(step.ref, data.vocab, step.dir, { known, only });
+      // Too few taught words to pick from in Japanese: ask the meaning instead.
+      if (step.dir === 'jp' && step.q.options.length < 3) step.q = wordQuestion(step.ref, data.vocab, 'en', { known, only });
+    }
     const tag = step.dir === 'hear' ? 'Listen' : step.dir === 'jp' ? 'Meaning → word' : 'Word → meaning';
     renderWordQ(view, step.q, { tag, review, onDone: (clean) => finishExercise(clean, { srs: step.dir !== 'hear' }) });
   } else if (step.type === 'spell') {
@@ -561,8 +595,19 @@ function renderStep() {
   else if (step.type === 'lesson') renderLesson(step);
   else if (step.type === 'dialogue') renderDialogue(step);
   else if (step.type === 'reading') renderReading(step);
-  else if (step.type === 'sentence') renderSentence(view, step.ref, { hints: state.settings.hints && ((b) => !knownKanji(b.t)), glossary: data.glossary, review, onDone: finishDrill });
-  else if (step.type === 'particle') renderParticle(view, step.ref, step.set, data.particles.cards, { glossary: data.glossary, review, onDone: finishDrill });
+  else if (step.type === 'sentence') {
+    // A course sentence waits until you've been taught every word in it.
+    if (!review && step.ref?.raw && !drillWords(step.ref.raw, data).every(knowsNow())) return skipStep();
+    renderSentence(view, step.ref, { hints: state.settings.hints && ((b) => !knownKanji(b.t)), glossary: data.glossary, review, onDone: finishDrill });
+  } else if (step.type === 'particle') {
+    // The sentence and answer must be taught; untaught wrong options are left off, and with
+    // none left the drill waits.
+    const knows = knowsNow();
+    const fair = !step.ref?.raw || drillWords(step.ref.raw, data).every(knows);
+    const shown = fair && step.ref?.options ? choiceShown(step.ref, knows, data) : fair ? step.ref : null;
+    if (!shown && !review) return skipStep();
+    renderParticle(view, shown || step.ref, step.set, data.particles.cards, { glossary: data.glossary, review, onDone: finishDrill });
+  }
   else if (step.type === 'check') {
     renderCheck(view, step.ref, {
       glossary: data.glossary,
@@ -663,6 +708,25 @@ function wordRow(k, w) {
 
 // A word for a kanji card: from the vocabulary, or any word the app glosses.
 const wordEntry = (w) => data.vocab.find((v) => v.w === w) || (data.glossary[w] ? { w, y: data.glossary[w].y, m: data.glossary[w].m } : null);
+
+// Hard rule: a question never shows Japanese the course hasn't taught you. Taught means you
+// have it as an item, the course is past the lesson that teaches it, or this lesson just did.
+function knowsNow() {
+  const order = (data.units || []).flatMap((u) => u.lessons);
+  const next = nextUp(state, data.units || []);
+  const at = next?.lesson ? order.indexOf(next.lesson) : order.length;
+  const here = new Set(run ? run.steps.slice(0, run.i + 1).filter((s) => s.type === 'learn').map((s) => s.id) : []);
+  return (w) => isTaught(w, state, data, at, here);
+}
+
+// The parts of the lesson this run is, when it comes in more than one.
+const runParts = () => (run?.lesson?.parts?.count > 1 ? run.lesson.parts : null);
+
+// Moves past a step that can't be shown fairly yet, without counting it.
+function skipStep() {
+  run.steps.splice(run.i, 1);
+  renderStep();
+}
 
 // The one reading to learn first, in hiragana: the kanji as a word if it is one
 // (人 is ひと, 本 is ほん), else the reading its words use most (学 is がく from 学生
@@ -983,7 +1047,15 @@ function answerSheet(k, word, right, headline) {
 const QUIZ_TAG = { pick: 'Meaning → kanji', read: 'Reading in a word', mean: 'Kanji → meaning' };
 
 function renderQuiz(step) {
-  const q = (step.q ||= quizQuestion(step.ref, step.kind, { pool: data.kanji, wordOf: wordEntry, n: state.items[step.id]?.reps || 0 }));
+  if (!step.q) {
+    // Other kanji and example words come only from what you've been taught.
+    const knows = knowsNow();
+    const taught = data.kanji.filter((k) => k === step.ref || knows(k.k) && (state.items[`k:${k.k}`] || run.steps.slice(0, run.i + 1).some((s) => s.id === `k:${k.k}`)));
+    const kind = step.kind === 'pick' && taught.length < 4 ? 'mean' : step.kind;
+    const pool = kind === 'mean' && taught.length < 4 ? data.kanji : taught;
+    step.q = quizQuestion(step.ref, kind, { pool, wordOf: (w) => (knows(w) ? wordEntry(w) : null), n: state.items[step.id]?.reps || 0 });
+  }
+  const q = step.q;
   const hit = q.word ? matchReading(q.k, q.word, q.word.y) : null;
   const left = () => Math.max(0, Math.ceil((run.drill.deadline - Date.now()) / 1000));
   const clock = () => {
@@ -1322,18 +1394,32 @@ const bigStars = (n) => `<div class="bigstars" role="img" aria-label="${n} of 3 
 const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const nextLabel = (go) => go.label.replace(/^Start lesson/, 'Next: Lesson');
 
+// Under a finished part: words so far and what's left, such as "16 of 20 words · one part left".
+function lessonPartStatus(lesson, parts, partNo) {
+  if (!parts) return 'The next part has the rest';
+  const total = parts.sizes.reduce((a, b) => a + b, 0);
+  const done = parts.sizes.slice(0, partNo).reduce((a, b) => a + b, 0);
+  const left = parts.count - partNo;
+  const noun = lesson.kanji?.length && !isWords(lesson) ? 'new items' : 'words';
+  return `${done} of ${total} ${noun} · ${left === 1 ? 'one part' : `${left} parts`} left`;
+}
+
 // The end of a course lesson: stars for how it went, what to go over, and the next step.
 function renderLessonDone() {
   const { unit, lesson } = run.lesson;
-  setTop(run.title, { close: true, progress: 100 });
+  const parts = runParts();
+  setTop(run.title, { close: true, progress: 100, parts: run.part ? parts : null });
   const name = `Lesson ${unit.n}.${unit.lessons.indexOf(lesson) + 1}`;
+  // Which part this was, and the one after it (1-based), when the lesson comes in parts.
+  const partNo = parts ? parts.index + 1 : 1;
+  const nextNo = partNo + 1;
   const seen = new Set();
   const learned = run.steps.filter((s) => s.type === 'learn' && !seen.has(s.id) && seen.add(s.id));
   const kanji = learned.filter((s) => s.kind === 'kanji').map((s) => s.ref.k);
   const words = learned.filter((s) => s.kind === 'word').map((s) => s.ref.w);
   const p = unitProgress(state, unit);
-  // Part 1 carries on with the rest of this same lesson, whatever the course would pick next.
-  const go = run.part ? { label: 'part 2', go: () => startLesson(unit, lesson) } : nextAction(nextUp(state, data.units));
+  // A part carries on with the rest of this same lesson, whatever the course would pick next.
+  const go = run.part ? { label: `part ${nextNo}`, go: () => startLesson(unit, lesson) } : nextAction(nextUp(state, data.units));
   const misses = [...run.misses.values()];
   const asked = run.seen.size;
   const stars = lessonStars(asked, misses.length);
@@ -1349,23 +1435,30 @@ function renderLessonDone() {
   // Older kanji to watch are ones you've started; a kanji the course hasn't taught yet isn't one.
   const watch = watched.filter((k) => !kanji.includes(k.k) && state.items[`k:${k.k}`]);
   const rows = misses.filter((s) => !isKanjiStep(s));
-  const status = run.part ? 'Part 2 has the rest' : p.done === p.total ? `Unit ${unit.n} test is ready` : `${p.done} of ${p.total} lessons in Unit ${unit.n}`;
+  const status = run.part ? lessonPartStatus(lesson, parts, partNo) : p.done === p.total ? `Unit ${unit.n} test is ready` : `${p.done} of ${p.total} lessons in Unit ${unit.n}`;
   // A long streak earns a mention only when there were misses; a clean run says it already.
   const streak = misses.length && run.bestCombo >= 5 ? ` · best streak <b>×${run.bestCombo}</b>` : '';
-  const verdict = run.part ? 'Part 1 done' : ['', 'Lesson done', 'Great lesson', 'Flawless'][stars];
-  view.innerHTML = `<section class="card hero done-hero fin">
-      ${bigStars(stars)}
+  const verdict = run.part ? (parts ? `Part ${partNo} of ${parts.count} done` : 'Part done') : ['', 'Lesson done', 'Great lesson', 'Flawless'][stars];
+  // A part ends on its trail, the part just done filling in; stars wait for the whole lesson,
+  // which ends with the trail closed under them.
+  const trailStates = parts ? parts.sizes.map((_, i) => (i < parts.index ? 'done' : i === parts.index ? 'just' : i === parts.index + 1 ? 'next' : '')) : null;
+  // The next part's items, as the course will teach them.
+  const upcoming = run.part ? lessonSteps(unit, lesson, state, data).filter((s) => s.type === 'learn').map((s) => (s.kind === 'kanji' ? s.ref.k : s.ref.w)) : [];
+  const lastNext = parts && nextNo === parts.count;
+  view.innerHTML = `<section class="card hero done-hero fin ${run.part ? 'partfin' : ''}">
+      ${run.part && parts ? partTrail(parts.sizes, trailStates, { big: true }) : bigStars(stars)}
       <span class="caps">${verdict}</span>
       <h2>${name}</h2>
       ${asked ? `<p class="sub"><b>${asked - misses.length}</b> of ${asked} right first try${streak}</p>` : ''}
-      <div class="unit-strip">${pips(unit, run.part ? null : lesson.id)}<span class="small">${status}</span></div>
+      ${!run.part && parts ? partTrail(parts.sizes, parts.sizes.map((_, i) => (i === parts.count - 1 ? 'just' : 'done'))) : ''}
+      <div class="unit-strip">${pips(unit, run.part ? null : lesson.id, run.part && parts ? { [lesson.id]: partNo / parts.count } : {})}<span class="small">${status}</span></div>
     </section>
     ${kanji.length ? `<section class="card">
       <div class="kod-head"><span class="caps">New kanji · +${kanji.length}</span><span class="small muted">${kanjiKnown()} of ${data.kanji.length} collected</span></div>
       <div class="flips">${kanji.map((c, n) => `<span class="flip jp ${shaky.has(c) ? 'watch' : ''}" style="--d:${n}"${shaky.has(c) ? ' title="Missed once: watch this one"' : ''}>${c}</span>`).join('')}</div>
       ${kanji.some((c) => shaky.has(c)) ? '<p class="watch-key small muted">Missed once · worth a second look</p>' : ''}
     </section>` : words.length ? `<section class="card">
-      <span class="caps">New words · +${words.length}</span>
+      <span class="caps">New words · +${words.length}${!run.part && parts ? ` · ${parts.sizes.reduce((a, b) => a + b, 0)} in this lesson` : ''}</span>
       <div class="wchips">${words.map((w, n) => `<span class="wchip jp" style="--d:${n}">${w}</span>`).join('')}</div>
     </section>` : ''}
     ${rows.length || watch.length ? `<section class="card goover">
@@ -1373,14 +1466,21 @@ function renderLessonDone() {
       ${watch.length ? `<div class="kts" aria-label="Kanji to watch">${watch.map((k, n) => `<span class="kt left jp" style="--i:${n}">${k.k}<small>${k.mean[0]}</small></span>`).join('')}</div>` : ''}
       ${rows.length ? missRows(rows, 3) : ''}
     </section>` : ''}
+    ${upcoming.length ? `<section class="card">
+      <div class="kod-head"><span class="caps">Part ${nextNo}${lastNext ? ' · the last one' : ''}</span><span class="small muted">about ${Math.max(1, Math.round(upcoming.length / 2))} min</span></div>
+      <div class="wchips">${upcoming.map((w, n) => `<span class="wchip soon jp" style="--d:${n}">${w}</span>`).join('')}</div>
+    </section>` : ''}
     <div class="dock stack">
-      ${go ? `<button class="btn" id="go">${run.part ? 'Keep going: part 2' : nextLabel(go)}</button>` : ''}
-      ${misses.length ? `<div class="pair"><button class="btn ghost" id="redo">Redo ${plural(misses.length, 'mistake')}</button><button class="btn ghost" id="fin">Done</button></div>`
+      ${run.part && go ? `<div class="keepgo"><button class="btn ghost" id="later">Later</button><button class="btn" id="go">Keep going: part ${nextNo}</button></div>`
+    : go ? `<button class="btn" id="go">${nextLabel(go)}</button>` : ''}
+      ${run.part && go ? (misses.length ? `<button class="btn ghost" id="redo">Redo ${plural(misses.length, 'mistake')}</button>` : '')
+    : misses.length ? `<div class="pair"><button class="btn ghost" id="redo">Redo ${plural(misses.length, 'mistake')}</button><button class="btn ghost" id="fin">Done</button></div>`
     : `<button class="btn ghost" id="fin">Done for now</button>`}
     </div>`;
   view.querySelector('#go')?.addEventListener('click', () => { endRun(); go.go(); });
   view.querySelector('#redo')?.addEventListener('click', () => redoMisses(misses));
-  view.querySelector('#fin').onclick = endRun;
+  view.querySelector('#later')?.addEventListener('click', endRun);
+  view.querySelector('#fin')?.addEventListener('click', endRun);
   animate();
 }
 
@@ -1812,6 +1912,9 @@ function screenCourse() {
 
 // A lesson left part-way picks up at the same step with the same new items.
 function startLesson(unit, lesson) {
+  // A lesson in parts keeps the split it started with, so the trail doesn't shift under you.
+  const parts = lessonParts(unit, lesson, state, data);
+  if (parts.count > 1) (state.course.parts ||= {})[lesson.id] ||= parts.sizes;
   const saved = state.course.current?.lesson === lesson.id ? state.course.current : null;
   const steps = lessonSteps(unit, lesson, state, data, saved);
   const start = saved ? Math.min(saved.i, steps.length - 1) : 0;
@@ -1822,7 +1925,7 @@ function startLesson(unit, lesson) {
     i: start,
   };
   save(state);
-  startRun(steps, lesson.title, { useSrs: true, start, lesson: { unit, lesson } });
+  startRun(steps, lesson.title, { useSrs: true, start, lesson: { unit, lesson, parts } });
 }
 
 const resumable = (next) => next?.type === 'lesson' && state.course.current?.lesson === next.lesson.id && state.course.current.i > 0;
@@ -1868,8 +1971,10 @@ const starHtml = (n) => [1, 2, 3].map((i) => `<i class="${i <= n ? 'on' : ''}">�
 
 
 // Lesson dots and a test diamond for one unit.
-function pips(unit, justDone = null) {
-  const dot = (l) => `<i class="pip ${state.course.done[l.id] ? 'on' : ''} ${l.id === justDone ? 'pop' : ''}"></i>`;
+// `partway` maps a lesson id to the share of its parts done, drawn as a pie.
+function pips(unit, justDone = null, partway = {}) {
+  const dot = (l) => (partway[l.id] && !state.course.done[l.id] ? `<i class="pip partway" style="--p:${partway[l.id]}"></i>`
+    : `<i class="pip ${state.course.done[l.id] ? 'on' : ''} ${l.id === justDone ? 'pop' : ''}"></i>`);
   return `<span class="pips" aria-hidden="true">${unit.lessons.map(dot).join('')}<i class="pip test ${state.course.passed[unit.id] ? 'on' : ''}"></i></span>`;
 }
 

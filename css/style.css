@@ -1291,3 +1291,61 @@ body.no-roles .legend{display:none}
 .sh-k{width:auto;min-width:60px;padding:0 9px;white-space:nowrap;font-size:34px}
 /* Single kanji in the kanji quiz are big; whole words in the word exercises fit the width. */
 .qz:not(:has(.qz-top)) .qz-big{font-size:64px;line-height:1.15;overflow-wrap:anywhere;max-width:100%}
+
+/* Lesson parts: a small trail of nodes, in the course map's look. Green is done, lavender is
+   where you are (or next), grey is still ahead. */
+.ptrail{display:flex;align-items:flex-start;margin:4px -6px 0;list-style:none;padding:0}
+.pt{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;position:relative;min-width:0}
+.pt::before{content:"";position:absolute;z-index:0;top:calc(var(--d,30px) / 2 - 2px);left:-50%;right:50%;height:4px;background:var(--line);border-radius:2px}
+.pt:first-child::before{display:none}
+.pt.done::before,.pt.now::before,.pt.just::before{background:var(--good)}
+.pt-dot{position:relative;z-index:1;width:var(--d,30px);height:var(--d,30px);border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:750;font-variant-numeric:tabular-nums;
+  background:var(--card);color:var(--ink2);box-shadow:inset 0 0 0 2px var(--line),0 3px 0 var(--ledge)}
+.pt-dot svg.ic{width:16px;height:16px;stroke-width:2.8}
+.pt.done .pt-dot,.pt.just .pt-dot{background:var(--good);color:var(--on-acc);box-shadow:0 3px 0 color-mix(in srgb,var(--good) 55%,#000)}
+.pt.now .pt-dot{background:var(--act);color:var(--on-acc);box-shadow:0 3px 0 color-mix(in srgb,var(--act) 50%,#000),0 0 0 5px var(--act-soft)}
+.pt.next .pt-dot{background:var(--act-soft);color:var(--act);box-shadow:inset 0 0 0 2px var(--act-line),0 3px 0 var(--ledge)}
+.pt small{font-size:11.5px;font-weight:650;color:var(--mute);white-space:nowrap}
+.pt.now small,.pt.next small{color:var(--act)}
+.pt.done small,.pt.just small{color:var(--good)}
+@keyframes pt-glow{50%{box-shadow:0 3px 0 color-mix(in srgb,var(--act) 50%,#000),0 0 0 9px var(--act-soft)}}
+
+/* The big trail heads the end-of-part screen. */
+.ptrail.big{--d:56px;margin:0 -4px 10px;width:calc(100% + 8px)}
+.ptrail.big .pt::before{height:6px;top:calc(var(--d) / 2 - 3px);border-radius:3px}
+.ptrail.big .pt-dot{font-size:22px;box-shadow:inset 0 0 0 2.5px var(--line),0 4px 0 var(--ledge)}
+.ptrail.big .pt-dot svg.ic{width:28px;height:28px}
+.ptrail.big .pt.done .pt-dot,.ptrail.big .pt.just .pt-dot{box-shadow:0 4px 0 color-mix(in srgb,var(--good) 55%,#000)}
+.ptrail.big .pt.next .pt-dot{box-shadow:inset 0 0 0 2.5px var(--act-line),0 4px 0 var(--ledge)}
+.ptrail.big small{font-size:12px}
+.done-hero .ptrail:not(.big){align-self:stretch;max-width:300px;width:100%;margin:8px auto 4px}
+@keyframes pt-fill{0%{background:var(--card);box-shadow:inset 0 0 0 2.5px var(--line),0 4px 0 var(--ledge);transform:scale(.85)}60%{transform:scale(1.12)}100%{transform:none}}
+@keyframes pt-ring{from{box-shadow:0 0 0 0 color-mix(in srgb,var(--good) 60%,transparent)}to{box-shadow:0 0 0 16px transparent}}
+@media (prefers-reduced-motion:no-preference){
+  .pt.now .pt-dot{animation:pt-glow 2.4s ease-in-out infinite}
+  /* The line into the part just finished draws in, its node pops green, then the check lands. */
+  .ptrail.big .pt.just::before{transform-origin:left;animation:grow-x .5s .25s cubic-bezier(.2,.8,.2,1) both}
+  .ptrail.big .pt.just .pt-dot{animation:pt-fill .5s .65s cubic-bezier(.3,1.6,.5,1) both}
+  .ptrail.big .pt.just .pt-dot svg{animation:pop-in .4s .95s ease-out both}
+  .ptrail.big .pt.just .pt-dot::after{content:"";position:absolute;inset:0;border-radius:50%;animation:pt-ring .7s .9s ease-out both}
+  .ptrail.big .pt.next .pt-dot{animation:pop-in .4s 1.2s ease-out both}
+}
+
+/* A lesson pip that's part-way: a pie of the parts done. */
+.pip.partway,.hero .pip.partway{box-shadow:inset 0 0 0 1.5px var(--good);opacity:1;background:conic-gradient(var(--good) calc(var(--p) * 1turn),transparent 0)}
+
+/* In a lesson: the part beside the title, and a progress bar split by part. */
+.partpill{flex:none;margin-left:8px;height:22px;padding:0 8px;border-radius:11px;display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:750;font-variant-numeric:tabular-nums;color:var(--act);background:var(--act-soft)}
+.partpill i{width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.35}
+.partpill i.on{opacity:1}
+.progress.parts{display:flex;gap:3px;background:none}
+.progress.parts b{position:relative;height:100%;background:var(--line2);border-radius:2px;overflow:hidden}
+.progress.parts b.done{background:var(--good)}
+.progress.parts b i{position:absolute;inset:0 auto 0 0;height:100%;background:var(--good);border-radius:0 2px 2px 0;transition:width .3s ease}
+
+/* End of a part: the words still waiting, and Later beside Keep going. */
+.wchip.soon{background:transparent;box-shadow:none;color:var(--ink2);outline:1.5px dashed var(--line);outline-offset:-1.5px}
+.keepgo{display:grid;grid-template-columns:1fr 2fr;gap:8px}
+.keepgo .btn{padding:0 12px}
+.partfin{padding-top:22px}
+.partfin h2{font-size:30px}

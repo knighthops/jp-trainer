@@ -85,14 +85,14 @@ export function autoAlts(blocks) {
 
 export function toSentence(d, glossary) {
   const blocks = toBlocks(d.b, glossary);
-  return { id: d.id, en: d.en, note: d.note, lesson: d.lesson, alts: d.alts || autoAlts(blocks), blocks };
+  return { id: d.id, en: d.en, note: d.note, lesson: d.lesson, alts: d.alts || autoAlts(blocks), blocks, raw: { b: d.b } };
 }
 
 export function toChoice(d) {
   const [before, after] = d.c.split('___').map((s) => s.trim());
   return {
     id: d.id, lesson: d.lesson, en: d.en, before: before.replace(/\s+/g, ''), after: after.replace(/\s+/g, ''), label: d.label || 'Fill the blank',
-    answer: d.a, options: shuffled([d.a, ...Object.keys(d.w)]), why: d.w, note: d.note,
+    answer: d.a, options: shuffled([d.a, ...Object.keys(d.w)]), why: d.w, note: d.note, raw: { c: d.c, a: d.a },
   };
 }
 
@@ -198,8 +198,109 @@ export function wordsNeededEarly(unit, lesson, data) {
   const first = new Map();
   order.forEach((l, i) => (l.words || []).forEach((w) => { if (!first.has(w)) first.set(w, i); }));
   const vocab = new Set((data.vocab || []).map((v) => v.w));
-  const used = (lesson.drills || []).flatMap((d) => String(d.b || d.c || '').split(/\s+/));
+  // Conjugated verbs count as their dictionary form, and a blank's answer counts too.
+  const used = (lesson.drills || []).flatMap((d) => drillWords(d, data));
   return [...new Set(used)].filter((w) => vocab.has(w) && first.get(w) > at && !NOT_TAUGHT_EARLY.has(w)).slice(0, EARLY_MAX);
+}
+
+// Verb stems, so a conjugated verb in a drill counts as its dictionary form:
+// 習いました, 習って and 習わない all need 習う.
+const GODAN = { う: 'いっわ', く: 'きいか', ぐ: 'ぎいが', す: 'ししさ', つ: 'ちった', ぬ: 'にんな', ぶ: 'びんば', む: 'みんま', る: 'りっら' };
+function stemsOf(w) {
+  const tail = w.at(-1);
+  const head = w.slice(0, -1);
+  // Only verbs written with a kanji, so a bare kana stem can't swallow unrelated words.
+  if (!head || !/[一-龯々]/.test(head) || !GODAN[tail]) return [];
+  const out = [...GODAN[tail]].map((k) => head + k);
+  if (tail === 'る') out.push(head);
+  return out;
+}
+
+// For each lookup string, the course word it stands for: the word itself, or a verb's stem.
+function lemmaIndex(data) {
+  if (data._lemmas) return data._lemmas;
+  const exact = new Set((data.vocab || []).map((v) => v.w));
+  const stems = new Map();
+  for (const w of exact) for (const s of stemsOf(w)) if (!stems.has(s) || s === w) stems.set(s, w);
+  const keys = [...stems.keys()].sort((a, b) => b.length - a.length);
+  data._lemmas = { exact, stems, keys };
+  return data._lemmas;
+}
+
+// The course words a token shows. A word in the vocabulary is itself; otherwise the longest
+// verb stem or noun it starts with (掃除したり → 掃除, 習いました → 習う).
+export function tokenWords(token, data) {
+  const { exact, stems, keys } = lemmaIndex(data);
+  if (exact.has(token)) return [token];
+  const stem = keys.find((s) => token.startsWith(s) && s.length < token.length && /^[ぁ-ん]+$/.test(token.slice(s.length)));
+  if (stem) return [stems.get(stem)];
+  const noun = [...exact].filter((w) => w.length >= 2 && /[一-龯々ァ-ヴ]/.test(w) && token.startsWith(w) && /^[ぁ-ん]+$/.test(token.slice(w.length)))
+    .sort((a, b) => b.length - a.length)[0];
+  return noun ? [noun] : [];
+}
+
+// The course words a drill can't do without: its sentence and its answer. Wrong options are
+// checked one by one (wrongWords), since an untaught one can simply be left off.
+export function drillWords(d, data) {
+  const shown = [...words(String(d.b || d.c || '').replace('___', ' ')), d.a].filter(Boolean);
+  return [...new Set(shown.flatMap((t) => tokenWords(t, data)))];
+}
+export const wrongWords = (option, data) => tokenWords(option, data);
+
+// A fill-the-blank with only the wrong options you've been taught. Null when none are left.
+export function choiceShown(ref, taught, data) {
+  const options = ref.options.filter((o) => o === ref.answer || wrongWords(o, data).every(taught));
+  return options.length > 1 ? (options.length === ref.options.length ? ref : { ...ref, options }) : null;
+}
+
+// Hard rule: nothing is asked that the course hasn't taught you. A word counts as taught once
+// you have it (or its kanji) as an item, or the course already went past the lesson that
+// teaches it (testing out of a unit); `extra` holds what this sitting has just taught.
+export function isTaught(w, state, data, at, extra = new Set()) {
+  if (extra.has(`w:${w}`) || extra.has(`k:${w}`)) return true;
+  if (state.items[`w:${w}`] || state.items[`k:${w}`]) return true;
+  const first = firstLessonIndex(data).get(w);
+  if (first === undefined) return true;
+  if (first >= at) return false;
+  const order = (data.units || []).flatMap((u) => u.lessons.map((l) => ({ u, l })));
+  const { u, l } = order[first];
+  return Boolean(state.course?.done?.[l.id] || state.course?.passed?.[u.id]);
+}
+
+function firstLessonIndex(data) {
+  if (data._firstLesson) return data._firstLesson;
+  const order = (data.units || []).flatMap((u) => u.lessons);
+  const first = new Map();
+  order.forEach((l, i) => (l.words || []).forEach((w) => { if (!first.has(w)) first.set(w, i); }));
+  data._firstLesson = first;
+  return first;
+}
+
+// How a lesson splits into parts: its new items, LESSON_NEW at a time. `index` is the part
+// you'd do next (0-based), so a lesson half done shows where you are.
+export function lessonParts(unit, lesson, state, data) {
+  const found = (lesson.kanji || []).filter((c) => data.kanji.some((k) => k.k === c));
+  const kanji = found.map((c) => `k:${c}`);
+  const glyphs = new Set(found);
+  const vocab = new Set((data.vocab || []).map((v) => v.w));
+  const wordsHere = [...new Set([...wordsNeededEarly(unit, lesson, data), ...(lesson.words || [])])]
+    .filter((w) => !glyphs.has(w) && vocab.has(w)).map((w) => `w:${w}`);
+  const all = [...kanji, ...wordsHere];
+  // Items already learned elsewhere don't need a part of their own; the parts are counted on
+  // what's left when the lesson is first started, kept in state so they stay put.
+  const leftNow = all.filter((id) => !state.items[id]).length;
+  const sizes = state.course?.parts?.[lesson.id] || splitSizes(leftNow);
+  const doneItems = sizes.reduce((a, b) => a + b, 0) - leftNow;
+  let index = 0;
+  for (let acc = 0; index < sizes.length && acc + sizes[index] <= doneItems; index++) acc += sizes[index];
+  return { sizes, count: Math.max(1, sizes.length), index: Math.min(index, Math.max(0, sizes.length - 1)) };
+}
+
+export function splitSizes(n) {
+  if (n <= 0) return [0];
+  const out = [];
+  for (let left = n; left > 0; left -= LESSON_NEW) out.push(Math.min(LESSON_NEW, left));
+  return out;
 }
 
 // `resume` ({ fresh, part }) rebuilds a lesson that was left part-way with the same items.
@@ -249,17 +350,22 @@ export function lessonSteps(unit, lesson, state, data, resume = null) {
   const check = (s) => (s.kind === 'kanji' ? { ...s, type: 'quiz', kind: 'mean', isNew: true } : { ...s, type: 'wordq', dir: 'en', isNew: true });
   const drills = lesson.drills.map((d, n) => {
     const id = `${lesson.id}-${n}`;
-    // The words a drill uses, so it can wait until they've been taught.
-    const uses = String(d.b || d.c || '').split(/\s+/).map((w) => `w:${w}`);
+    // Every course word the drill shows (sentence, answer, wrong options), so it waits until
+    // all of them have been taught.
+    const uses = drillWords(d, data).map((w) => `w:${w}`);
     const s = data.sentences.find((x) => x.id === id);
     if (s) return { type: 'sentence', id: `s:${id}`, ref: s, uses };
     return { type: 'particle', id: `p:${id}`, ref: data.courseChoices.find((c) => c.id === id), set: {}, uses };
   });
   // The lesson's grammar is practised between the pairs of new items, not saved for the end,
   // each drill as soon as every new word it uses has been taught.
-  const newIds = new Set(learn.map((s) => s.id));
+  const at = (data.units || []).flatMap((u) => u.lessons).indexOf(lesson);
   const taught = new Set();
-  const ready = (d) => d.uses.every((id) => !newIds.has(id) || taught.has(id));
+  // This part's new items count only once taught here, even if a resumed lesson already rated
+  // them, so the steps rebuild the same.
+  const partNew = new Set(learn.map((s) => s.id));
+  const knows = (w) => (partNew.has(`w:${w}`) || partNew.has(`k:${w}`) ? taught.has(`w:${w}`) || taught.has(`k:${w}`) : isTaught(w, state, data, at, taught));
+  const ready = (d) => d.uses.every((id) => knows(id.slice(2))) && (d.type !== 'particle' || Boolean(d.ref && choiceShown(d.ref, knows, data)));
   const spread = [...drills];
   const groups = [];
   for (let i = 0; i < learn.length; i += GROUP) {
@@ -272,7 +378,9 @@ export function lessonSteps(unit, lesson, state, data, resume = null) {
   }
   // A lesson split in parts keeps the drills whose words this part taught, up to two, for the
   // end of the part; the last part has the rest.
+  // A drill that still shows something untaught is left out: nothing is asked ahead of the course.
   if (more) spread.splice(0, spread.length, ...spread.filter(ready).slice(0, Math.max(0, 2 - (drills.length - spread.length))));
+  else spread.splice(0, spread.length, ...spread.filter(ready));
   // Then the new items together: match the pairs, spell a reading, and one word by ear.
   const extra = [];
   const fresh = learn.map((s) => (s.kind === 'kanji' ? { jp: s.ref.k, en: s.ref.mean[0] } : { jp: s.ref.w, en: s.ref.m }));
