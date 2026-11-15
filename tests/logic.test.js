@@ -1443,3 +1443,23 @@ test('a lesson in parts says how many parts it has and which one is next', () =>
   parts = lessonParts(unit, lesson, state, merged);
   assert.equal(parts.index, 1);
 });
+
+test('a lesson started before parts were saved still shows the part you are on', () => {
+  const merged = course();
+  const unit = merged.units.find((u) => u.lessons.some((l) => l.id === 'u06w'));
+  const lesson = unit.lessons.find((l) => l.id === 'u06w');
+  const state = blank();
+  // Every lesson before it is finished, as it would be on a real device.
+  walk: for (const u of merged.units) for (const l of u.lessons) {
+    if (l === lesson) break walk;
+    for (const s of l.words || []) state.items[`w:${s}`] = newRecord();
+    for (const k of l.kanji || []) state.items[`k:${k}`] = newRecord();
+    for (const w of wordsNeededEarly(u, l, merged)) state.items[`w:${w}`] = newRecord();
+    state.course.done[l.id] = 1;
+  }
+  const before = lessonParts(unit, lesson, state, merged);
+  for (const s of lessonSteps(unit, lesson, state, merged).filter((x) => x.type === 'learn')) state.items[s.id] = newRecord();
+  const parts = lessonParts(unit, lesson, state, merged);
+  assert.deepEqual(parts.sizes, before.sizes);
+  assert.equal(parts.index, 1);
+});

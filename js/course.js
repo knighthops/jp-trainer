@@ -276,6 +276,19 @@ function firstLessonIndex(data) {
   return first;
 }
 
+// The lesson that first teaches each word, counting words taught early for a drill.
+function taughtAtIndex(data) {
+  if (data._taughtAt) return data._taughtAt;
+  const order = [];
+  const first = new Map();
+  for (const unit of data.units || []) for (const lesson of unit.lessons) {
+    const i = order.push(lesson) - 1;
+    for (const w of [...wordsNeededEarly(unit, lesson, data), ...(lesson.words || [])]) if (!first.has(w)) first.set(w, i);
+  }
+  data._taughtAt = { order, first };
+  return data._taughtAt;
+}
+
 // How a lesson splits into parts: its new items, LESSON_NEW at a time. `index` is the part
 // you'd do next (0-based), so a lesson half done shows where you are.
 export function lessonParts(unit, lesson, state, data) {
@@ -289,7 +302,13 @@ export function lessonParts(unit, lesson, state, data) {
   // Items already learned elsewhere don't need a part of their own; the parts are counted on
   // what's left when the lesson is first started, kept in state so they stay put.
   const leftNow = all.filter((id) => !state.items[id]).length;
-  const sizes = state.course?.parts?.[lesson.id] || splitSizes(leftNow);
+  // A lesson started before parts were saved: count what it has already taught as done here,
+  // leaving out words an earlier lesson taught, so a lesson part-way through still shows it.
+  const taughtAt = taughtAtIndex(data);
+  const at = taughtAt.order.indexOf(lesson);
+  const learnedHere = state.course?.done?.[lesson.id] ? 0 : all.filter((id) => state.items[id]
+    && (id.startsWith('k:') || taughtAt.first.get(id.slice(2)) === at)).length;
+  const sizes = state.course?.parts?.[lesson.id] || splitSizes(leftNow + learnedHere);
   const doneItems = sizes.reduce((a, b) => a + b, 0) - leftNow;
   let index = 0;
   for (let acc = 0; index < sizes.length && acc + sizes[index] <= doneItems; index++) acc += sizes[index];
