@@ -1358,3 +1358,15 @@ body.no-roles .legend{display:none}
 .lt-ring .track{stroke:var(--act-line)}
 .lt-ring .fill{stroke:var(--good)}
 .ltrail .pt.parted small{margin-top:6px}
+/* The finish screen's lesson trail: the lesson just done fills in, then the next one lights. */
+.unit-trail{align-self:stretch;display:flex;flex-direction:column;align-items:center;gap:8px;width:100%;max-width:320px;margin:12px auto 0}
+.unit-trail .ltrail{width:100%;margin:0}
+.ltrail .pt.next .pt-dot{background:var(--act-soft);color:var(--act)}
+@media (prefers-reduced-motion:no-preference){
+  .ltrail.fin .pt.just::before{transform-origin:left;animation:grow-x .5s .3s cubic-bezier(.2,.8,.2,1) both}
+  .ltrail.fin .pt.just .pt-dot{animation:pt-fill .5s .6s cubic-bezier(.3,1.6,.5,1) both}
+  .ltrail.fin .pt.just .pt-dot svg{animation:pop-in .4s .9s ease-out both}
+  .ltrail.fin .pt.next .pt-dot{animation:pop-in .4s 1.1s ease-out both}
+  .unit-trail .pt.parted .lt-ring .fill{animation:lt-arc .7s .4s ease-out both}
+}
+@keyframes lt-arc{from{opacity:0}}

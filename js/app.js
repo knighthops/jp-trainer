@@ -182,7 +182,9 @@ function partTrail(sizes, states, { big = false } = {}) {
 
 // Home's trail: one node per lesson in the unit. The lesson you're on is lit, and if it comes
 // in parts, a ring around it is split into those parts with the finished ones filled.
-function lessonTrail(unit, current, parts) {
+// On the finish screen, `justDone` is the lesson just finished (it fills in, the next one lights)
+// and `label` names the lesson you're part-way through.
+function lessonTrail(unit, current, parts, { justDone = null, label: nowLabel = null } = {}) {
   const ring = (n, filled) => {
     const gap = 7;
     const seg = 100 / n - gap;
@@ -191,11 +193,14 @@ function lessonTrail(unit, current, parts) {
     return `<svg class="lt-ring" viewBox="0 0 44 44" aria-hidden="true">${circle("track", `${seg} ${gap}`)}${filled ? circle("fill", on) : ""}</svg>`;
   };
   const multi = parts?.count > 1;
-  const at = unit.lessons.indexOf(current);
-  return `<ol class="ptrail ltrail" aria-label="Lesson ${at + 1} of ${unit.lessons.length}${multi ? `, part ${parts.index + 1} of ${parts.count}` : ""}">${unit.lessons.map((l, i) => {
-    const s = l === current ? "now" : state.course.done[l.id] || i < at ? "done" : "";
-    const inner = s === "done" ? icons.check : `<span>${i + 1}</span>`;
-    const label = s === "done" ? "Done" : s === "now" ? (multi ? `Part ${parts.index + 1} of ${parts.count}` : "Up next") : `Lesson ${i + 1}`;
+  const justAt = unit.lessons.findIndex((l) => l.id === justDone);
+  const at = justDone ? justAt + 1 : unit.lessons.indexOf(current);
+  return `<ol class="ptrail ltrail${justDone ? " fin" : ""}" aria-label="Lesson ${Math.min(at, unit.lessons.length - 1) + 1} of ${unit.lessons.length}${multi ? `, part ${parts.index + 1} of ${parts.count}` : ""}">${unit.lessons.map((l, i) => {
+    const s = l.id === justDone ? "just" : justDone && i === at ? "next"
+      : l === current ? "now" : state.course.done[l.id] || i < at ? "done" : "";
+    const inner = s === "done" || s === "just" ? icons.check : `<span>${i + 1}</span>`;
+    const label = s === "just" ? "Just now" : s === "done" ? "Done" : s === "next" ? "Up next"
+      : s === "now" ? nowLabel || (multi ? `Part ${parts.index + 1} of ${parts.count}` : "Up next") : `Lesson ${i + 1}`;
     return `<li class="pt ${s}${s === "now" && multi ? " parted" : ""}" title="${escHtml(l.title)}"><span class="pt-dot">${inner}${s === "now" && multi ? ring(parts.count, parts.index) : ""}</span><small>${label}</small></li>`;
   }).join("")}</ol>`;
 }
@@ -1471,8 +1476,9 @@ function renderLessonDone() {
       <span class="caps">${verdict}</span>
       <h2>${name}</h2>
       ${asked ? `<p class="sub"><b>${asked - misses.length}</b> of ${asked} right first try${streak}</p>` : ''}
-      ${!run.part && parts ? partTrail(parts.sizes, parts.sizes.map((_, i) => (i === parts.count - 1 ? 'just' : 'done'))) : ''}
-      <div class="unit-strip">${pips(unit, run.part ? null : lesson.id, run.part && parts ? { [lesson.id]: partNo / parts.count } : {})}<span class="small">${status}</span></div>
+      <div class="unit-trail">${run.part
+        ? lessonTrail(unit, lesson, parts && { ...parts, index: partNo }, { label: parts ? `${partNo} of ${parts.count} parts` : 'Part done' })
+        : lessonTrail(unit, null, null, { justDone: lesson.id })}<span class="small muted">${status}</span></div>
     </section>
     ${kanji.length ? `<section class="card">
       <div class="kod-head"><span class="caps">New kanji · +${kanji.length}</span><span class="small muted">${kanjiKnown()} of ${data.kanji.length} collected</span></div>
