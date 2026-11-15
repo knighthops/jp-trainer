@@ -1350,3 +1350,11 @@ body.no-roles .legend{display:none}
 .keepgo .btn{padding:0 12px}
 .partfin{padding-top:22px}
 .partfin h2{font-size:30px}
+
+/* Home's lesson trail: one node per lesson; a lesson in parts gets a split ring. */
+.ltrail .pt.parted .pt-dot{box-shadow:0 3px 0 color-mix(in srgb,var(--act) 50%,#000);animation:none}
+.lt-ring{position:absolute;inset:-8px;width:calc(100% + 16px);height:calc(100% + 16px);transform:rotate(-90deg);overflow:visible;pointer-events:none}
+.lt-ring circle{fill:none;stroke-width:3.5;stroke-linecap:round}
+.lt-ring .track{stroke:var(--act-line)}
+.lt-ring .fill{stroke:var(--good)}
+.ltrail .pt.parted small{margin-top:6px}

@@ -180,6 +180,26 @@ function partTrail(sizes, states, { big = false } = {}) {
   }).join('')}</ol>`;
 }
 
+// Home's trail: one node per lesson in the unit. The lesson you're on is lit, and if it comes
+// in parts, a ring around it is split into those parts with the finished ones filled.
+function lessonTrail(unit, current, parts) {
+  const ring = (n, filled) => {
+    const gap = 7;
+    const seg = 100 / n - gap;
+    const on = Array.from({ length: filled }, () => `${seg} ${gap}`).concat("0 100").join(" ");
+    const circle = (cls, dash) => `<circle class="${cls}" cx="22" cy="22" r="20" pathLength="100" stroke-dasharray="${dash}" stroke-dashoffset="${-gap / 2}"/>`;
+    return `<svg class="lt-ring" viewBox="0 0 44 44" aria-hidden="true">${circle("track", `${seg} ${gap}`)}${filled ? circle("fill", on) : ""}</svg>`;
+  };
+  const multi = parts?.count > 1;
+  const at = unit.lessons.indexOf(current);
+  return `<ol class="ptrail ltrail" aria-label="Lesson ${at + 1} of ${unit.lessons.length}${multi ? `, part ${parts.index + 1} of ${parts.count}` : ""}">${unit.lessons.map((l, i) => {
+    const s = l === current ? "now" : state.course.done[l.id] || i < at ? "done" : "";
+    const inner = s === "done" ? icons.check : `<span>${i + 1}</span>`;
+    const label = s === "done" ? "Done" : s === "now" ? (multi ? `Part ${parts.index + 1} of ${parts.count}` : "Up next") : `Lesson ${i + 1}`;
+    return `<li class="pt ${s}${s === "now" && multi ? " parted" : ""}" title="${escHtml(l.title)}"><span class="pt-dot">${inner}${s === "now" && multi ? ring(parts.count, parts.index) : ""}</span><small>${label}</small></li>`;
+  }).join("")}</ol>`;
+}
+
 // Home's hero: the one next thing to do, how long it takes, and what it gives.
 function courseCard(next) {
   const units = data.units || [];
@@ -207,7 +227,7 @@ function courseCard(next) {
     <span class="caps">Up next${go ? ` · about ${mins} min` : ''}</span>
     <h2>${label}</h2>
     ${chips.length ? `<div class="plan-chips">${chips.map((c, n) => `${n ? '<span class="arrow" aria-hidden="true">→</span>' : ''}<span class="pchip">${c}</span>`).join('')}</div>` : ''}
-    ${multi ? partTrail(parts.sizes, parts.sizes.map((_, i) => (i < parts.index ? 'done' : i === parts.index ? 'now' : ''))) : ''}
+    ${next?.type === 'lesson' ? lessonTrail(next.unit, next.lesson, parts) : ''}
     ${go ? `<button class="btn" id="cont">${resumable(next) ? 'Resume' : 'Start'}${multi ? ` ${partName}` : ''}</button>` : ''}
     ${due && go && !resumable(next) ? `<button class="hero-link" id="revonly">Short on time? Just reviews · ${due}</button>` : ''}
     ${!go && due ? `<button class="btn" id="revonly">Review · ${due}</button>` : ''}
