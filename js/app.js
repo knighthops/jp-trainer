@@ -194,10 +194,13 @@ function lessonTrail(unit, current, parts, { justDone = null, label: nowLabel = 
   };
   const multi = parts?.count > 1;
   const justAt = unit.lessons.findIndex((l) => l.id === justDone);
-  const at = justDone ? justAt + 1 : unit.lessons.indexOf(current);
+  // After a lesson, the next one to light is the first after it still to do (none on a redo
+  // of an earlier lesson whose later ones are done).
+  const nextAt = unit.lessons.findIndex((l, i) => i > justAt && !state.course.done[l.id]);
+  const at = justDone ? (nextAt < 0 ? unit.lessons.length : nextAt) : unit.lessons.indexOf(current);
   return `<ol class="ptrail ltrail${justDone ? " fin" : ""}" aria-label="Lesson ${Math.min(at, unit.lessons.length - 1) + 1} of ${unit.lessons.length}${multi ? `, part ${parts.index + 1} of ${parts.count}` : ""}">${unit.lessons.map((l, i) => {
     const s = l.id === justDone ? "just" : justDone && i === at ? "next"
-      : l === current ? "now" : state.course.done[l.id] || i < at ? "done" : "";
+      : l === current ? "now" : state.course.done[l.id] || (!justDone && i < at) ? "done" : "";
     const inner = s === "done" || s === "just" ? icons.check : `<span>${i + 1}</span>`;
     const label = s === "just" ? "Just now" : s === "done" ? "Done" : s === "next" ? "Up next"
       : s === "now" ? nowLabel || (multi ? `Part ${parts.index + 1} of ${parts.count}` : "Up next") : `Lesson ${i + 1}`;
