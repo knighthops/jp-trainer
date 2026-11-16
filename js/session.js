@@ -2,7 +2,6 @@
 // No DOM, so it can be unit tested.
 import { isDue } from './srs.js';
 import { grammarId, grammarDrills } from './course.js';
-import { tripReviewSteps } from './trip.js';
 
 // Recalled fewer times than this, an item is reviewed by a checked question, not a self-rating.
 export const YOUNG = 3;
@@ -15,7 +14,7 @@ export const talkId = (phrase) => `t:${phrase.id}`;
 
 // A short block of what's due, sized for a pocket of time: cards first, then grammar,
 // a few drills, starred phrases and missed test questions. Run it again for more.
-export function reviewSteps(state, data, now = Date.now(), { cards = 15, grammar = 5, drills = 3, trip = 5, rng = Math.random } = {}) {
+export function reviewSteps(state, data, now = Date.now(), { cards = 15, grammar = 5, drills = 3, rng = Math.random } = {}) {
   const { items } = state;
   const due = (s) => isDue(items[s.id], now);
   const oldestFirst = (a, b) => items[a.id].due - items[b.id].due;
@@ -43,8 +42,7 @@ export function reviewSteps(state, data, now = Date.now(), { cards = 15, grammar
       ...data.vocab.map((x) => ({ type: 'card', kind: 'word', id: wordId(x), ref: x })),
     ], cards).map(asked),
     ...grammarSteps,
-    // Trip signs, lines and announcements that are due.
-    ...tripReviewSteps(data.trip || [], items, now, trip),
+    // Trip phrases stay in Trip, which brings back its own due lines: the course is N5 only.
     // Course drills are reviewed through their grammar point, so only the older practice sets come here.
     ...pick(data.sentences.filter((x) => !x.lesson).map((x) => ({ type: 'sentence', id: sentenceId(x), ref: x })), drills),
     ...pick(data.particles.sets.flatMap((set) => set.items.map((x) => ({ type: 'particle', id: particleId(x), ref: x, set }))), drills),

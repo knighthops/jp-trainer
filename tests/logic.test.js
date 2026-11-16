@@ -988,7 +988,7 @@ test('trip: due parts come first, then new ones in scene order; due items join r
   assert.ok(due.every((s) => s.type === 'tripSign'));
   const state = { ...blank(), items };
   const steps = reviewSteps(state, { ...data, trip: scenes }, NOW);
-  assert.ok(steps.some((s) => s.type === 'tripSign'), 'trip items appear in the daily review');
+  assert.ok(!steps.some((s) => s.type.startsWith('trip')), 'trip items stay out of the course review');
   // Listening lines are due too, but the daily review is silent, so they wait for Trip.
   assert.ok(!tripReviewSteps(scenes, items, NOW, 50).some((s) => s.type === 'tripHear'));
 });
