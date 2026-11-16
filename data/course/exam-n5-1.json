@@ -34,7 +34,7 @@
 {"q":"この 部屋 は ___ です 。","o":["静か","静かな","静かに","静かで"],"w":"な adjectives drop な before です.","en":"This room is quiet."},
 {"q":"ご飯 を ___ から 、 歯 を 磨きます 。","o":["食べて","食べる","食べた","食べ"],"w":"てから means after doing.","en":"After eating, I brush my teeth."},
 {"q":"A 「 コーヒー を 飲みません か 。」 B 「 ___ 」","o":["ええ 、 飲みましょう 。","はい 、 飲みません 。","いいえ 、 飲みます 。","ええ 、 飲みました 。"],"w":"Accept an invitation with ましょう.","en":"A: Would you like some coffee? B: Yes, let's."},
-{"q":"美術館 で 写真 を ___ 。","o":["撮ってはいけません","撮らないでいけません","撮ってはありません","撮るはいけません"],"w":"て form plus はいけません means must not.","en":"You must not take photos in the art museum."},
+{"q":"図書館 で 写真 を ___ 。","o":["撮ってはいけません","撮らないでいけません","撮ってはありません","撮るはいけません"],"w":"て form plus はいけません means must not.","en":"You must not take photos in the library."},
 {"q":"東京 は 大阪 ___ 大きい です 。","o":["より","ほう","から","まで"],"w":"より means than.","en":"Tokyo is bigger than Osaka."},
 {"q":"机 の 上 に 本 が 三冊 ___ 。","o":["あります","います","です","します"],"w":"Things that don't move use あります.","en":"There are three books on the desk."}]},
 {"id":"g2","title":"Sentence order","instr":"Put the words in order. Choose the one that goes in the ★ slot.","questions":[
@@ -49,8 +49,8 @@
 {"q":"（４）","o":["だから","でも","まだ","もう"],"w":"Walking a lot is the reason for being tired, so だから.","en":"So, I was very tired in the evening."}]},
 {"id":"r1","title":"Short passages","instr":"Read and choose the best answer.","questions":[
 {"p":"田中 さん 、 今日 の 会議 は ありません 。 明日 の 十時 に 来て ください 。\n山田","q":"田中 さん は いつ 来ます か 。","o":["明日 の 十時","今日 の 十時","明日 の 一時","今日 の 午後"],"w":"The note says 明日の十時.","en":"Mr Tanaka, there's no meeting today. Please come at 10:00 tomorrow."},
-{"p":"私 の 部屋 です 。 机 の 上 に パソコン が あります 。 窓 の 下 に ベッド が あります 。 テレビ は ありません 。","q":"ベッド は どこ に あります か 。","o":["窓 の 下","机 の 上","ドア の 横","窓 の 上"],"w":"The passage says 窓の下にベッドがあります.","en":"This is my room. There's a computer on the desk and a bed under the window. There's no TV."}]},
-{"id":"r2","title":"Longer passage","instr":"Read and choose the best answer.","p":"私 は 去年 の 四月 に 日本 へ 来ました 。 今 大阪 の 大学 で 日本語 を 勉強しています 。 週末 は 駅 の 前 の 店 で 働いています 。 店 の 人 は みんな 親切 です 。 来月 、 母 が 日本 へ 来ます 。 いっしょ に 京都 へ 行きたい です 。","questions":[
+{"p":"私 の 部屋 です 。 机 の 上 に 時計 が あります 。 窓 の 下 に ベッド が あります 。 テレビ は ありません 。","q":"ベッド は どこ に あります か 。","o":["窓 の 下","机 の 上","ドア の 横","窓 の 上"],"w":"The passage says 窓の下にベッドがあります.","en":"This is my room. There's a clock on the desk and a bed under the window. There's no TV."}]},
+{"id":"r2","title":"Longer passage","instr":"Read and choose the best answer.","p":"私 は 去年 の 四月 に 日本 へ 来ました 。 今 大阪 の 大学 で 日本語 を 勉強しています 。 週末 は 駅 の 前 の 店 で 働いています 。 店 の 人 は みんな 元気 です 。 来月 、 母 が 日本 へ 来ます 。 いっしょ に 京都 へ 行きたい です 。","questions":[
 {"q":"この 人 は 週末 に 何 を します か 。","o":["店 で 働きます","大学 で 勉強します","京都 へ 行きます","母 に 会います"],"w":"The passage says 週末は…店で働いています.","en":"I came to Japan last April and study at a university in Osaka. On weekends I work at a shop."},
 {"q":"この 人 は 来月 何 を したい です か 。","o":["母 と 京都 へ 行きたい","一人 で 京都 へ 行きたい","母 の 国 へ 帰りたい","大阪 の 店 で 働きたい"],"w":"The passage says 母が来ます, and いっしょに京都へ行きたいです.","en":"My mother is coming next month. I want to go to Kyoto with her."}]},
 {"id":"r3","title":"Finding information","instr":"Look at the notice and choose the best answer.","p":"さくら 図書館 の お知らせ\n月曜日 ： 休み\n火曜日 から 金曜日 ： 九時 から 七時 まで\n土曜日 と 日曜日 ： 十時 から 五時 まで\n本 は 二週間 借りる こと が できます 。","questions":[
@@ -62,7 +62,7 @@
 {"play":[["F","先生 と 学生 が 話しています 。 学生 は 明日 何時 に 学校 へ 来ます か 。"],["F","先生 、 明日 の テスト は 何時 から です か 。"],["M","九時 から です 。 八時 半 に 来て ください 。"],["F","はい 、 分かりました 。"],["F","学生 は 明日 何時 に 学校 へ 来ます か 。"]],"o":["八時 半","九時","八時","九時 半"],"w":"The test starts at 9:00, but the teacher says to come at 8:30.","en":"The student comes at 8:30."},
 {"play":[["M","男の人 と 女の人 が 話しています 。 女の人 は 本 を どこ に 置きます か 。"],["M","この 本 を いす の 上 に 置いて ください 。"],["F","いす の 上 です か 。"],["M","あ 、 すみません 。 机 の 上 に お願いします 。"],["M","女の人 は 本 を どこ に 置きます か 。"]],"o":["机 の 上","いす の 上","かばん の 中","窓 の 下"],"w":"He corrects himself: 机の上に.","en":"She puts it on the desk."},
 {"play":[["F","女の人 が 話しています 。 女の人 は 駅 まで 何 で 行きます か 。"],["F","今日 は 雨 です から 、 駅 まで バス で 行きます 。 駅 から 会社 まで 電車 で 行きます 。"],["F","女の人 は 駅 まで 何 で 行きます か 。"]],"o":["バス","電車","タクシー","自転車"],"w":"She takes the bus to the station, then the train.","en":"She goes to the station by bus."},
-{"play":[["M","二人 が 話しています 。 二人 は 昼ご飯 に 何 を 食べます か 。"],["M","昼ご飯 は ラーメン に しましょう か 。"],["F","ラーメン は 昨日 食べました 。 今日 は すし が いい です 。"],["M","いい です ね 。 じゃあ 、 そう しましょう 。"],["M","二人 は 昼ご飯 に 何 を 食べます か 。"]],"o":["すし","ラーメン","カレー","パン"],"w":"She had ramen yesterday and suggests sushi, and he agrees.","en":"They'll have sushi."},
+{"play":[["M","二人 が 話しています 。 二人 は 昼ご飯 に 何 を 食べます か 。"],["M","昼ご飯 は カレー に しましょう か 。"],["F","カレー は 昨日 食べました 。 今日 は すし が いい です 。"],["M","いい です ね 。 じゃあ 、 そう しましょう 。"],["M","二人 は 昼ご飯 に 何 を 食べます か 。"]],"o":["すし","カレー","肉","パン"],"w":"She had curry yesterday and suggests sushi, and he agrees.","en":"They'll have sushi."},
 {"play":[["F","先生 が 話しています 。 学生 は 今日 どの ページ を 勉強します か 。"],["F","今日 の 宿題 は 十ページ と 十一ページ です 。 十二ページ は 来週 です 。"],["F","学生 は 今日 どの ページ を 勉強します か 。"]],"o":["十ページ と 十一ページ","十一ページ と 十二ページ","十ページ だけ","十二ページ だけ"],"w":"Page 12 is for next week.","en":"Pages 10 and 11."},
 {"play":[["F","女の人 と 男の人 が 話しています 。 男の人 は 何 を 持って行きます か 。"],["F","今日 は 雨 が 降ります よ 。 かさ を 持って行って ください 。"],["M","そう です か 。 ありがとうございます 。"],["F","男の人 は 何 を 持って行きます か 。"]],"o":["かさ","帽子","コート","かばん"],"w":"She says かさを持って行ってください.","en":"He takes an umbrella."}]},
 {"id":"l2","title":"Key points","instr":"Listen, then choose the best answer.","questions":[

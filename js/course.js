@@ -6,8 +6,22 @@ import { shuffled } from './drills.js';
 import { sameMeaning } from './exercises.js';
 import { stageOf, STRONG, MASTERED } from './srs.js';
 
+// Each JLPT level is its own block of data. To add N4: write data/kanji-n4.json,
+// data/vocab-n4.json and its course files (units numbered on from the last N5 unit,
+// ids unique across levels), then add an entry here. Levels run in this order, and
+// units still open one after another, so N4 starts once N5 is done.
 // The extra files add lessons, words and readings to units already defined above them.
-export const UNIT_FILES = ['units-01-04', 'units-05-08', 'units-09-12', 'units-13-16', 'units-17-20', 'units-21-24', 'extra-01-08', 'extra-09-16', 'extra-17-24', 'fill-n5'];
+export const JLPT_LEVELS = [
+  {
+    id: 'n5', name: 'N5', kanji: 'kanji-n5', vocab: 'vocab-n5',
+    units: ['units-01-04', 'units-05-08', 'units-09-12', 'units-13-16', 'units-17-20', 'units-21-24', 'extra-01-08', 'extra-09-16', 'extra-17-24', 'fill-n5'],
+    exams: ['exam-n5-1', 'exam-n5-2'],
+  },
+];
+export const UNIT_FILES = JLPT_LEVELS.flatMap((l) => l.units);
+export const EXAM_FILES = JLPT_LEVELS.flatMap((l) => l.exams);
+// The level a course or exam file belongs to.
+export const levelOfFile = (f) => JLPT_LEVELS.find((l) => l.units.includes(f) || l.exams.includes(f))?.id;
 
 // A Words lesson teaches a unit's themed vocabulary and ends on the unit's reading.
 export const isWords = (lesson) => lesson.kind === 'words';
@@ -107,7 +121,9 @@ export function toChoice(d) {
 
 // Adds the course's words to the glossary and vocabulary, and its drills to the review pool.
 export function mergeCourse(data, files) {
-  const units = joinUnits(files).sort((a, b) => a.n - b.n);
+  // Files come in UNIT_FILES order, so each unit can be tagged with its level.
+  const tagged = files.map((list, i) => (list || []).map((u) => ({ level: levelOfFile(UNIT_FILES[i]) ?? JLPT_LEVELS[0].id, ...u })));
+  const units = joinUnits(tagged).sort((a, b) => a.n - b.n);
   const add = (lex) => {
     for (const [w, [y, m, ro]] of Object.entries(lex || {})) {
       if (!data.glossary[w]) data.glossary[w] = { y, m, ro: ro ?? romaji(y) };

@@ -31,7 +31,7 @@
 {"q":"公園 ___ 友達 と テニス を します 。","o":["で","を","へ","が"],"w":"An action's place takes で.","en":"I play tennis with a friend in the park."},
 {"q":"私 は 兄 ___ 二人 います 。","o":["が","を","で","へ"],"w":"います takes が for what exists.","en":"I have two older brothers."},
 {"q":"昨日 の 映画 は ___ 。","o":["おもしろくなかったです","おもしろいじゃなかったです","おもしろくないでした","おもしろかないです"],"w":"The past negative of い adjectives is くなかったです.","en":"Yesterday's movie wasn't interesting."},
-{"q":"あの 人 は ___ 先生 です 。","o":["親切な","親切","親切に","親切で"],"w":"な adjectives take な before a noun.","en":"That person is a kind teacher."},
+{"q":"あの 人 は ___ 先生 です 。","o":["有名な","有名","有名に","有名で"],"w":"な adjectives take な before a noun.","en":"That person is a famous teacher."},
 {"q":"手 を ___ 、 ご飯 を 食べます 。","o":["洗って","洗う","洗った","洗います"],"w":"Use て to list actions in order.","en":"I wash my hands and eat."},
 {"q":"A 「 これ は だれ の 本 です か 。」 B 「 ___ 」","o":["田中 さん の です 。","田中 さん です 。","本 が あります 。","はい 、 本 です 。"],"w":"だれの asks whose: 田中さんのです.","en":"A: Whose book is this? B: It's Mr Tanaka's."},
 {"q":"ここ に 車 を ___ ください 。","o":["止めないで","止めなくて","止めない","止まないで"],"w":"ないでください means please don't.","en":"Please don't park your car here."},
@@ -53,14 +53,14 @@
 {"id":"r2","title":"Longer passage","instr":"Read and choose the best answer.","p":"先週 の 土曜日 に 、 家族 と 海 へ 行きました 。 車 で 二時間 ぐらい かかりました 。 海 は とても きれい でした 。 妹 は 泳ぎました が 、 私 は 泳ぎませんでした 。 水 が 冷たかった から です 。 昼ご飯 に 魚 を 食べました 。 とても おいしかった です 。","questions":[
 {"q":"この 人 は どうして 泳ぎませんでした か 。","o":["水 が 冷たかった から","海 が きれい では なかった から","時間 が なかった から","魚 を 食べた から"],"w":"The passage says 水が冷たかったからです.","en":"My sister swam, but I didn't, because the water was cold."},
 {"q":"海 まで どのぐらい かかりました か 。","o":["二時間 ぐらい","一時間 ぐらい","三時間 ぐらい","二十分 ぐらい"],"w":"The passage says 二時間ぐらい.","en":"It took about two hours by car."}]},
-{"id":"r3","title":"Finding information","instr":"Look at the notice and choose the best answer.","p":"日本語 クラス の お知らせ\nクラス A ： 月曜日 と 水曜日 、 午前 十時 から\nクラス B ： 火曜日 と 木曜日 、 午後 二時 から\nクラス C ： 土曜日 、 午前 九時 から\n一回 千円 です 。 教科書 を 持って来て ください 。","questions":[
+{"id":"r3","title":"Finding information","instr":"Look at the notice and choose the best answer.","p":"日本語 クラス の お知らせ\nクラス A ： 月曜日 と 水曜日 、 午前 十時 から\nクラス B ： 火曜日 と 木曜日 、 午後 二時 から\nクラス C ： 土曜日 、 午前 九時 から\n一回 千円 です 。 辞書 を 持って来て ください 。","questions":[
 {"q":"午後 の クラス は どれ です か 。","o":["クラス B","クラス A","クラス C","クラス A と C"],"w":"Only Class B starts in the afternoon, at 2:00.","en":"Class A is Monday and Wednesday at 10 am, Class B is Tuesday and Thursday at 2 pm, and Class C is Saturday at 9 am."}]}]},
 
 {"title":"Listening","minutes":30,"score":"listening","parts":[
 {"id":"l1","title":"Task-based comprehension","instr":"Listen, then choose the best answer.","questions":[
 {"play":[["F","店 で 女の人 と 店 の 人 が 話しています 。 女の人 は 何 を 買います か 。"],["F","この 白い シャツ は いくら です か 。"],["M","三千円 です 。 青い シャツ は 二千円 です 。"],["F","じゃあ 、 青い シャツ を ください 。"],["F","女の人 は 何 を 買います か 。"]],"o":["青い シャツ","白い シャツ","青い かばん","白い かばん"],"w":"She says 青いシャツをください.","en":"She buys the blue shirt."},
 {"play":[["M","男の人 と 女の人 が 話しています 。 二人 は 何時 に 会います か 。"],["M","明日 は 十時 に 会いましょう か 。"],["F","十時 は ちょっと 。 十一時 は どう です か 。"],["M","いい です よ 。 じゃあ 、 十一時 に 。"],["M","二人 は 何時 に 会います か 。"]],"o":["十一時","十時","九時","十二時"],"w":"She can't do 10:00, so they agree on 11:00.","en":"They'll meet at 11:00."},
-{"play":[["F","先生 が 話しています 。 学生 は 明日 何 を 持って来ます か 。"],["F","明日 は テスト です 。 鉛筆 を 持って来て ください 。 教科書 と 辞書 は いりません 。"],["F","学生 は 明日 何 を 持って来ます か 。"]],"o":["鉛筆","教科書","辞書","ノート"],"w":"Only a pencil is needed.","en":"They bring a pencil."},
+{"play":[["F","先生 が 話しています 。 学生 は 明日 何 を 持って来ます か 。"],["F","明日 は テスト です 。 鉛筆 を 持って来て ください 。 ノート と 辞書 は いりません 。"],["F","学生 は 明日 何 を 持って来ます か 。"]],"o":["鉛筆","ノート","辞書","かばん"],"w":"Only a pencil is needed.","en":"They bring a pencil."},
 {"play":[["M","男の人 が 道 を 聞いています 。 男の人 は どこ で 右 へ 行きます か 。"],["M","すみません 、 駅 は どこ です か 。"],["F","まっすぐ 行って 、 銀行 の 前 を 右 へ 行って ください 。"],["M","ありがとうございます 。"],["M","男の人 は どこ で 右 へ 行きます か 。"]],"o":["銀行 の 前","駅 の 前","学校 の 前","公園 の 前"],"w":"She says 銀行の前を右へ.","en":"He turns right at the bank."},
 {"play":[["F","二人 が 話しています 。 女の人 は 週末 に 何 を します か 。"],["M","週末 は 映画 を 見ません か 。"],["F","すみません 。 週末 は 母 と 買い物 を します 。"],["F","女の人 は 週末 に 何 を します か 。"]],"o":["母 と 買い物","男の人 と 映画","一人 で 映画","母 と 料理"],"w":"She declines the movie: 母と買い物をします.","en":"She's going shopping with her mother."},
 {"play":[["M","医者 と 男の人 が 話しています 。 男の人 は 今晩 何 を しません か 。"],["F","今晩 は お風呂 に 入らないで ください 。 薬 を 飲んで 、 早く 寝て ください 。"],["M","分かりました 。"],["M","男の人 は 今晩 何 を しません か 。"]],"o":["お風呂 に 入る","薬 を 飲む","早く 寝る","ご飯 を 食べる"],"w":"The doctor says お風呂に入らないでください.","en":"He won't take a bath."},
@@ -70,7 +70,7 @@
 {"play":[["F","テスト は いつ です か 。"],["F","テスト は 金曜日 です か 。"],["M","いいえ 、 木曜日 です よ 。"],["F","テスト は いつ です か 。"]],"o":["木曜日","金曜日","水曜日","土曜日"],"w":"He corrects her: 木曜日です.","en":"Thursday."},
 {"play":[["M","コーヒー は いくら です か 。"],["M","すみません 、 コーヒー と ケーキ は いくら です か 。"],["F","コーヒー は 四百円 、 ケーキ は 五百円 です 。"],["M","コーヒー は いくら です か 。"]],"o":["四百円","五百円","九百円","三百円"],"w":"Coffee is 400 yen, and cake is 500 yen.","en":"400 yen."},
 {"play":[["F","男の人 は 何人 で 来ました か 。"],["F","今日 は お一人 です か 。"],["M","いいえ 、 妻 と 子ども が 二人 います 。"],["F","男の人 は 何人 で 来ました か 。"]],"o":["四人","三人","二人","一人"],"w":"Himself, his wife and two children make four.","en":"Four people."},
-{"play":[["M","女の人 は どうして 映画 を 見ません か 。"],["M","今晩 映画 を 見ません か 。"],["F","すみません 。 明日 試験 が あります から 。"],["M","女の人 は どうして 映画 を 見ません か 。"]],"o":["明日 試験 が あるから","お金 が ないから","映画 が 好き では ないから","もう 見たから"],"w":"She says 明日試験がありますから.","en":"She has an exam tomorrow."},
+{"play":[["M","女の人 は どうして 映画 を 見ません か 。"],["M","今晩 映画 を 見ません か 。"],["F","すみません 。 明日 テスト が あります から 。"],["M","女の人 は どうして 映画 を 見ません か 。"]],"o":["明日 テスト が あるから","お金 が ないから","映画 が 好き では ないから","もう 見たから"],"w":"She says 明日テストがありますから.","en":"She has a test tomorrow."},
 {"play":[["F","男の人 の 仕事 は 何 です か 。"],["F","お父さん は 先生 です か 。"],["M","いいえ 、 父 は 医者 です 。 私 は 銀行員 です 。"],["F","男の人 の 仕事 は 何 です か 。"]],"o":["銀行員","医者","先生","学生"],"w":"His father is a doctor, and he works at a bank.","en":"He's a bank employee."}]},
 {"id":"l3","title":"Verbal expressions","instr":"Listen to the situation. Choose what the person would say.","questions":[
 {"ao":true,"play":[["F","夜 、 友達 と 別れます 。 寝る 前 です 。 何 と 言います か 。"]],"o":["おやすみなさい","おはようございます","いらっしゃいませ","いただきます"],"w":"おやすみなさい is good night.","en":"You part at night before bed."},

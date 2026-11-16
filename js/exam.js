@@ -53,6 +53,54 @@ export function wordKind(v) {
   return 'noun';
 }
 
+// A ★ question as the exam sets it: four pieces of a sentence go in the slots, and you
+// pick the one that lands on ★ (the third slot). Needs at least one word either side of
+// the slots and four different pieces, so there's only one way to read the answer.
+export function starQuestion(sentence, id, rng = Math.random) {
+  const list = words(sentence).filter((w) => !/^[。、？！]$/.test(w));
+  if (list.length < 6) return null;
+  // と and や join two things that could go either way round, and so do two adjectives.
+  const fits = (p) => new Set(p).size === 4 && !p.some((x) => x === 'と' || x === 'や')
+    && p.filter((x) => /い$/.test(x) && x !== 'ない').length < 2;
+  const starts = shuffled(Array.from({ length: list.length - 5 }, (_, i) => i + 1), rng);
+  const start = starts.find((s) => fits(list.slice(s, s + 4)));
+  if (start === undefined) return null;
+  const pieces = list.slice(start, start + 4);
+  const slots = '（　）（　）（★）（　）';
+  return {
+    id, q: [...list.slice(0, start), slots, ...list.slice(start + 4)].join(' '),
+    ask: 'Put the four pieces in order. Which one goes in ★?',
+    o: [pieces[2], ...pieces.filter((_, i) => i !== 2)],
+    w: list.join(' '),
+  };
+}
+
+// Picks the right kanji for a word written in kana. Wrong spellings swap one kanji for a
+// taught kanji that looks or sounds alike, and are never a real word.
+export function spellingQuestion(v, taughtKanji, data, id, rng = Math.random) {
+  const info = (c) => data.kanji.find((k) => k.k === c);
+  const partsOf = (c) => new Set((info(c)?.parts || []).map((p) => p.c));
+  const real = new Set(data.vocab.map((x) => x.w));
+  const spots = [...v.w].map((c, i) => (/[一-龯]/.test(c) ? i : -1)).filter((i) => i >= 0);
+  const fakes = [];
+  for (const i of shuffled(spots, rng)) {
+    const c = v.w[i];
+    const mine = partsOf(c);
+    const on = new Set(info(c)?.on || []);
+    const near = (k) => ([...partsOf(k)].some((p) => mine.has(p)) ? 0 : 1) + ((info(k)?.on || []).some((r) => on.has(r)) ? 0 : 1);
+    const pool = shuffled([...new Set(taughtKanji)].filter((k) => k !== c), rng).sort((a, b) => near(a) - near(b));
+    for (const k of pool) {
+      const fake = v.w.slice(0, i) + k + v.w.slice(i + 1);
+      if (fakes.length < 3 && !real.has(fake) && !fakes.includes(fake)) fakes.push(fake);
+    }
+  }
+  if (fakes.length < 3) return null;
+  return {
+    id, q: `[${v.y}]`, ask: 'How is the underlined word written?',
+    o: [v.w, ...fakes.slice(0, 3)], w: `${v.y} is written ${v.w}: ${v.m}.`, word: v.w,
+  };
+}
+
 // The written questions of a unit, plus word questions drawn from what it teaches.
 export function unitTest(unit, data, rng = Math.random) {
   const taught = unit.lessons.flatMap((l) => l.words || [])
@@ -81,7 +129,9 @@ export function unitTest(unit, data, rng = Math.random) {
     for (const v of ranked) if (out.length < 3 && !out.some((o) => o === v[field] || (field === 'm' && sameMeaning(o, v.m)))) out.push(v[field]);
     return out;
   };
-  const chosen = shuffled(taught, rng).slice(0, 6);
+  // A word the unit's own quiz already asks about (はじめまして) isn't asked twice.
+  const quizzed = new Set((unit.quiz || []).map((q) => q.q.replace(/[\s[\]。]/g, '')));
+  const chosen = shuffled(taught.filter((v) => !quizzed.has(v.w)), rng).slice(0, 6);
   const wordQs = chosen.map((v, i) => (i % 2 === 0 && v.w !== v.y
     ? { id: `${unit.id}-r${i}`, q: `[${v.w}]`, ask: 'How is this read?', o: [v.y, ...others('y', v.y, v)], w: `${v.w} is read ${v.y}: ${v.m}.`, word: v.w }
     : { id: `${unit.id}-m${i}`, q: `[${v.w}]`, ask: 'What does this mean?', o: [v.m, ...others('m', v.m, v)], w: `${v.w} means ${v.m}.`, word: v.w }));
@@ -92,6 +142,16 @@ export function unitTest(unit, data, rng = Math.random) {
       id: `${unit.id}-c${i}`, q: d.c, ask: d.en ? `You want to say: “${d.en}”` : 'Which fits the blank?',
       o: [d.a, ...Object.keys(d.w)].slice(0, 4), w: d.note || '',
     })).map(trim).filter(fair);
+  // The two JLPT formats a word list alone doesn't practise: putting pieces in order (★)
+  // and picking the right kanji spelling of a word written in kana.
+  const order = shuffled(unit.lessons.flatMap((l) => [...l.drills.filter((d) => d.b).map((d) => d.b), ...(l.examples || []).map((e) => e.t)]), rng)
+    .map((b) => starQuestion(b, `${unit.id}-s`, rng)).find((q) => q && ok(q.w));
+  const taughtKanji = data.units.slice(0, data.units.indexOf(unit) + 1)
+    .flatMap((u) => u.lessons.flatMap((l) => l.kanji || []));
+  const spelling = shuffled(taught.filter((v) => /[一-龯]/.test(v.w) && v.w !== v.y && !KATAKANA.test(v.y)
+    && [...v.w].every((c) => !/[一-龯]/.test(c) || taughtKanji.includes(c))), rng)
+    .map((v) => spellingQuestion(v, taughtKanji, data, `${unit.id}-k`, rng)).find(Boolean);
+  for (const q of [order, spelling]) if (q) written.push(q);
   const room = Math.max(0, MIN_QUESTIONS - wordQs.length - written.length);
   written.push(...shuffled(blanks, rng).slice(0, room));
   return {

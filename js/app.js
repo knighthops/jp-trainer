@@ -17,7 +17,7 @@ import {
 } from './drills.js';
 import { makeWriteIndex, recognize } from './handwrite.js';
 import {
-  UNIT_FILES, mergeCourse, isUnlocked, unitProgress, nextUp, examUnlocked, lessonSteps, words as splitWords, isTaught, choiceShown, lessonParts, drillWords,
+  UNIT_FILES, EXAM_FILES, JLPT_LEVELS, levelOfFile, mergeCourse, isUnlocked, unitProgress, nextUp, examUnlocked, lessonSteps, words as splitWords, isTaught, choiceShown, lessonParts, drillWords,
   LEVELS, levelSentences, levelProgress, levelUnlocked, particleItem, courseSteps, rankOf, RANKS, unitStars, grammarId, passUnit, isWords, lessonStars,
 } from './course.js';
 import { mockExam, unitTest, startExam, RETAKE_MIN } from './exam.js';
@@ -1279,7 +1279,7 @@ function renderReading(step) {
   view.innerHTML = `<div class="card gloss-zone">
       <span class="caps"><span class="jp">読解</span> Reading</span>
       <h3>${r.title}</h3>
-      <p class="small muted">Read it through on your own first. Tap a word for its meaning, or the speaker to hear a line.</p>
+      <p class="small muted">Read it through on your own first. Tap a word for its meaning${document.body.classList.contains('quiet') ? '' : ', or the speaker to hear a line'}.</p>
       <div class="reading" id="lines">${r.lines.map((l, i) => `<div class="rdline" data-i="${i}"><div class="grow">
         <div class="stem jp">${wordLine(l.t)}</div>
         <p class="romaji">${lineRomaji(l.t)}</p><p class="small muted sen">${l.en}</p></div>
@@ -3056,8 +3056,11 @@ async function init() {
       if (!r.ok) throw new Error(`${f}: ${r.status}`);
       return r.json();
     });
+    // Kanji and words of every level, in level order: N5 first.
+    const levelFiles = (key) => Promise.all(JLPT_LEVELS.map((l) => get(l[key]))).then((lists) => lists.flat());
     const [kanji, vocab, sentences, particles, glossary, bank, talk, stories, kanjiMore, trip, audio, emoji, ...rest] = await Promise.all([
-      ...['kanji-n5', 'vocab-n5', 'sentences', 'particles', 'glossary', 'particle-bank'].map(get),
+      levelFiles('kanji'), levelFiles('vocab'),
+      ...['sentences', 'particles', 'glossary', 'particle-bank'].map(get),
       get('talk').catch(() => ({ categories: [], lex: {} })),
       get('stories').catch(() => []),
       get('kanji-more').catch(() => []),
@@ -3065,7 +3068,7 @@ async function init() {
       get('audio').catch(() => []),
       get('emoji').catch(() => ({})),
       ...UNIT_FILES.map((f) => get(`course/${f}`).catch(() => [])),
-      ...['exam-n5-1', 'exam-n5-2'].map((f) => get(`course/${f}`).catch(() => null)),
+      ...EXAM_FILES.map((f) => get(`course/${f}`).then((paper) => ({ level: levelOfFile(f), ...paper })).catch(() => null)),
     ]);
     const papers = rest.slice(UNIT_FILES.length).filter(Boolean);
     data = mergeCourse({ kanji, vocab, sentences, particles, glossary, bank, papers }, rest.slice(0, UNIT_FILES.length));

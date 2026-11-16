@@ -1499,3 +1499,40 @@ test('speech stays silent while a quiz run has muted it', async () => {
   delete globalThis.window;
   delete globalThis.SpeechSynthesisUtterance;
 });
+
+test('unit tests practise the ★ order and kanji spelling formats fairly', async () => {
+  const { starQuestion, spellingQuestion } = await import('../js/exam.js');
+  const rng = () => 0;
+  const q = starQuestion('私 は 毎朝 パン を 食べます', 'x', rng);
+  assert.equal(q.q, '私 （　）（　）（★）（　） 食べます');
+  assert.equal(q.o[0], 'パン');
+  assert.deepEqual([...q.o].sort(), ['は', 'パン', 'を', '毎朝'].sort());
+  assert.equal(starQuestion('私 は 学生 です', 'x', rng), null);
+  const merged = course();
+  const v = merged.vocab.find((x) => x.w === '学生');
+  const s = spellingQuestion(v, ['学', '生', '先', '字', '子', '年'], merged, 'k', rng);
+  assert.equal(s.o[0], '学生');
+  assert.equal(new Set(s.o).size, 4);
+  const real = new Set(merged.vocab.map((x) => x.w));
+  assert.ok(s.o.slice(1).every((o) => !real.has(o) && o.length === 2));
+  let stars = 0, spells = 0;
+  for (const unit of merged.units) {
+    for (const x of unitTest(unit, merged).sections[0].questions) {
+      if (/-s$/.test(x.id)) stars++;
+      if (/-k$/.test(x.id)) spells++;
+    }
+  }
+  assert.ok(stars >= merged.units.length * 0.7, `★ questions in most units (${stars})`);
+  assert.ok(spells >= merged.units.length * 0.7, `spelling questions in most units (${spells})`);
+});
+
+test('levels list every course file, and every unit knows its level', async () => {
+  const { JLPT_LEVELS: LEVELS, EXAM_FILES } = await import('../js/course.js');
+  const { readdirSync } = await import('node:fs');
+  const files = readdirSync(new URL('../data/course/', import.meta.url)).map((f) => f.replace(/\.json$/, ''));
+  for (const f of files) assert.ok(UNIT_FILES.includes(f) || EXAM_FILES.includes(f), `${f} is listed in a level`);
+  const merged = course();
+  const ids = LEVELS.map((l) => l.id);
+  assert.ok(merged.units.every((u) => ids.includes(u.level)), 'every unit has a level');
+  assert.equal(new Set(merged.units.map((u) => u.n)).size, merged.units.length, 'unit numbers are unique across levels');
+});
