@@ -46,8 +46,8 @@ export function wordQuestion(v, vocab, dir, opts = {}) {
   return { dir, word: v, options: list.map((x) => (dir === 'jp' ? x.w : x.m)), answer: list.indexOf(v), items: list };
 }
 
-// A choice led by its kana, with the romaji and meaning under it. The meaning is cut to its first sense.
-export const kanaOption = (y, m) => `<span class="jp">${y}</span><small>${romaji(y)} · ${String(m).split(/[;；]/)[0].trim()}</small>`;
+// A choice led by its kana, with its meaning under it. The meaning is cut to its first sense.
+export const kanaOption = (y, m) => `<span class="jp">${y}</span><small>${String(m).split(/[;；]/)[0].trim()}</small>`;
 
 // Small kana and the long-vowel mark ride with the kana before them, so tiles are sounds.
 export function kanaTiles(reading) {
