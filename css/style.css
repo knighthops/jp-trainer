@@ -1370,3 +1370,6 @@ body.no-roles .legend{display:none}
   .unit-trail .pt.parted .lt-ring .fill{animation:lt-arc .7s .4s ease-out both}
 }
 @keyframes lt-arc{from{opacity:0}}
+
+/* Quiz runs outside Trip make no sound, so their listen buttons are hidden. */
+body.quiet .say{display:none}

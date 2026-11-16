@@ -1463,3 +1463,12 @@ test('a lesson started before parts were saved still shows the part you are on',
   assert.deepEqual(parts.sizes, before.sizes);
   assert.equal(parts.index, 1);
 });
+
+test('the course has no listening steps, so it never makes a sound', () => {
+  const merged = course();
+  const state = blank();
+  for (const unit of merged.units) for (const lesson of unit.lessons) {
+    const steps = lessonSteps(unit, lesson, state, merged);
+    assert.ok(!steps.some((s) => s.dir === 'hear'), `${lesson.id} has a listening step`);
+  }
+});

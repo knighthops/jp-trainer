@@ -407,8 +407,7 @@ export function lessonSteps(unit, lesson, state, data, resume = null) {
   const newWords = learn.filter((s) => s.kind === 'word').map((s) => s.ref);
   const spell = newWords.find((v) => /[一-龯々]/.test(v.w) && v.w !== v.y && v.y.length <= 7);
   if (spell) extra.push({ type: 'spell', key: `spell:${spell.w}`, ref: spell });
-  const heard = newWords.find((v) => v !== spell) || newWords[0];
-  if (heard) extra.push({ type: 'wordq', dir: 'hear', key: `hear:${heard.w}`, ref: heard });
+  // No listening step: the course stays silent so music from other apps keeps playing.
   const intro = { type: 'lesson', ref: lesson, unit };
   if (more) return [intro, ...groups, ...extra, ...spread, { type: 'lessonPart', id: lesson.id }];
   // The dialogue (listening) closes the last grammar lesson; the reading closes the Words lesson.

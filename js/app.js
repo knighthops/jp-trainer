@@ -416,9 +416,9 @@ const kanjiKnown = () => Object.keys(state.items).filter((id) => id.startsWith('
 // `redo` marks a run of mistakes gone over again.
 const starMap = () => Object.fromEntries((data.units || []).map((u) => [u.id, unitStars(state, u)]));
 
-function startRun(steps, title, { useSrs = false, browse = false, start = 0, more = null, onDrill = null, lesson = null, then = null, drill = null, redo = false } = {}) {
+function startRun(steps, title, { useSrs = false, browse = false, start = 0, more = null, onDrill = null, lesson = null, then = null, drill = null, redo = false, sound = false } = {}) {
   run = {
-    steps: [...steps], i: start, title, useSrs, browse, more, onDrill, lesson, then, drill, redo,
+    steps: [...steps], i: start, title, useSrs, browse, more, onDrill, lesson, then, drill, redo, sound,
     kanjiBefore: kanjiKnown(), ups: [0, 0, 0, 0], starsBefore: starMap(), clean: 0, drills: 0, cards: 0,
     // Each run starts its own combo; the end screen shows the longest.
     combo: 0, bestCombo: 0,
@@ -426,6 +426,9 @@ function startRun(steps, title, { useSrs = false, browse = false, start = 0, mor
     seen: new Set(), misses: new Map(),
   };
   document.body.classList.add('in-run');
+  // Only Trip runs make sound. Elsewhere listen buttons are hidden, since any audio on
+  // iPhone pauses music playing in other apps.
+  document.body.classList.toggle('quiet', !sound);
   renderStep();
 }
 
@@ -454,7 +457,7 @@ function clearStep() {
 function endRun() {
   clearStep();
   run = null;
-  document.body.classList.remove('in-run');
+  document.body.classList.remove('in-run', 'quiet');
   route();
 }
 
@@ -608,6 +611,8 @@ function renderStep() {
   else if (step.type === 'card') renderCard(step);
   else if (step.type === 'quiz') renderQuiz(step);
   else if (step.type === 'wordq') {
+    // A listening question saved in a run from before the course went silent.
+    if (step.dir === 'hear' && !run.sound) return skipStep();
     const known = new Set(Object.keys(state.items).filter((id) => id.startsWith('w:')).map((id) => id.slice(2)));
     if (!step.q) {
       const only = knowsNow();
@@ -1638,7 +1643,7 @@ const sceneOf = (id) => data.trip.find((s) => s.id === id);
 function startPart(scene, part) {
   const { steps, useSrs } = partSteps(scene, part.key, state.items);
   if (!steps.length) return;
-  startRun(steps, `${scene.title} · ${part.label}`, { useSrs });
+  startRun(steps, `${scene.title} · ${part.label}`, { useSrs, sound: true });
 }
 
 // What a part has waiting: new items, due ones, or nothing (free practice).
@@ -2017,7 +2022,7 @@ const examContext = () => ({
     save(state);
   },
   onExit: () => {
-    document.body.classList.remove('in-run');
+    document.body.classList.remove('in-run', 'quiet');
     route();
   },
 });
@@ -2924,7 +2929,7 @@ function route() {
   if (run?.browse) {
     clearStep();
     run = null;
-    document.body.classList.remove('in-run');
+    document.body.classList.remove('in-run', 'quiet');
   }
   if (run) return;
   screenCleanup?.();
@@ -2989,7 +2994,8 @@ function noteClick(e) {
 async function init() {
   // Any listen button, on any screen.
   document.addEventListener('click', (e) => {
-    const el = e.target.closest('[data-say]');
+    // Quiz runs outside Trip stay silent, even if a listen button slips through.
+    const el = document.body.classList.contains('quiet') ? null : e.target.closest('[data-say]');
     // Any sound, even a silent unlock, pauses music from other apps on iPhone. So the app
     // only claims audio in Trip and Listen, or when you tap a listen button.
     if (el || e.target.closest('a[href^="#/listen"], a[href^="#/trip"]') || /^#\/(listen|trip)/.test(location.hash)) {
