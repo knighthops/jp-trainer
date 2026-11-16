@@ -216,19 +216,20 @@ export function explainWrong(sentence, placed, tapped) {
 }
 
 // One or two spare particles join the tiles, so the last few can't be placed by elimination.
+// Only particles already taught are used as spares (taught says which).
 // は and が stand in for each other too easily to be fair as spares for one another.
 const SPARE = ['を', 'に', 'で', 'へ', 'と', 'も', 'が', 'は'];
-export function decoysFor(sentence, rng = Math.random) {
+export function decoysFor(sentence, rng = Math.random, taught = () => true) {
   const used = new Set(sentence.blocks.map((b) => b.t));
-  const options = SPARE.filter((p) => !used.has(p) && !(p === 'が' && used.has('は')) && !(p === 'は' && used.has('が')));
+  const options = SPARE.filter((p) => taught(p) && !used.has(p) && !(p === 'が' && used.has('は')) && !(p === 'は' && used.has('が')));
   const n = sentence.blocks.length >= 5 ? 2 : 1;
   return shuffled(options, rng).slice(0, n).map((t, k) => ({ t, r: 'particle', i: sentence.blocks.length + k, decoy: true }));
 }
 
-export function renderSentence(root, sentence, { hints, glossary = {}, review = false, onDone }) {
+export function renderSentence(root, sentence, { hints, glossary = {}, review = false, taught, onDone }) {
   // Keep shuffling until the pool is not already a correct answer.
   const accepted = orders(sentence).map((o) => o.join('|'));
-  let pool = shuffled([...sentence.blocks.map((b, i) => ({ ...b, i })), ...decoysFor(sentence)]);
+  let pool = shuffled([...sentence.blocks.map((b, i) => ({ ...b, i })), ...decoysFor(sentence, Math.random, taught)]);
   for (let n = 0; n < 8 && accepted.includes(pool.map((b) => b.t).join('|')); n++) pool = shuffled(pool);
 
   const placed = [];

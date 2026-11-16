@@ -643,7 +643,7 @@ function renderStep() {
   else if (step.type === 'sentence') {
     // A course sentence waits until you've been taught every word in it.
     if (!review && step.ref?.raw && !drillWords(step.ref.raw, data).every(knowsNow())) return skipStep();
-    renderSentence(view, step.ref, { hints: state.settings.hints && ((b) => !knownKanji(b.t)), glossary: data.glossary, review, onDone: finishDrill });
+    renderSentence(view, step.ref, { hints: state.settings.hints && ((b) => !knownKanji(b.t)), glossary: data.glossary, review, taught: knowsNow(), onDone: finishDrill });
   } else if (step.type === 'particle') {
     // The sentence and answer must be taught; untaught wrong options are left off, and with
     // none left the drill waits.
@@ -1230,15 +1230,17 @@ function renderLesson(step) {
 function renderDialogue(step) {
   const d = step.ref;
   let rate = NORMAL;
+  // Course runs are silent: the conversation is read, with no play button or speed switch.
+  const quiet = document.body.classList.contains('quiet');
   view.innerHTML = `<div class="card gloss-zone">
       <span class="caps">Dialogue</span>
       <h3>${d.title}</h3>
-      <p class="small muted">Listen first and see how much you catch. Then read along.</p>
+      ${quiet ? '<p class="small muted">Read the conversation through. Tap a word for its meaning.</p>' : `<p class="small muted">Listen first and see how much you catch. Then read along.</p>
       <button class="btn ghost" id="play">${icons.speaker}<span>Play conversation</span></button>
       <div class="seg mini" id="speed"><button class="on" data-r="${NORMAL}">Normal</button><button data-r="${SLOW}">Slow</button></div>
       <p class="small muted center" id="nowline" aria-live="polite">&nbsp;</p>
-      <button class="btn ghost" id="show">Show the words</button>
-      <div id="lines" hidden>${d.lines.map((l, i) => `<div class="dline" data-i="${i}"><span class="who">${l.s}</span><div class="grow">
+      <button class="btn ghost" id="show">Show the words</button>`}
+      <div id="lines" ${quiet ? '' : 'hidden'}>${d.lines.map((l, i) => `<div class="dline" data-i="${i}"><span class="who">${l.s}</span><div class="grow">
         <div class="stem jp">${wordLine(l.t)}</div>
         <p class="romaji">${lineRomaji(l.t)}</p><p class="small muted">${l.en}</p></div>
         <button class="say" data-line="${i}" aria-label="Play line ${i + 1}">${icons.speaker}</button></div>`).join('')}
@@ -1253,6 +1255,10 @@ function renderDialogue(step) {
     rows.forEach((el, n) => el.classList.toggle('now', n === i));
     nowline.innerHTML = i < 0 ? '&nbsp;' : `Speaker ${d.lines[i].s} · line ${i + 1} of ${d.lines.length}`;
   };
+  if (quiet) {
+    view.querySelector('#next').onclick = advance;
+    return;
+  }
   view.querySelector('#play').onclick = () => speakLines(d.lines, { rate, onLine: mark });
   view.querySelector('#lines').addEventListener('click', (e) => {
     const b = e.target.closest('[data-line]');
@@ -2135,10 +2141,10 @@ function runUnitTest(unit) {
 function lessonKind(unit, lesson) {
   if (isWords(lesson)) return `Words · ${(lesson.words || []).length}${unit.reading ? ' · Reading' : ''}`;
   const lastGrammar = unit.lessons.filter((l) => !isWords(l)).at(-1) === lesson;
-  return `Grammar${lesson.kanji?.length ? ` · Kanji ${lesson.kanji.join(' ')}` : ''}${lastGrammar && unit.dialogue ? ' · Listening' : ''}`;
+  return `Grammar${lesson.kanji?.length ? ` · Kanji ${lesson.kanji.join(' ')}` : ''}${lastGrammar && unit.dialogue ? ' · Dialogue' : ''}`;
 }
 
-// The unit's parts at a glance: grammar, words, kanji, reading and listening.
+// The unit's parts at a glance: grammar, words, kanji, reading and dialogue.
 function unitContents(unit) {
   const grammar = unit.lessons.filter((l) => !isWords(l)).length;
   const words = new Set(unit.lessons.flatMap((l) => l.words || [])).size;
@@ -2146,7 +2152,7 @@ function unitContents(unit) {
   const cell = (n, label) => `<div class="uc"><b>${n}</b><span>${label}</span></div>`;
   return `<section class="ucontents">
     ${cell(grammar, grammar === 1 ? 'grammar point' : 'grammar points')}${cell(words, 'words')}${cell(kanji.length, 'kanji')}
-    ${unit.reading ? cell('読', 'reading') : ''}${unit.dialogue ? cell('聞', 'listening') : ''}</section>`;
+    ${unit.reading ? cell('読', 'reading') : ''}${unit.dialogue ? cell('話', 'dialogue') : ''}</section>`;
 }
 
 // Every grammar point in the course, with where it's taught and whether you've done it.

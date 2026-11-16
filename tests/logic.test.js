@@ -1536,3 +1536,13 @@ test('levels list every course file, and every unit knows its level', async () =
   assert.ok(merged.units.every((u) => ids.includes(u.level)), 'every unit has a level');
   assert.equal(new Set(merged.units.map((u) => u.n)).size, merged.units.length, 'unit numbers are unique across levels');
 });
+
+test('sentence builder spares are only particles already taught', async () => {
+  const { decoysFor } = await import('../js/drills.js');
+  const sentence = { blocks: [{ t: '私' }, { t: 'は' }, { t: '学生' }, { t: 'です' }] };
+  for (let n = 0; n < 20; n++) {
+    const spare = decoysFor(sentence, Math.random, (p) => p === 'か' || p === 'も');
+    assert.deepEqual(spare.map((b) => b.t), ['も']);
+  }
+  assert.deepEqual(decoysFor(sentence, Math.random, () => false), []);
+});
