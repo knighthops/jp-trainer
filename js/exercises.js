@@ -43,8 +43,11 @@ export function similarWords(v, vocab, { known = new Set(), rng = Math.random, o
 export function wordQuestion(v, vocab, dir, opts = {}) {
   const rng = opts.rng || Math.random;
   const list = shuffled([v, ...similarWords(v, vocab, { ...opts, dir })], rng);
-  return { dir, word: v, options: list.map((x) => (dir === 'jp' ? x.w : x.m)), answer: list.indexOf(v) };
+  return { dir, word: v, options: list.map((x) => (dir === 'jp' ? x.w : x.m)), answer: list.indexOf(v), items: list };
 }
+
+// A choice led by its kana, with the romaji and meaning under it. The meaning is cut to its first sense.
+export const kanaOption = (y, m) => `<span class="jp">${y}</span><small>${romaji(y)} · ${String(m).split(/[;；]/)[0].trim()}</small>`;
 
 // Small kana and the long-vowel mark ride with the kana before them, so tiles are sounds.
 export function kanaTiles(reading) {
@@ -82,16 +85,20 @@ const optRow = (options, cls) => options.map((o, n) => `<button class="opt ${cls
 
 export function renderWordQ(root, q, { tag, review = false, onDone }) {
   const v = q.word;
+  // Word → meaning leads with kana, unless the word is itself kana: then its kana would give it away.
+  const kana = q.dir === 'en' && q.items && v.w !== v.y;
   const prompt = q.dir === 'jp' ? `<p class="qz-q">Which word means</p><p class="qz-mean">${v.m}</p>`
     : q.dir === 'hear' ? `<p class="qz-q">Tap to listen. What does it mean?</p><div class="hear">${sayBtn(v.y)}</div>`
-      : `<p class="qz-q">What does this word mean?</p><p class="qz-big jp">${v.w}</p>`;
-  const long = q.options.some((o) => o.length > 14);
+      : `<p class="qz-q">${kana ? 'Which is this word?' : 'What does this word mean?'}</p><p class="qz-big jp">${v.w}</p>`;
+  const long = !kana && q.options.some((o) => o.length > 14);
   root.innerHTML = `<div class="qz">
       <span class="qz-tag">${tag}</span>
       ${prompt}
     </div>
     <div class="reach">
-      <div class="opts qz-opts ${long ? 'long' : ''}" id="opts">${optRow(q.options, q.dir === 'jp' ? 'qk jp' : 'qm')}</div>
+      <div class="opts qz-opts ${long ? 'long' : ''}" id="opts">${kana
+    ? q.items.map((x, n) => `<button class="opt kana" data-n="${n}">${kanaOption(x.y, x.m)}</button>`).join('')
+    : optRow(q.options, q.dir === 'jp' ? 'qk jp' : 'qm')}</div>
       ${q.dir === 'hear' && !review ? '<button class="hero-link" id="skip" type="button">Can\'t listen now</button>' : ''}
     </div>`;
   const opts = root.querySelector('#opts');

@@ -21,7 +21,7 @@ import {
   LEVELS, levelSentences, levelProgress, levelUnlocked, particleItem, courseSteps, rankOf, RANKS, unitStars, grammarId, passUnit, isWords, lessonStars,
 } from './course.js';
 import { mockExam, unitTest, startExam, RETAKE_MIN } from './exam.js';
-import { wordQuestion, spellPuzzle, renderWordQ, renderSpell, renderMatch } from './exercises.js';
+import { wordQuestion, spellPuzzle, renderWordQ, renderSpell, renderMatch, kanaOption } from './exercises.js';
 import { icons } from './icons.js';
 import { romaji, toHiragana, toKana, judgeReading } from './romaji.js';
 import { matchReading } from './readings.js';
@@ -1090,8 +1090,10 @@ function renderQuiz(step) {
     const knows = knowsNow();
     const taught = data.kanji.filter((k) => k === step.ref || knows(k.k) && (state.items[`k:${k.k}`] || run.steps.slice(0, run.i + 1).some((s) => s.id === `k:${k.k}`)));
     const kind = step.kind === 'pick' && taught.length < 4 ? 'mean' : step.kind;
-    const pool = kind === 'mean' && taught.length < 4 ? data.kanji : taught;
-    step.q = quizQuestion(step.ref, kind, { pool, wordOf: (w) => (knows(w) ? wordEntry(w) : null), n: state.items[step.id]?.reps || 0 });
+    // Wrong options come only from taught kanji, even if that leaves fewer than four.
+    step.q = quizQuestion(step.ref, kind, { pool: taught, wordOf: (w) => (knows(w) ? wordEntry(w) : null), n: state.items[step.id]?.reps || 0 });
+    // Nothing else taught to choose between yet: no question to ask.
+    if (step.q.options.length < 2) return skipStep();
   }
   const q = step.q;
   const hit = q.word ? matchReading(q.k, q.word, q.word.y) : null;
@@ -1105,9 +1107,12 @@ function renderQuiz(step) {
   const prompt = q.kind === 'pick' ? `<p class="qz-q">Which kanji means</p><p class="qz-mean">${q.k.mean[0]}</p>`
     : q.kind === 'read' ? `<p class="qz-q">How is this word read?</p><p class="qz-big jp">${q.word.w.replace(q.k.k, `<u>${q.k.k}</u>`)}</p>
       <p class="small muted center">${q.word.m}</p>`
-      : `<p class="qz-q">What does this kanji mean?</p><p class="qz-big jp">${q.k.k}</p>`;
-  const optClass = q.kind === 'pick' ? 'opt qk jp' : q.kind === 'read' ? 'opt kana' : 'opt qm';
-  const optHtml = (o) => (q.kind === 'read' ? `<span class="jp">${o}</span><small>${romaji(o)}</small>` : o);
+      : `<p class="qz-q">Which is this kanji?</p><p class="qz-big jp">${q.k.k}</p>`;
+  // Kanji → meaning leads with each kanji's first reading in kana, its meaning underneath.
+  const meanOf = (o) => (q.kind === 'mean' ? data.kanji.find((k) => k.mean[0] === o) : null);
+  const optClass = q.kind === 'pick' ? 'opt qk jp' : q.kind === 'read' || q.kind === 'mean' ? 'opt kana' : 'opt qm';
+  const optHtml = (o) => (q.kind === 'read' ? `<span class="jp">${o}</span><small>${romaji(o)}</small>`
+    : meanOf(o) ? kanaOption(headReading(meanOf(o)), o) : o);
   view.innerHTML = `<div class="qz">
       <div class="qz-top">${run.drill ? `<div class="qz-dots" aria-hidden="true">${dots}</div>
         <div class="qz-clock" aria-label="Time left"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="tr" cx="22" cy="22" r="19"/>
