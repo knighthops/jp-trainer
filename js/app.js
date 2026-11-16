@@ -1,7 +1,7 @@
 // Routing and screens.
 import { load, save, dayStats, daysStudied, dayKey, backupJson, parseBackup, xpToday, DAILY_GOAL, streakWithRest } from './store.js';
 import { renderListen } from './listen.js';
-import { speak, speakLines, speakStep, cancel, sayBtn, setReadings, unlockSpeech, NORMAL, SLOW } from './tts.js';
+import { speak, speakLines, speakStep, cancel, sayBtn, setReadings, unlockSpeech, setMuted, NORMAL, SLOW } from './tts.js';
 import { setRecorded, unlockAudio, hasClips } from './clips.js';
 import { radioChannels, startRadio } from './radio.js';
 import { startRush, bestKey as rushKey } from './rush.js';
@@ -429,6 +429,7 @@ function startRun(steps, title, { useSrs = false, browse = false, start = 0, mor
   // Only Trip runs make sound. Elsewhere listen buttons are hidden, since any audio on
   // iPhone pauses music playing in other apps.
   document.body.classList.toggle('quiet', !sound);
+  setMuted(!sound);
   renderStep();
 }
 
@@ -458,6 +459,7 @@ function endRun() {
   clearStep();
   run = null;
   document.body.classList.remove('in-run', 'quiet');
+  setMuted(false);
   route();
 }
 
@@ -698,6 +700,8 @@ function renderStep() {
       },
     });
   } else if (step.type === 'tripHear') {
+    // A listening question can't be answered in a silent run (reviews before a lesson).
+    if (!run.sound) return skipStep();
     const others = step.scene.hear.map((l) => l.en);
     renderHear(view, step, {
       glossary: data.glossary,
@@ -2930,6 +2934,7 @@ function route() {
     clearStep();
     run = null;
     document.body.classList.remove('in-run', 'quiet');
+    setMuted(false);
   }
   if (run) return;
   screenCleanup?.();

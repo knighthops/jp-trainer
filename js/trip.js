@@ -110,8 +110,9 @@ function settle(root, rightIndex, text, good) {
 }
 
 // Due trip items for the daily review block. Role-plays stay in their scene: they're too long for a review.
+// Daily reviews are silent, so listening lines are reviewed in Trip only.
 export function tripReviewSteps(scenes, items, now = Date.now(), n = 5) {
-  return scenes.flatMap((scene) => ['signs', 'say', 'hear'].flatMap((part) => (scene[part] || [])
+  return scenes.flatMap((scene) => ['signs', 'say'].flatMap((part) => (scene[part] || [])
     .map((ref) => stepOf(scene, part, ref))))
     .filter((s) => isDue(items[s.id], now))
     .sort((a, b) => items[a.id].due - items[b.id].due)

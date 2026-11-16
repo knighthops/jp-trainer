@@ -61,6 +61,14 @@ export function speechParts(text, glossary = readings) {
 // Any new playback ends a running dialogue.
 let playback = 0;
 
+// Quiz runs outside Trip mute speech outright: on iPhone any sound pauses music playing in
+// other apps, and a screen that speaks on its own (a Trip phrase in reviews) must stay quiet.
+let muted = false;
+export function setMuted(on) {
+  muted = Boolean(on);
+  if (muted) cancel();
+}
+
 const englishVoice = () => window.speechSynthesis.getVoices().find((v) => /^en[-_]/i.test(v.lang)) || null;
 
 // Stops anything already speaking. iPhone Safari can drop an utterance queued
@@ -88,7 +96,7 @@ function utter(text, { onend, ...options } = {}) {
 }
 
 export function speak(text, options) {
-  if (!supported()) return false;
+  if (muted || !supported()) return false;
   playback++;
   utter(text, options);
   return true;
@@ -101,7 +109,7 @@ export const linePitch = (s) => (['B', 'M'].includes(s) ? 0.8 : 1.15);
 // starting each line from the last one's end let iPhone drop lines.
 // onLine(i) runs as each line starts, so the text can follow along.
 export function speakLines(lines, { rate = NORMAL, onend, onLine } = {}) {
-  if (!supported()) return false;
+  if (muted || !supported()) return false;
   const id = ++playback;
   hush();
   lines.forEach((line, i) => {
@@ -121,7 +129,7 @@ export function speakLines(lines, { rate = NORMAL, onend, onLine } = {}) {
 // One utterance in a longer sequence (Radio). Returns a token: if any other playback
 // starts, onend is not called, so the sequence stops by itself.
 export function speakStep(text, { rate = NORMAL, pitch = 1, english = false, onend } = {}) {
-  if (!supported()) return false;
+  if (muted || !supported()) return false;
   const id = ++playback;
   utter(text, { rate, pitch, english, onend: () => { if (id === playback) onend?.(); } });
   return true;
@@ -131,16 +139,17 @@ export function speakStep(text, { rate = NORMAL, pitch = 1, english = false, one
 // utterance on the first tap unlocks it, so Radio can start from a route change.
 let unlocked = false;
 export function unlockSpeech() {
-  if (unlocked || !supported()) return;
+  if (muted || unlocked || !supported()) return;
   unlocked = true;
   const u = new SpeechSynthesisUtterance(' ');
   u.volume = 0;
   window.speechSynthesis.speak(u);
 }
 
+// Only touches the voice when something is playing, so stopping never claims audio.
 export function cancel() {
   playback++;
-  if (supported()) window.speechSynthesis.cancel();
+  if (supported()) hush();
 }
 
 // A listen button. A document-level handler in app.js speaks any [data-say].

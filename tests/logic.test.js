@@ -989,6 +989,8 @@ test('trip: due parts come first, then new ones in scene order; due items join r
   const state = { ...blank(), items };
   const steps = reviewSteps(state, { ...data, trip: scenes }, NOW);
   assert.ok(steps.some((s) => s.type === 'tripSign'), 'trip items appear in the daily review');
+  // Listening lines are due too, but the daily review is silent, so they wait for Trip.
+  assert.ok(!tripReviewSteps(scenes, items, NOW, 50).some((s) => s.type === 'tripHear'));
 });
 
 test('trip countdown counts whole days from local midnight', () => {
@@ -1471,4 +1473,22 @@ test('the course has no listening steps, so it never makes a sound', () => {
     const steps = lessonSteps(unit, lesson, state, merged);
     assert.ok(!steps.some((s) => s.dir === 'hear'), `${lesson.id} has a listening step`);
   }
+});
+
+test('speech stays silent while a quiz run has muted it', async () => {
+  const spoken = [];
+  globalThis.window = { speechSynthesis: { speak: (u) => spoken.push(u.text), cancel() {}, getVoices: () => [], speaking: false, pending: false } };
+  globalThis.SpeechSynthesisUtterance = class { constructor(text) { this.text = text; } };
+  window.SpeechSynthesisUtterance = globalThis.SpeechSynthesisUtterance;
+  const tts = await import('../js/tts.js');
+  tts.setMuted(true);
+  tts.speak('こんにちは');
+  tts.speakLines([{ t: 'はい' }]);
+  tts.speakStep('どうぞ');
+  assert.deepEqual(spoken, []);
+  tts.setMuted(false);
+  tts.speak('こんにちは');
+  assert.equal(spoken.length, 1, 'unmuted, it speaks again');
+  delete globalThis.window;
+  delete globalThis.SpeechSynthesisUtterance;
 });
