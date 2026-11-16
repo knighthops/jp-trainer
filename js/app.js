@@ -546,7 +546,14 @@ function renderStep() {
         // The lesson's grammar point starts its own reviews.
         state.items[`g:${step.id}`] ||= rate(newRecord(), 'good');
         if (state.course.parts) delete state.course.parts[step.id];
-      } else run.part = true;
+        if (state.course.partDrills) delete state.course.partDrills[step.id];
+      } else {
+        run.part = true;
+        // The drills this part asked, so the next part asks different ones.
+        const asked = run.steps.filter((s) => s.type === 'sentence' || s.type === 'particle').map((s) => s.id);
+        const list = ((state.course.partDrills ||= {})[step.id] ||= []);
+        for (const id of asked) if (!list.includes(id)) list.push(id);
+      }
       if (state.course.current?.lesson === step.id) delete state.course.current;
       save(state);
     }
@@ -621,6 +628,8 @@ function renderStep() {
       step.q = wordQuestion(step.ref, data.vocab, step.dir, { known, only });
       // Too few taught words to pick from in Japanese: ask the meaning instead.
       if (step.dir === 'jp' && step.q.options.length < 3) step.q = wordQuestion(step.ref, data.vocab, 'en', { known, only });
+      // Too few taught words to make a choice at all: skip it rather than ask ahead.
+      if (step.q.options.length < 2) return skipStep();
     }
     const tag = step.dir === 'hear' ? 'Listen' : step.dir === 'jp' ? 'Meaning → word' : 'Word → meaning';
     renderWordQ(view, step.q, { tag, review, onDone: (clean) => finishExercise(clean, { srs: step.dir !== 'hear' }) });

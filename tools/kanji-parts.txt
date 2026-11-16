@@ -585,3 +585,6 @@
 豚|pig|月 豕|Pig meat: pork, and pig.
 鶏|chicken|奚 鳥|A bird kept tied up in the yard: chicken.
 光|light|小 一 儿|A small flame held up over a person walking on two legs: light.
+個|individual, counter for things|亻 古 口|A person keeps one old thing in a box: one individual thing, counted one by one.
+零|zero|雨 令|Rain falls only on orders, and the order never comes: zero.
+戸|door|戸|A single swinging door hung from its frame: a door.

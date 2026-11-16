@@ -128,5 +128,9 @@
 "帰りましょう":{"y":"かえりましょう","ro":"kaerimashō","m":"let's go home"},
 "五月":{"y":"ごがつ","ro":"gogatsu","m":"May"},
 "十一ページ":{"y":"じゅういちページ","ro":"jūichi pēji","m":"page 11"},
-"十二ページ":{"y":"じゅうにページ","ro":"jūni pēji","m":"page 12"}
+"十二ページ":{"y":"じゅうにページ","ro":"jūni pēji","m":"page 12"},
+"趣味":{"y":"しゅみ","ro":"shumi","m":"hobby"},
+"熱":{"y":"ねつ","ro":"netsu","m":"fever"},
+"試験":{"y":"しけん","ro":"shiken","m":"exam"},
+"教科書":{"y":"きょうかしょ","ro":"kyōkasho","m":"textbook"}
 }

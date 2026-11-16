@@ -20,12 +20,12 @@ const kindOf = (v) => (/^to /.test(v.m) ? 'verb' : /[一-龯]い$/.test(v.w) ? '
 
 // Three wrong options that look like the right one: the same kind of word, sharing a kanji
 // if possible, then words from the course, then any.
-// `only` (word → bool) keeps wrong options to words you've been taught. A Japanese option
-// never breaks it; an English meaning falls back to the whole list only when too few are left.
+// `only` (word → bool) keeps wrong options to words you've been taught, even if that leaves
+// fewer than three: every choice now shows its kana, so an untaught one would be on screen.
 export function similarWords(v, vocab, { known = new Set(), rng = Math.random, only = null, dir = 'en' } = {}) {
   const all = vocab.filter((x) => x !== v && x.w !== v.w && !sameMeaning(x.m, v.m));
   const taught = only ? all.filter((x) => only(x.w)) : all;
-  const pool = taught.length >= 3 || dir === 'jp' ? taught : all;
+  const pool = taught;
   const same = pool.filter((x) => kindOf(x) === kindOf(v));
   const kanji = [...v.w].filter((c) => KANJI.test(c));
   const rank = (x) => (kanji.some((c) => x.w.includes(c)) ? 0 : known.has(x.w) ? 1 : 2);

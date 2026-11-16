@@ -3,10 +3,11 @@
 // words, so each word can be tapped and romaji can be built reliably.
 import { romaji } from './romaji.js';
 import { shuffled } from './drills.js';
+import { sameMeaning } from './exercises.js';
 import { stageOf, STRONG, MASTERED } from './srs.js';
 
 // The extra files add lessons, words and readings to units already defined above them.
-export const UNIT_FILES = ['units-01-04', 'units-05-08', 'units-09-12', 'units-13-16', 'units-17-20', 'units-21-24', 'extra-01-08', 'extra-09-16', 'extra-17-24'];
+export const UNIT_FILES = ['units-01-04', 'units-05-08', 'units-09-12', 'units-13-16', 'units-17-20', 'units-21-24', 'extra-01-08', 'extra-09-16', 'extra-17-24', 'fill-n5'];
 
 // A Words lesson teaches a unit's themed vocabulary and ends on the unit's reading.
 export const isWords = (lesson) => lesson.kind === 'words';
@@ -23,6 +24,14 @@ export function joinUnits(files) {
     }
     base.lex = { ...u.lex, ...base.lex };
     for (const l of u.lessons || []) {
+      // A lesson with an id already defined adds its words and drills to that lesson.
+      const same = base.lessons.find((x) => x.id === l.id);
+      if (same) {
+        same.words = [...new Set([...(same.words || []), ...(l.words || [])])];
+        same.drills = [...(same.drills || []), ...(l.drills || [])];
+        for (const [k, v] of Object.entries(l)) if (!(k in same)) same[k] = v;
+        continue;
+      }
       const at = l.before ? base.lessons.findIndex((x) => x.id === l.before) : -1;
       if (at >= 0) base.lessons.splice(at, 0, l);
       else base.lessons.push(l);
@@ -206,9 +215,18 @@ export function wordsNeededEarly(unit, lesson, data) {
 // Verb stems, so a conjugated verb in a drill counts as its dictionary form:
 // 習いました, 習って and 習わない all need 習う.
 const GODAN = { う: 'いっわ', く: 'きいか', ぐ: 'ぎいが', す: 'ししさ', つ: 'ちった', ぬ: 'にんな', ぶ: 'びんば', む: 'みんま', る: 'りっら' };
+// Verbs whose forms share no written stem with the dictionary form.
+const IRREGULAR = {
+  ある: ['あり', 'あっ', 'あら'], いる: ['い'], する: ['し', 'さ'], 来る: ['来'], くる: ['き', 'こ', 'く'],
+  行く: ['行き', '行か', '行っ', '行け', '行こ'],
+};
 function stemsOf(w) {
   const tail = w.at(-1);
   const head = w.slice(0, -1);
+  if (IRREGULAR[w]) return IRREGULAR[w];
+  // An い adjective: 高くない, 高かった and 高くて all need 高い. A kana one needs a stem long
+  // enough not to swallow other words (おいしくない, not いく).
+  if (tail === 'い' && head && (/[一-龯々]/.test(head) || head.length >= 3) && !/[えけせてねへめれげぜでべぺ]$/.test(head)) return [head];
   // Only verbs written with a kanji, so a bare kana stem can't swallow unrelated words.
   if (!head || !/[一-龯々]/.test(head) || !GODAN[tail]) return [];
   const out = [...GODAN[tail]].map((k) => head + k);
@@ -232,7 +250,17 @@ function lemmaIndex(data) {
 export function tokenWords(token, data) {
   const { exact, stems, keys } = lemmaIndex(data);
   if (exact.has(token)) return [token];
-  const stem = keys.find((s) => token.startsWith(s) && s.length < token.length && /^[ぁ-ん]+$/.test(token.slice(s.length)));
+  // A number and its counter (三本, 九時, 五百円): numbers are taught early, so it needs the counter.
+  // お and ご are politeness: お元気 and ご家族 need 元気 and 家族.
+  if (/^[おご]./.test(token) && !exact.has(token)) { const rest = tokenWords(token.slice(1), data); if (rest.length) return rest; }
+  // A country and 人 or 語 (アメリカ人, 日本語) needs the country.
+  const people = token.match(/^(.+)[人語]$/);
+  if (people && exact.has(people[1])) return [people[1]];
+  const counter = token.match(/^[一二三四五六七八九十百千万何]+(.+)$/);
+  if (counter && counter[1] !== token) return tokenWords(counter[1], data);
+  const stem = keys.find((s) => token.startsWith(s) && s.length < token.length && /^[ぁ-ん]+$/.test(token.slice(s.length))
+    // A one-kana stem (い for いる, し for する) only counts with a verb ending after it.
+    && (s.length > 1 || /[一-龯々]/.test(s) || /^(ます|ません|まし|て|た|ない|なかっ|なけれ|なく|よう|たい|たり|ろ)/.test(token.slice(s.length))));
   if (stem) return [stems.get(stem)];
   const noun = [...exact].filter((w) => w.length >= 2 && /[一-龯々ァ-ヴ]/.test(w) && token.startsWith(w) && /^[ぁ-ん]+$/.test(token.slice(w.length)))
     .sort((a, b) => b.length - a.length)[0];
@@ -245,7 +273,32 @@ export function drillWords(d, data) {
   const shown = [...words(String(d.b || d.c || '').replace('___', ' ')), d.a].filter(Boolean);
   return [...new Set(shown.flatMap((t) => tokenWords(t, data)))];
 }
-export const wrongWords = (option, data) => tokenWords(option, data);
+// A particle offered as a wrong option counts as taught once the lesson that introduces it
+// (its pattern names it) has been reached.
+export const TAUGHT_PARTICLES = ['は', 'が', 'を', 'に', 'へ', 'で', 'と', 'も', 'の', 'か', 'や', 'から', 'まで', 'より', 'ね', 'よ', 'だけ', 'しか', 'ぐらい', 'ごろ'];
+export const wrongWords = (option, data) => (TAUGHT_PARTICLES.includes(option) ? [option] : tokenWords(option, data));
+// Whether a piece of text shows only what the course has taught before lesson index `at`
+// (a unit test passes the index just past its last lesson).
+export function textTaught(text, data, at) {
+  const first = firstLessonIndex(data);
+  const parts = particleLesson(data);
+  return words(String(text).replace(/[[\]*。、？！?!「」]|___/g, ' ')).every((t) => wrongWords(t, data).every((w) => {
+    const i = first.has(w) ? first.get(w) : parts.get(w);
+    return i === undefined || i < at;
+  }));
+}
+function particleLesson(data) {
+  if (data._particles) return data._particles;
+  const order = (data.units || []).flatMap((u) => u.lessons);
+  const first = new Map();
+  for (const p of TAUGHT_PARTICLES) {
+    const i = order.findIndex((l) => String(l.pattern || '').split(/[\s·,/]+/).includes(p)
+      || new RegExp(`(^|[^ぁ-ん])${p}([^ぁ-ん]|$)`).test(l.title));
+    if (i >= 0) first.set(p, i);
+  }
+  data._particles = first;
+  return first;
+}
 
 // A fill-the-blank with only the wrong options you've been taught. Null when none are left.
 export function choiceShown(ref, taught, data) {
@@ -259,6 +312,7 @@ export function choiceShown(ref, taught, data) {
 export function isTaught(w, state, data, at, extra = new Set()) {
   if (extra.has(`w:${w}`) || extra.has(`k:${w}`)) return true;
   if (state.items[`w:${w}`] || state.items[`k:${w}`]) return true;
+  if (TAUGHT_PARTICLES.includes(w) && !firstLessonIndex(data).has(w)) return (particleLesson(data).get(w) ?? Infinity) <= at;
   const first = firstLessonIndex(data).get(w);
   if (first === undefined) return true;
   if (first >= at) return false;
@@ -385,7 +439,9 @@ export function lessonSteps(unit, lesson, state, data, resume = null) {
   const partNew = new Set(learn.map((s) => s.id));
   const knows = (w) => (partNew.has(`w:${w}`) || partNew.has(`k:${w}`) ? taught.has(`w:${w}`) || taught.has(`k:${w}`) : isTaught(w, state, data, at, taught));
   const ready = (d) => d.uses.every((id) => knows(id.slice(2))) && (d.type !== 'particle' || Boolean(d.ref && choiceShown(d.ref, knows, data)));
-  const spread = [...drills];
+  // A drill already done in an earlier part of this lesson isn't repeated.
+  const doneBefore = new Set(state.course?.partDrills?.[lesson.id] || []);
+  const spread = drills.filter((d) => !doneBefore.has(d.id));
   const groups = [];
   for (let i = 0; i < learn.length; i += GROUP) {
     const g = learn.slice(i, i + GROUP);
@@ -403,7 +459,9 @@ export function lessonSteps(unit, lesson, state, data, resume = null) {
   // Then the new items together: match the pairs, spell a reading, and one word by ear.
   const extra = [];
   const fresh = learn.map((s) => (s.kind === 'kanji' ? { jp: s.ref.k, en: s.ref.mean[0] } : { jp: s.ref.w, en: s.ref.m }));
-  if (fresh.length >= 3) extra.push({ type: 'match', key: `match:${lesson.id}`, pairs: fresh.slice(0, 5) });
+  // Two pairs that mean the same (入 "enter" and 入る "to enter") would make a right match look wrong.
+  const pairs = fresh.filter((p, i) => !fresh.slice(0, i).some((q) => sameMeaning(q.en, p.en))).slice(0, 5);
+  if (pairs.length >= 3) extra.push({ type: 'match', key: `match:${lesson.id}`, pairs });
   const newWords = learn.filter((s) => s.kind === 'word').map((s) => s.ref);
   const spell = newWords.find((v) => /[一-龯々]/.test(v.w) && v.w !== v.y && v.y.length <= 7);
   if (spell) extra.push({ type: 'spell', key: `spell:${spell.w}`, ref: spell });

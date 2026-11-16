@@ -6,7 +6,7 @@
 "examples":[{"t":"私 は 学生 です","en":"I am a student."},{"t":"田中 さん は 先生 です","en":"Mr Tanaka is a teacher."},{"t":"ベン さん は アメリカ人 です","en":"Ben is American."}],
 "kanji":["人","学","生"],"words":["学生","人","大学"],
 "drills":[{"b":"私 は 学生 です","en":"I am a student."},{"b":"田中 さん は 医者 です","en":"Mr Tanaka is a doctor."},{"b":"ベン さん は アメリカ人 です","en":"Ben is American."},
-{"c":"私 ___ 会社員 です","en":"I am an office worker.","a":"は","label":"Choose the particle","w":{"を":"を marks what a verb acts on, and です isn't that kind of verb.","で":"で marks where or how an action happens."},"note":"は marks 私 as the topic."},
+{"c":"私 ___ 先生 です","en":"I am a teacher.","a":"は","label":"Choose the particle","w":{"か":"か ends a question; here 私 needs to be marked as the topic.","です":"です ends the sentence, after 先生."},"note":"は marks 私 as the topic."},
 {"c":"田中 さん は 先生 ___","en":"Mr Tanaka is a teacher.","a":"です","label":"Choose the ending","w":{"は":"は marks the topic, and it can't end a sentence.","か":"か would turn this into a question. The English is a statement."}}]},
 {"id":"u01b","title":"か and ではありません: questions and “is not”","pattern":"X は Y です か · X は Y ではありません","note":["Add か to the end of a sentence to make it a question. Word order stays the same, and you don't need a question mark.","To say “is not”, swap です for ではありません. Answer with はい (yes) or いいえ (no). そうです means “that's right.”"],
 "examples":[{"t":"あなた は 学生 です か","en":"Are you a student?"},{"t":"はい 、 そう です","en":"Yes, that's right."},{"t":"いいえ 、 学生 ではありません","en":"No, I'm not a student."}],

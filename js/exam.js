@@ -2,7 +2,7 @@
 // and grade a test; startExam runs it on screen. In the data, the first option of a
 // question is the right one. Options are shuffled here, with a fixed order per exam
 // so a mock exam can be resumed.
-import { words, PASS_SHARE } from './course.js';
+import { words, PASS_SHARE, textTaught } from './course.js';
 import { shuffled, romajiLine, bindGloss, glossHtml } from './drills.js';
 import { sameMeaning } from './exercises.js';
 import { speakLines, cancel, SLOW, NORMAL } from './tts.js';
@@ -61,8 +61,15 @@ export function unitTest(unit, data, rng = Math.random) {
   // adjectives. Words sharing a kanji come first (大学 next to 大人 and 学生), then words from
   // the course so far. Readings come from other kanji words, nearest in length, never katakana.
   const known = new Set(data.units.slice(0, data.units.indexOf(unit) + 1).flatMap((u) => u.lessons.flatMap((l) => l.words || [])));
+  // Nothing on a test is from a later unit: not a wrong option, not a word in a question.
+  const end = data.units.slice(0, data.units.indexOf(unit) + 1).reduce((n, u) => n + u.lessons.length, 0);
+  // The question and its answer must be taught; an untaught wrong option is left off, and
+  // a question left with fewer than three options is dropped.
+  const ok = (t) => textTaught(t, data, end);
+  const trim = (q) => (ok(q.q) && ok(q.o[0]) ? { ...q, o: q.o.filter((o, i) => i === 0 || ok(o)) } : null);
+  const fair = (q) => q && q.o.length >= 3;
   const others = (field, right, of) => {
-    const pool = data.vocab.filter((v) => v[field] && v[field] !== right && v !== of
+    const pool = data.vocab.filter((v) => known.has(v.w) && v[field] && v[field] !== right && v !== of
       && (field !== 'm' || !sameMeaning(v.m, right))
       && (field === 'm' || (v.w !== v.y && !KATAKANA.test(v.y))));
     const same = pool.filter((v) => wordKind(v) === wordKind(of));
@@ -78,13 +85,13 @@ export function unitTest(unit, data, rng = Math.random) {
   const wordQs = chosen.map((v, i) => (i % 2 === 0 && v.w !== v.y
     ? { id: `${unit.id}-r${i}`, q: `[${v.w}]`, ask: 'How is this read?', o: [v.y, ...others('y', v.y, v)], w: `${v.w} is read ${v.y}: ${v.m}.`, word: v.w }
     : { id: `${unit.id}-m${i}`, q: `[${v.w}]`, ask: 'What does this mean?', o: [v.m, ...others('m', v.m, v)], w: `${v.w} means ${v.m}.`, word: v.w }));
-  const written = (unit.quiz || []).map((q, i) => ({ ...q, id: `${unit.id}-q${i}` }));
+  const written = (unit.quiz || []).map((q, i) => ({ ...q, id: `${unit.id}-q${i}` })).map(trim).filter(fair);
   // Units that teach few words borrow fill-the-blank drills, so no test is too short to be fair.
   const blanks = unit.lessons.flatMap((l) => l.drills).filter((d) => d.c)
     .map((d, i) => ({
       id: `${unit.id}-c${i}`, q: d.c, ask: d.en ? `You want to say: “${d.en}”` : 'Which fits the blank?',
       o: [d.a, ...Object.keys(d.w)].slice(0, 4), w: d.note || '',
-    }));
+    })).map(trim).filter(fair);
   const room = Math.max(0, MIN_QUESTIONS - wordQs.length - written.length);
   written.push(...shuffled(blanks, rng).slice(0, room));
   return {
