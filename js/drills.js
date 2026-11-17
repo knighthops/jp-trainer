@@ -191,24 +191,34 @@ export function feedbackSheet({ right, headline, glyph = '', title = '', lines =
 let autoNext = () => false;
 export const setAutoNext = (fn) => { autoNext = fn; };
 export const AUTO_MS = 1400;
+// After moving on by itself, taps are ignored for a moment: a Continue tapped just late
+// would otherwise land on the next question's options, or skip a teaching screen.
+const LATE_MS = 450;
+let quietUntil = 0;
+const swallow = (e) => {
+  if (Date.now() < quietUntil) { e.stopPropagation(); e.preventDefault(); }
+};
+if (typeof document !== 'undefined') for (const t of ['pointerdown', 'click']) document.addEventListener(t, swallow, true);
 export function showSheet(root, opts, onContinue) {
   root.querySelector('.sheet')?.remove();
-  root.insertAdjacentHTML('beforeend', feedbackSheet(opts));
+  // opts.html: a sheet of the step's own (the kanji quiz's); opts.review: an answer looked back at.
+  root.insertAdjacentHTML('beforeend', opts.html || feedbackSheet(opts));
   document.body.classList.add('has-sheet');
   const cont = root.querySelector('#cont');
   let timer = null;
-  const go = () => {
+  const go = (auto = false) => {
     clearTimeout(timer);
     if (!cont.isConnected || cont.dataset.gone) return;
     cont.dataset.gone = '1';
+    if (auto === true) quietUntil = Date.now() + LATE_MS;
     document.body.classList.remove('has-sheet');
     onContinue();
   };
-  cont.onclick = go;
-  if (opts.right && autoNext()) {
+  cont.onclick = () => go();
+  if (opts.right && autoNext(opts)) {
     cont.classList.add('auto');
     cont.style.setProperty('--auto-ms', `${AUTO_MS}ms`);
-    timer = setTimeout(go, AUTO_MS);
+    timer = setTimeout(() => go(true), AUTO_MS);
     root.querySelector('.sheet').addEventListener('pointerdown', (e) => {
       if (e.target.closest('#cont')) return;
       clearTimeout(timer);
@@ -373,9 +383,27 @@ function stemReading(w, glossary) {
   }
   const options = stems.get(glossary).get(m[1]);
   if (!options?.length) return null;
-  const best = options.find((o) => o.tail[0] === m[2][0] && o.tail.length > 1)
+  // The verb whose conjugation makes this ending wins: 出た is 出る (でた), not 出す, and
+  // 着ます is 着る (きます), not 着く. The longest matching stem is the most specific.
+  const fit = options.filter((o) => conjugates(o, m[2])).sort((a, b) => b.tail.length - a.tail.length)[0];
+  const best = fit || options.find((o) => o.tail[0] === m[2][0] && o.tail.length > 1)
     || options.slice().sort((a, b) => a.tail.length - b.tail.length)[0];
   return best.y + m[2];
+}
+
+// Can a verb listed with this kana ending (る, れる, く) take this ending (た, ます, って)?
+const ROWS = { う: 'わいうえお', く: 'かきくけこ', ぐ: 'がぎぐげご', す: 'さしすせそ', つ: 'たちつてと', ぬ: 'なにぬねの', ぶ: 'ばびぶべぼ', む: 'まみむめも', る: 'らりるれろ' };
+const TE = { う: 'っ', つ: 'っ', る: 'っ', く: 'い', ぐ: 'い', す: 'し', ぬ: 'ん', ぶ: 'ん', む: 'ん' };
+const E_I = /[えけげせぜてでねへべぺめれいきぎしじちぢにひびぴみり]$/;
+function conjugates({ tail, y }, ending) {
+  const last = tail.at(-1);
+  const base = tail.slice(0, -1);
+  if (!ROWS[last] || !ending.startsWith(base)) return false;
+  const next = ending[base.length];
+  if (next === undefined) return false;
+  // る after an e- or i-sound may be ichidan (食べる 食べた) as well as godan (入る 入った).
+  const ichidan = last === 'る' && E_I.test(y + base) && /[まてたなよられろさ]/.test(next);
+  return ichidan || ROWS[last].includes(next) || next === TE[last];
 }
 
 export function romajiLine(words, glossary, end = '.') {
@@ -385,7 +413,7 @@ export function romajiLine(words, glossary, end = '.') {
     const y = /[一-龯々]/.test(w) ? stemReading(w, glossary) : null;
     return kanaToRomaji(y || w);
   }).join(' ')
-    .replace(/ ?。/g, '.').replace(/ ?、/g, ',').replace(/ ?？/g, '?').replace(/ ?！/g, '!')
+    .replace(/「 ?/g, '“').replace(/ ?」/g, '”').replace(/ ?。/g, '.').replace(/ ?、/g, ',').replace(/ ?？/g, '?').replace(/ ?！/g, '!')
     .replace(/\bnani (d|t|no|na|ne)/g, 'nan $1') // 何 is read なん before d, t and n sounds, as the voice says it.
     .replace(/([.?!] )(\p{Ll})/gu, (_, gap, c) => gap + c.toUpperCase());
   const closed = /[.?!]$/.test(line) ? '' : end;
@@ -522,7 +550,8 @@ export function renderCheck(root, q, { glossary, review = false, onDone }) {
       b.classList.add('wrong');
       b.disabled = true;
       fb.className = 'fb bad';
-      fb.textContent = q.w || 'Not quite. Try another answer.';
+      // A quick response keeps its answer hidden: the feedback would give the reply away.
+      fb.textContent = q.ao ? 'Not that one. Play it again and listen for the reply.' : q.w || 'Not quite. Try another answer.';
       return;
     }
     b.classList.add('right');

@@ -416,7 +416,7 @@ function listeningList() {
       <span class="grow"><strong>${title}</strong><span class="small muted">${sub}</span></span>
       <span class="playdot" aria-hidden="true">${icons.play}</span></button>`;
   return `<section class="clist">
-    ${units.length > 1 ? row('mix', '混', 'Three conversations, mixed', `From ${units.length} units you've finished`) : ''}
+    ${units.length > 1 ? row('mix', '混', `${units.length > 2 ? 'Three' : 'Two'} conversations, mixed`, `From ${units.length} units you've finished`) : ''}
     ${units.slice().reverse().map((u) => row(u.id, u.n, u.dialogue.title, `Unit ${u.n} · ${u.dialogue.check.length + quickReplies(units, u).length} questions`)).join('')}</section>`;
 }
 
@@ -1205,6 +1205,7 @@ function renderQuiz(step) {
   const opts = view.querySelector('#opts');
   const settle = (picked) => {
     const right = picked === q.answer;
+    const review = Boolean(step.done);
     opts.querySelectorAll('.opt').forEach((b, n) => {
       b.disabled = true;
       if (n === q.answer) b.classList.add('right');
@@ -1222,9 +1223,8 @@ function renderQuiz(step) {
       if (!right) requeue(step);
     }
     const say = q.kind === 'read' ? `It's ${q.options[q.answer]}` : q.kind === 'pick' ? `It's ${q.k.k}` : `It means ${q.k.mean[0]}`;
-    view.insertAdjacentHTML('beforeend', answerSheet(q.k, q.word, right, right ? (step.hinted ? 'Right, with a hint' : 'Correct') : say));
-    document.body.classList.add('has-sheet');
-    view.querySelector('#cont').onclick = () => { document.body.classList.remove('has-sheet'); advance(); };
+    // The 2-minute drill is about speed, so it moves on by itself after a right answer too.
+    showSheet(view, { right: right && !step.hinted, review, html: answerSheet(q.k, q.word, right, right ? (step.hinted ? 'Right, with a hint' : 'Correct') : say) }, advance);
   };
   opts.onclick = (e) => {
     const b = e.target.closest('[data-n]');
@@ -1506,7 +1506,19 @@ function watchKanji(misses) {
 
 // Go over just the missed items again, as practice: they are already due again soon.
 function redoMisses(misses) {
-  const steps = misses.map((s) => ({ ...s, done: false, result: undefined, q: undefined, hinted: false, relearn: false, isNew: false, again: false }));
+  // A question about a conversation or a reading brings its text along, since a silent run
+  // can't replay it; a quick response needs its sound, so it waits for the next listening.
+  const textOf = (s) => {
+    for (let i = run ? run.steps.indexOf(s) : -1; i >= 0; i--) {
+      const t = run.steps[i];
+      if (t.type === 'dialogue' || t.type === 'reading') return t.ref.lines.map((l) => (l.s ? `${l.s}：` : '') + l.t).join('\n');
+    }
+    return null;
+  };
+  const steps = misses.filter((s) => !(s.type === 'check' && s.ref.play)).map((s) => {
+    const p = s.type === 'check' && !s.ref.p ? textOf(s) : null;
+    return p ? { ...s, ref: { ...s.ref, p } } : s;
+  }).map((s) => ({ ...s, done: false, result: undefined, q: undefined, hinted: false, relearn: false, isNew: false, again: false }));
   endRun();
   startRun(steps, 'Mistakes', { redo: true });
 }
@@ -3112,7 +3124,7 @@ function noteClick(e) {
 async function init() {
   // A right answer moves on by itself in a run, unless you'd rather tap Continue. Not when
   // looking back at answered items, and not in listening, where you may want to hear it again.
-  setAutoNext(() => state.settings.autoNext !== false && Boolean(run) && !run.browse && !run.sound && !run.steps[run.i]?.done);
+  setAutoNext((o) => state.settings.autoNext !== false && Boolean(run) && !run.browse && !run.sound && !(o.review ?? run.steps[run.i]?.done));
   // Any listen button, on any screen.
   document.addEventListener('click', (e) => {
     // Quiz runs outside Trip stay silent, even if a listen button slips through.

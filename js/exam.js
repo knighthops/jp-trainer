@@ -29,39 +29,56 @@ function prepared(q, rng) {
 // reply. Built only from conversations you've finished, so every word is taught. A wrong reply
 // answers a different kind of question, one that can't pass for an answer here: a price for
 // a yes/no question, はい for "where". "What do you do?" fits almost any action, so it only
-// takes はい/いいえ or a number as wrong replies.
+// takes はい/いいえ or a number as wrong replies. A request (入って ください) is answered too.
 const QWORDS = [['何時', 'when'], ['何曜日', 'when'], ['いつ', 'when'], ['何人', 'num'], ['いくら', 'num'], ['いくつ', 'num'],
   ['何', 'what'], ['なに', 'what'], ['なん', 'what'], ['どこ', 'where'], ['だれ', 'who'], ['誰', 'who'],
-  ['どれ', 'which'], ['どの', 'which'], ['どちら', 'which'], ['どんな', 'how'], ['どう', 'how'], ['なぜ', 'why']];
+  ['どれ', 'which'], ['どの', 'which'], ['どちら', 'which'], ['どうして', 'why'], ['なぜ', 'why'], ['どんな', 'how'], ['どう', 'how']];
 const askKind = (t) => {
   const ts = words(t);
   // 何か, だれか: "something", "someone", which makes a yes/no question.
   const hit = QWORDS.find(([w]) => ts.some((x, j) => x.startsWith(w) && x !== `${w}か` && !(x === w && ts[j + 1] === 'か')));
-  return hit ? hit[1] : 'yn';
+  return hit ? hit[1] : /ください$/.test(t) ? 'req' : 'yn';
 };
-const FITS_NOT = { yn: ['num', 'when', 'who', 'where', 'which'], what: ['yn', 'num'], how: ['yn', 'num'], why: ['yn', 'num'] };
-const asking = (t) => /か\s*[。？]?$/.test(t.trim());
+const PLAIN = ['yn', 'num', 'when', 'who', 'where', 'which'];
+const FITS_NOT = {
+  yn: ['num', 'when', 'who', 'where', 'which'], what: ['yn', 'num'], how: ['yn', 'num'], why: ['yn', 'num'],
+  // A price can answer an order (この パン も ください), and a season can pass for which of two.
+  req: ['when', 'who', 'where', 'which', 'what'], which: ['yn', 'num', 'who', 'where'],
+};
+const sentences = (t) => t.split(/ ?[。？！] ?/).map((x) => x.trim()).filter(Boolean);
+// Only the question itself is heard (今 何時 です か, not the すみません before it), and a
+// reply loses a question asked back at the end (… 田中 さん は 学生 です か).
 const replyPairs = (u) => (u.dialogue?.lines || []).flatMap((l, i, all) => {
   const next = all[i + 1];
-  // A question, answered by the other speaker with more than a nod, and not with a question back.
-  if (!next || next.s === l.s || !asking(l.t) || asking(next.t) || words(next.t).length < 2) return [];
-  return [{ unit: u, i, ask: l.t, en: l.en, reply: next.t, kind: askKind(l.t) }];
+  if (!next || next.s === l.s) return [];
+  const ask = sentences(l.t).at(-1);
+  const kind = askKind(ask);
+  // A question ends in か, or asks with a question word in casual speech (何 を した).
+  if (!ask || !(/か$/.test(ask) || kind !== 'yn')) return [];
+  const said = sentences(next.t);
+  while (said.length > 1 && /(か|は)$/.test(said.at(-1))) said.pop();
+  const reply = said.join(' 。 ');
+  if (!reply || /か$/.test(reply) || /^(はい|ええ|そう です か|そうですか)$/.test(reply)) return [];
+  return [{ unit: u, i, ask, en: l.en, reply, kind }];
 });
-export function quickReplies(heard, unit, rng = Math.random, max = 2) {
+export function quickReplies(heard, unit, rng = Math.random, max = 3) {
   const all = heard.flatMap(replyPairs);
   const flat = (t) => t.replace(/ +/g, '');
   const yesNo = (t) => /^(はい|いいえ|ええ|うん)/.test(t);
   const kindOf = (o) => (yesNo(o.reply) ? 'yn' : o.kind);
   return shuffled(replyPairs(unit), rng).flatMap((p) => {
-    const ok = FITS_NOT[p.kind] || Object.keys(FITS_NOT).concat('num', 'when', 'who', 'where', 'which').filter((k) => k !== p.kind && !['what', 'how', 'why'].includes(k));
-    const wrong = shuffled(all.filter((o) => o.unit !== p.unit && ok.includes(kindOf(o)) && flat(o.reply) !== flat(p.reply)), rng);
+    const ok = FITS_NOT[p.kind] || PLAIN.filter((k) => k !== p.kind);
+    // いいですね answers a yes/no question, but also how something is: only はい/いいえ will do there.
+    const open = ['what', 'how', 'why'].includes(p.kind);
+    const wrong = shuffled(all.filter((o) => o !== p && ok.includes(kindOf(o)) && flat(o.reply) !== flat(p.reply)
+      && !(open && kindOf(o) === 'yn' && !yesNo(o.reply))), rng);
     const picked = [];
     for (const o of wrong) if (picked.length < 2 && !picked.some((x) => flat(x) === flat(o.reply))) picked.push(o.reply);
     if (picked.length < 2) return [];
     return [{
       q: 'Listen, then choose the best reply.', ask: 'Quick response', ao: true, play: [['A', p.ask]],
       o: [p.reply, ...picked],
-      w: `They asked ${flat(p.ask)} (${p.en}) The reply: ${flat(p.reply)}.`,
+      w: `They said ${flat(p.ask)} (${p.en}) The reply: ${flat(p.reply)}.`,
     }];
   }).slice(0, max);
 }
@@ -107,17 +124,27 @@ export function wordKind(v) {
   return 'noun';
 }
 
+const CASE = new Set(['を', 'に', 'で', 'へ', 'から', 'まで', 'が']);
+const MOVES = new Set(['ぜんぜん', 'ときどき', 'いつも', 'よく', 'あまり', 'とても', 'もう', 'まだ', 'すぐ', 'ちょっと', 'たぶん', 'ゆっくり', '一緒に', 'また', '少し', 'たくさん',
+  'みんなで', '全部', '毎朝', '毎日', '毎晩', '毎週', '毎年', '今日', '明日', '昨日', '今', '今朝', '今晩', '今週', '先週', '来週', '今月', '先月', '来月', '今年', '去年', '来年',
+  'おととい', 'あさって', '朝', '昼', '夜', '晩', '午前', '午後', 'さっき', 'これから', '初めて', 'まっすぐ', 'だんだん', 'もっと', 'いちばん', 'ほんとうに', '本当に']);
+
 // A ★ question as the exam sets it: four pieces of a sentence go in the slots, and you
-// pick the one that lands on ★ (the third slot). Needs at least one word either side of
+// pick the one that lands on ★ (the third slot). Needs at least one word after the slots (and
 // the slots and four different pieces, so there's only one way to read the answer.
 export function starQuestion(sentence, id, rng = Math.random) {
   const list = words(sentence).filter((w) => !/^[。、？！]$/.test(w));
-  if (list.length < 6) return null;
+  if (list.length < 5) return null;
   // と and や join two things that could go either way round, and so do two adjectives.
-  const fits = (p) => new Set(p).size === 4 && !p.some((x) => x === 'と' || x === 'や')
-    && p.filter((x) => /い$/.test(x) && x !== 'ない').length < 2;
-  const starts = shuffled(Array.from({ length: list.length - 5 }, (_, i) => i + 1), rng);
-  const start = starts.find((s) => fits(list.slice(s, s + 4)));
+  // Adverbs and times can sit in more than one place (ぜんぜん 肉 を, 肉 を ぜんぜん), and two
+  // whole phrases can swap (母 に 花 を, 花 を 母 に), so a window with either is no good.
+  const phrases = (p) => p.filter((x, i) => i > 0 && CASE.has(x) && !CASE.has(p[i - 1]) && p[i - 1] !== 'は').length;
+  const fits = (p) => new Set(p).size === 4 && !p.some((x) => x === 'と' || x === 'や' || MOVES.has(x) || /^[一二三四五六七八九十百千何0-9０-９]/.test(x))
+    && p.filter((x) => /い$/.test(x) && x !== 'ない').length < 2 && phrases(p) < 2;
+  // Slots mid-sentence first; at the very start only when nothing else fits (short sentences).
+  const starts = [...shuffled(Array.from({ length: Math.max(0, list.length - 5) }, (_, i) => i + 1), rng), 0];
+  // From the very start, a window holding both sides of は can swap them (田中 さん は 医者 / 医者 は 田中 さん).
+  const start = starts.find((s) => fits(list.slice(s, s + 4)) && !(s === 0 && list.slice(0, 4).includes('は')));
   if (start === undefined) return null;
   const pieces = list.slice(start, start + 4);
   const slots = '（　）（　）（★）（　）';
@@ -194,14 +221,39 @@ export function unitTest(unit, data, rng = Math.random) {
   };
   // A word the unit's own quiz already asks about (はじめまして) isn't asked twice.
   const quizzed = new Set((unit.quiz || []).map((q) => q.q.replace(/[\s[\]。]/g, '')));
+  // Two ★ questions, as the exam sets several, from sentences of different patterns (not 五人 です and
+  // 四人 です). The unit's own sentences and conversation first, then earlier units'. Never
+  // the spelling question's word, whose kanji the pieces would give away: it is picked after these.
+  const sentencesOf = (u) => [...u.lessons.flatMap((l) => [...l.drills.filter((d) => d.b).map((d) => d.b), ...(l.examples || []).map((e) => e.t)]),
+    ...(u.dialogue?.lines || []).map((l) => l.t)];
+  const before = data.units.slice(0, data.units.indexOf(unit));
+  const alike = (a, b) => {
+    const x = words(a.w); const y = words(b.w);
+    return x.length === y.length && x.filter((t, i) => t !== y[i]).length <= 2;
+  };
+  const order = [];
+  for (const b of [...shuffled(sentencesOf(unit), rng), ...shuffled(before.flatMap(sentencesOf), rng)]) {
+    if (order.length >= 2) break;
+    // One sentence only: pieces from two (はい そう です | 田中 さん は…) blur where each ends.
+    if (/[。、？！]/.test(b.trim().replace(/[。？！]$/, ''))) continue;
+    const q = starQuestion(b, `${unit.id}-s${order.length}`, rng);
+    if (q && ok(q.w) && !order.some((o) => o.w === q.w || alike(o, q))) order.push(q);
+  }
   // The spelling question picks its word first, so a unit with few kanji words still gets one;
   // the word questions then leave that word alone. Set in one of the unit's sentences if it can be.
   const taughtKanji = data.units.slice(0, data.units.indexOf(unit) + 1)
     .flatMap((u) => u.lessons.flatMap((l) => l.kanji || []));
   const lines = unit.lessons.flatMap((l) => [...l.drills.filter((d) => d.b).map((d) => d.b), ...(l.examples || []).map((e) => e.t)]).filter(ok);
-  const spelled = shuffled(taught.filter((v) => /[一-龯]/.test(v.w) && v.w !== v.y && !KATAKANA.test(v.y) && !quizzed.has(v.w)
-    && [...v.w].every((c) => !/[一-龯]/.test(c) || taughtKanji.includes(c))), rng)
-    .map((v) => ({ v, q: spellingQuestion(v, taughtKanji, data, `${unit.id}-k`, rng, lines.find((t) => words(t).includes(v.w))) })).find((x) => x.q);
+  const inStars = new Set(order.flatMap((q) => words(q.w)));
+  const spellable = (v) => /[一-龯]/.test(v.w) && v.w !== v.y && !KATAKANA.test(v.y) && !quizzed.has(v.w) && !inStars.has(v.w)
+    && [...v.w].every((c) => !/[一-龯]/.test(c) || taughtKanji.includes(c));
+  const earlier = data.vocab.filter((v) => known.has(v.w) && !taught.includes(v));
+  // The first word that makes a fair question; building one is slow, so it stops there.
+  let spelled = null;
+  for (const v of [...shuffled(taught.filter(spellable), rng), ...shuffled(earlier.filter(spellable), rng)]) {
+    const q = spellingQuestion(v, taughtKanji, data, `${unit.id}-k`, rng, lines.find((t) => words(t).includes(v.w)));
+    if (q) { spelled = { v, q }; break; }
+  }
   const spelling = spelled?.q;
   const chosen = shuffled(taught.filter((v) => !quizzed.has(v.w) && v !== spelled?.v), rng).slice(0, 6);
   const wordQs = chosen.map((v, i) => (i % 2 === 0 && v.w !== v.y
@@ -216,10 +268,6 @@ export function unitTest(unit, data, rng = Math.random) {
     })).map(trim).filter(fair);
   // The two JLPT formats a word list alone doesn't practise: putting pieces in order (★)
   // and picking the right kanji spelling of a word written in kana.
-  const order = shuffled(unit.lessons.flatMap((l) => [...l.drills.filter((d) => d.b).map((d) => d.b), ...(l.examples || []).map((e) => e.t)]), rng)
-    .map((b, i) => starQuestion(b, `${unit.id}-s${i}`, rng)).filter((q) => q && ok(q.w))
-    // Two, as the exam sets several: from different sentences.
-    .filter((q, i, all) => all.findIndex((x) => x.w === q.w) === i).slice(0, 2);
   for (const q of [...order, spelling]) if (q) written.push(q);
   // Every few units, a longer passage with questions in Japanese, as the reading section asks.
   const passage = unit.passage && ok(unit.passage.p) ? unit.passage : null;
@@ -355,7 +403,8 @@ export function startExam(ctx, exam, { mode = 'exam', resume = null } = {}) {
       if (!help || lone || tokens.every(secret)) return '';
       const ro = romajiLine(tokens.map((w) => (secret(w) ? null : plain(w)[0])), glossary, '');
       // A line with words it can't read (山田 san) is left out rather than half converted.
-      return /[一-龯々]/.test(ro) ? '' : `<p class="romaji">${ro}</p>`;
+      // A blank on its own (（１）) has nothing to read.
+      return /[一-龯々]/.test(ro) || !/[a-z]/.test(ro) ? '' : `<p class="romaji">${ro}</p>`;
     };
     const tappable = help && !q.ao && !lone && tokens.some((w) => !secret(w) && glossary[w]);
     const stem = lone ? `<div class="stem lone jp">${display(q.q)}</div>` : q.q ? (tappable

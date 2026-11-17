@@ -1525,10 +1525,12 @@ test('speech stays silent while a quiz run has muted it', async () => {
 test('unit tests practise the ★ order and kanji spelling formats fairly', async () => {
   const { starQuestion, spellingQuestion } = await import('../js/exam.js');
   const rng = () => 0;
-  const q = starQuestion('私 は 毎朝 パン を 食べます', 'x', rng);
-  assert.equal(q.q, '私 （　）（　）（★）（　） 食べます');
-  assert.equal(q.o[0], 'パン');
-  assert.deepEqual([...q.o].sort(), ['は', 'パン', 'を', '毎朝'].sort());
+  // 毎朝 could go before or after パン を, so that sentence makes no ★ question.
+  assert.equal(starQuestion('私 は 毎朝 パン を 食べます', 'x', rng), null);
+  const q = starQuestion('私 は 友達 の 本 を 読みます', 'x', rng);
+  assert.equal(q.w, '私 は 友達 の 本 を 読みます');
+  assert.equal(q.o.length, 4);
+  assert.ok(q.q.includes('（★）'));
   assert.equal(starQuestion('私 は 学生 です', 'x', rng), null);
   const merged = course();
   const v = merged.vocab.find((x) => x.w === '学生');
@@ -1618,24 +1620,29 @@ test('a unit test never asks one word twice, and keeps passage questions togethe
 test('quick-response listening: the real reply, and wrong ones from finished conversations that cannot fit', () => {
   const merged = course();
   let n = 0;
+  const units = new Set();
   for (const [i, unit] of merged.units.entries()) {
     const heard = merged.units.slice(0, i + 1);
-    const lines = new Set(heard.flatMap((u) => u.dialogue.lines.map((l) => l.t)));
+    const lines = heard.flatMap((u) => u.dialogue.lines.map((l) => l.t));
     for (const q of quickReplies(heard, unit, Math.random, 9)) {
       n++;
-      const at = unit.dialogue.lines.findIndex((l) => l.t === q.play[0][1]);
-      assert.equal(q.o[0], unit.dialogue.lines[at + 1].t, unit.id);
+      units.add(unit.id);
+      // The question is the end of a line, and the answer begins the next speaker's line.
+      const at = unit.dialogue.lines.findIndex((l) => l.t.endsWith(q.play[0][1]));
+      assert.ok(at >= 0 && unit.dialogue.lines[at + 1].t.startsWith(q.o[0]), `${unit.id} ${q.play[0][1]}`);
       assert.equal(new Set(q.o).size, 3, unit.id);
       // Every reply was heard in a conversation you've finished, so all of it is taught.
-      assert.ok(q.o.every((o) => lines.has(o)), unit.id);
+      assert.ok(q.o.every((o) => lines.some((t) => t.startsWith(o))), unit.id);
       // No question as a reply, and a yes/no question never has はい/いいえ as a wrong one.
       assert.ok(q.o.every((o) => !/か\s*[。？]?$/.test(o)), unit.id);
-      if (!/何|どこ|だれ|いつ|いくら|いくつ|どれ|どの|どちら|どんな|どう|なぜ/.test(q.play[0][1])) {
+      if (!/何|どこ|だれ|いつ|いくら|いくつ|どれ|どの|どちら|どんな|どう|なぜ|ください/.test(q.play[0][1])) {
         assert.ok(q.o.slice(1).every((o) => !/^(はい|いいえ)/.test(o)), `${unit.id} ${q.o}`);
       }
+      // いいですね could answer "how is it?", so it's never a wrong reply there.
+      if (/どう|何|なぜ/.test(q.play[0][1])) assert.ok(q.o.slice(1).every((o) => !/^いい(?!え)/.test(o)), unit.id);
     }
   }
-  assert.ok(n >= 20, `quick responses across the course (${n})`);
+  assert.ok(n >= 30 && units.size >= 20, `quick responses across the course (${n} in ${units.size} units)`);
 });
 
 test('romaji reads verb forms the glossary does not list from a form it does', () => {
@@ -1645,6 +1652,33 @@ test('romaji reads verb forms the glossary does not list from a form it does', (
   assert.equal(ro('来ませんでした'), 'Kimasendeshita');
   assert.equal(ro('来ない'), 'Konai');
   assert.equal(ro('泳ぎませんでした'), 'Oyogimasendeshita');
+  // Two verbs on one kanji: the one whose conjugation makes the ending.
+  assert.equal(ro('出た'), 'Deta');
+  assert.equal(ro('出して'), 'Dashite');
+  assert.equal(ro('着ます'), 'Kimasu');
+  assert.equal(ro('入って'), 'Haitte');
+  assert.equal(ro('入れて'), 'Irete');
   // Kanji the stem can't account for stay as they are, so the line is left out, not half read.
   assert.match(ro('五十円'), /[一-龯]/);
+  assert.equal(romajiLine('「 コーヒー 」'.split(' '), g, ''), '“kōhī”');
+});
+
+test('every unit test has two fair ★ questions and a spelling question', () => {
+  const merged = course();
+  const MOVES = /^(ぜんぜん|ときどき|いつも|よく|あまり|とても|毎朝|毎日|今日|明日|昨日|今|[一二三四五六七八九十百千何])/;
+  for (const unit of merged.units) {
+    for (let i = 0; i < 8; i++) {
+      const qs = unitTest(unit, merged).sections[0].questions;
+      const stars = qs.filter((x) => /-s\d+$/.test(x.id));
+      const spell = qs.find((x) => /-k$/.test(x.id));
+      // Unit 1's sentences are too short for two fair ones (田中 さん は 医者 です swaps both ways).
+      assert.equal(stars.length, unit === merged.units[0] ? 1 : 2, unit.id);
+      assert.ok(spell, unit.id);
+      for (const q of stars) {
+        // No piece that could sit elsewhere, and not the spelling word's sentence.
+        assert.ok(q.o.every((o) => !MOVES.test(o)), `${unit.id} ${q.w}`);
+        assert.ok(!words(q.w).includes(spell.word), `${unit.id} ${q.w}`);
+      }
+    }
+  }
 });
