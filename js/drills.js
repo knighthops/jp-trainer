@@ -1,7 +1,7 @@
 // Tap-to-assemble and particle drills. The logic functions are pure; the
 // render functions build UI inside the element they are given.
 import { icons } from './icons.js';
-import { sayBtn } from './tts.js';
+import { sayBtn, speakLines } from './tts.js';
 import { romaji as kanaToRomaji } from './romaji.js';
 import { matchReading } from './readings.js';
 
@@ -185,12 +185,36 @@ export function feedbackSheet({ right, headline, glyph = '', title = '', lines =
     ${body}<button class="btn" id="cont">Continue</button></div>`;
 }
 
+// After a right answer the run can move on by itself, saving a tap per item. The app says
+// when (a setting, and never while browsing answers). Touching the sheet stops it, so
+// there's time to read a note.
+let autoNext = () => false;
+export const setAutoNext = (fn) => { autoNext = fn; };
+export const AUTO_MS = 1400;
 export function showSheet(root, opts, onContinue) {
   root.querySelector('.sheet')?.remove();
   root.insertAdjacentHTML('beforeend', feedbackSheet(opts));
   document.body.classList.add('has-sheet');
   const cont = root.querySelector('#cont');
-  cont.onclick = () => { document.body.classList.remove('has-sheet'); onContinue(); };
+  let timer = null;
+  const go = () => {
+    clearTimeout(timer);
+    if (!cont.isConnected || cont.dataset.gone) return;
+    cont.dataset.gone = '1';
+    document.body.classList.remove('has-sheet');
+    onContinue();
+  };
+  cont.onclick = go;
+  if (opts.right && autoNext()) {
+    cont.classList.add('auto');
+    cont.style.setProperty('--auto-ms', `${AUTO_MS}ms`);
+    timer = setTimeout(go, AUTO_MS);
+    root.querySelector('.sheet').addEventListener('pointerdown', (e) => {
+      if (e.target.closest('#cont')) return;
+      clearTimeout(timer);
+      cont.classList.remove('auto');
+    });
+  }
 }
 
 // Headline for a finished item: right first time, or got there after a wrong tap.
@@ -328,8 +352,39 @@ export function tokenize(text, glossary) {
 }
 
 // "Watashi wa gakusei desu." A null word renders as a blank.
+// A form the glossary doesn't list (使って) borrows the reading of its kanji from a form it
+// does (使う → つか), only where the kanji are the whole stem: 銀行 says nothing about 行って.
+// Two verbs on one kanji (入る はい, 入れる い): the one whose ending matches, else the shorter.
+const stems = new WeakMap();
+function stemReading(w, glossary) {
+  const m = /^([一-龯々]+)([ぁ-ゖ]+)$/.exec(w);
+  if (!m) return null;
+  // 来る changes its own sound: 来て きて, 来ない こない, 来れば くれば.
+  if (m[1] === '来') return `${/^[なよさ]/.test(m[2]) ? 'こ' : /^[るれ]/.test(m[2]) ? 'く' : 'き'}${m[2]}`;
+  if (!stems.has(glossary)) {
+    const map = new Map();
+    for (const [k, g] of Object.entries(glossary)) {
+      const p = /^([一-龯々]+)([ぁ-ゖ]+)$/.exec(k);
+      if (!p || !g.y?.endsWith(p[2])) continue;
+      if (!map.has(p[1])) map.set(p[1], []);
+      map.get(p[1]).push({ tail: p[2], y: g.y.slice(0, -p[2].length) });
+    }
+    stems.set(glossary, map);
+  }
+  const options = stems.get(glossary).get(m[1]);
+  if (!options?.length) return null;
+  const best = options.find((o) => o.tail[0] === m[2][0] && o.tail.length > 1)
+    || options.slice().sort((a, b) => a.tail.length - b.tail.length)[0];
+  return best.y + m[2];
+}
+
 export function romajiLine(words, glossary, end = '.') {
-  const line = words.map((w) => (w === null ? '___' : glossary[w]?.ro ?? kanaToRomaji(w))).join(' ')
+  const line = words.map((w) => {
+    if (w === null) return '___';
+    if (glossary[w]?.ro) return glossary[w].ro;
+    const y = /[一-龯々]/.test(w) ? stemReading(w, glossary) : null;
+    return kanaToRomaji(y || w);
+  }).join(' ')
     .replace(/ ?。/g, '.').replace(/ ?、/g, ',').replace(/ ?？/g, '?').replace(/ ?！/g, '!')
     .replace(/\bnani (d|t|no|na|ne)/g, 'nan $1') // 何 is read なん before d, t and n sounds, as the voice says it.
     .replace(/([.?!] )(\p{Ll})/gu, (_, gap, c) => gap + c.toUpperCase());
@@ -436,22 +491,29 @@ export function renderCheck(root, q, { glossary, review = false, onDone }) {
   // Romaji only when every word has a reading: half-converted lines (使tte) help no one.
   const ro = hasSecret ? '' : romajiLine(tokens, glossary, '');
   const romajiRow = hasSecret || /[一-龯々]/.test(ro) ? '' : `<p class="romaji center">${ro} ${sayBtn(tokens.join(' '))}</p>`;
+  // A listening question plays its lines (and, for a quick response, the numbered replies),
+  // and keeps the replies' words hidden until you answer.
+  const NUM = ['いち', 'に', 'さん', 'よん'];
+  const audio = q.play ? [...q.play.map(([s, t]) => ({ s, t })), ...(q.ao ? options.map((o, i) => ({ s: 'B', t: `${NUM[i]}、${o}` })) : [])] : null;
+  const optHtml = (o, i) => (q.ao ? `<span class="cnum">${i + 1}</span><span class="grow ao" hidden>${show(o)}</span>` : show(o));
   root.innerHTML = `
     <div class="card gloss-zone">
       <span class="caps">Check</span>
       ${q.p ? `<div class="passage jp">${q.p.replace(/ +/g, '').replace(/\n/g, '<br>')}</div>` : ''}
       ${q.ask ? `<p class="small muted">${q.ask}</p>` : ''}
+      ${audio ? `<button class="btn ghost" id="play">${icons.speaker}<span>Play</span></button>` : ''}
       ${english ? `<p class="en">${q.q}</p>` : `<div class="pline small-line">${tokens.map(wordHtml).join('')}</div>
       ${romajiRow}
       ${tokens.some((w) => !secret(w) && glossary[w]) ? glossHtml() : ''}`}
     </div>
     <div class="reach">
       <div class="fb" id="fb" role="status"></div>
-      <div class="choices" id="opts">${options.map((o) => `<button class="choice" data-o="${o}">${show(o)}</button>`).join('')}</div>
+      <div class="choices ${q.p && options.every((o) => o.length <= 12) ? 'grid2' : ''}" id="opts">${options.map((o, i) => `<button class="choice" data-o="${o}">${optHtml(o, i)}</button>`).join('')}</div>
     </div>
     <div class="dock" id="after"></div>`;
   bindGloss(root.querySelector('.gloss-zone'), glossary);
   const fb = root.querySelector('#fb');
+  root.querySelector('#play')?.addEventListener('click', () => speakLines(audio));
   root.querySelector('#opts').onclick = (e) => {
     const b = e.target.closest('.choice');
     if (!b || b.disabled) return;
@@ -465,6 +527,7 @@ export function renderCheck(root, q, { glossary, review = false, onDone }) {
     }
     b.classList.add('right');
     root.querySelectorAll('.choice').forEach((x) => { x.disabled = true; });
+    root.querySelectorAll('.ao').forEach((x) => { x.hidden = false; });
     fb.className = 'fb';
     fb.textContent = '';
     showSheet(root, { right: clean, headline: doneHeadline(clean), title: show(q.o[0]), lines: [q.w ? `<span class="small">${q.w}</span>` : ''] }, () => onDone(clean));

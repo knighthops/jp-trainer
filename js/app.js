@@ -12,7 +12,7 @@ import { reviewSteps, kanjiId } from './session.js';
 import { quizQuestion, drillKanji, kindFor, DRILL_SECONDS } from './quiz.js';
 import { loadStrokes, mountStrokes } from './strokes.js';
 import {
-  renderSentence, renderParticle, renderCheck, particleCardHtml, feedbackSheet, showSheet, bindGloss, glossHtml, glossText, romajiLine, shuffled, glued, setKanji, partsHtml, wordKanjiHtml, kanjiOf, kanjiIn,
+  renderSentence, renderParticle, renderCheck, particleCardHtml, feedbackSheet, showSheet, setAutoNext, bindGloss, glossHtml, glossText, romajiLine, shuffled, glued, setKanji, partsHtml, wordKanjiHtml, kanjiOf, kanjiIn,
   setNotes, noteOf, noteSlotInner, noteEditorHtml, togglePeek, peekHtml,
 } from './drills.js';
 import { makeWriteIndex, recognize } from './handwrite.js';
@@ -20,7 +20,7 @@ import {
   UNIT_FILES, EXAM_FILES, JLPT_LEVELS, levelOfFile, mergeCourse, isUnlocked, unitProgress, nextUp, examUnlocked, lessonSteps, words as splitWords, isTaught, choiceShown, lessonParts, drillWords,
   LEVELS, levelSentences, levelProgress, levelUnlocked, particleItem, courseSteps, rankOf, RANKS, unitStars, grammarId, passUnit, isWords, lessonStars,
 } from './course.js';
-import { mockExam, unitTest, startExam, RETAKE_MIN } from './exam.js';
+import { mockExam, unitTest, startExam, RETAKE_MIN, quickReplies } from './exam.js';
 import { wordQuestion, spellPuzzle, renderWordQ, renderSpell, renderMatch, kanaOption } from './exercises.js';
 import { icons } from './icons.js';
 import { romaji, toHiragana, toKana, judgeReading } from './romaji.js';
@@ -388,13 +388,13 @@ function screenListen() {
   const trip = channels.filter((c) => c.trip);
   const course = channels.filter((c) => !c.trip);
   view.innerHTML = `${tripSeg('listen')}
+    <div class="caps sect"><span><span class="jp">聴解</span> Listening practice</span><span class="muted">Exam skill</span></div>
+    ${listeningList()}
     <div class="caps sect"><span><span class="jp">旅</span> Trip radio</span><span class="muted">Hands-free</span></div>
     <section class="clist">${trip.map(chRow).join('')}</section>
     <div class="caps sect"><span><span class="jp">講座</span> Course radio</span></div>
     <section class="clist">${course.length ? course.map(chRow).join('') : '<p class="small muted pad">Finish a course lesson to tune in to what you have learned.</p>'}</section>
-    <p class="small muted center">Each line plays in Japanese, pauses, then in English.${data.trip.some((s) => s.say.every(hasClips)) ? ' Recorded channels keep playing with the phone locked.' : ' Keep the screen on while listening.'}</p>
-    <div class="caps sect"><span><span class="jp">聴解</span> Listening practice</span><span class="muted">Exam skill</span></div>
-    ${listeningList()}`;
+    <p class="small muted center">Each line plays in Japanese, pauses, then in English.${data.trip.some((s) => s.say.every(hasClips)) ? ' Recorded channels keep playing with the phone locked.' : ' Keep the screen on while listening.'}</p>`;
   view.querySelectorAll('[data-hear]').forEach((b) => { b.onclick = () => startListening(b.dataset.hear); });
 }
 
@@ -417,7 +417,7 @@ function listeningList() {
       <span class="playdot" aria-hidden="true">${icons.play}</span></button>`;
   return `<section class="clist">
     ${units.length > 1 ? row('mix', '混', 'Three conversations, mixed', `From ${units.length} units you've finished`) : ''}
-    ${units.slice().reverse().map((u) => row(u.id, u.n, u.dialogue.title, `Unit ${u.n} · ${u.dialogue.check.length} questions`)).join('')}</section>`;
+    ${units.slice().reverse().map((u) => row(u.id, u.n, u.dialogue.title, `Unit ${u.n} · ${u.dialogue.check.length + quickReplies(units, u).length} questions`)).join('')}</section>`;
 }
 
 function startListening(id) {
@@ -427,6 +427,8 @@ function startListening(id) {
   const steps = picked.flatMap((u) => [
     { type: 'dialogue', ref: u.dialogue, unit: u },
     ...u.dialogue.check.map((q, n) => ({ type: 'check', id: `${u.id}-dlg-${n}`, ref: q })),
+    // Then lines from your finished conversations, heard alone: pick the reply.
+    ...quickReplies(units, u).map((q, n) => ({ type: 'check', id: `${u.id}-qr-${n}`, ref: q })),
   ]);
   startRun(steps, id === 'mix' ? 'Listening practice' : `Listening · Unit ${picked[0].n}`, { sound: true });
 }
@@ -2277,6 +2279,7 @@ function screenUnit(id) {
         <span class="unum ${state.course.done[l.id] ? 'on' : ''}">${state.course.done[l.id] ? icons.check : i + 1}</span>
         <span class="grow"><span class="caps">${lessonKind(unit, l)}</span><span class="label">${l.title.replace(/^Words: (.)/, (_, c) => c.toUpperCase())}</span></span><span class="chev">${icons.chevron}</span></button>`).join('')}
     </section>
+    ${heardUnits().includes(unit) ? `<a class="btn ghost" href="#/listen/hear/${unit.id}">${icons.speaker}<span>Practise this conversation by ear</span></a>` : ''}
     ${p.passed ? `<p class="small muted center">You passed this unit${state.course.best?.[unit.id] ? ` with a best of ${Math.round(state.course.best[unit.id] * 100)}%` : ''}. You can retake the test any time.</p>` : ''}
     ${p.passed && nextAfter ? `<button class="btn" id="onward">Go to Unit ${nextAfter.n}</button>` : ''}
     <button class="btn ${(ready || !open) && !p.passed ? '' : 'ghost'}" id="test">${p.passed ? 'Retake the unit test' : open && !ready ? 'Take the test early' : 'Take the unit test'}</button>`;
@@ -2906,6 +2909,11 @@ function screenSettings() {
       ${seg('romaji', [['always', 'Always'], ['tap', 'Tap to show'], ['never', 'Never']])}
     </section>
     <section class="card">
+      <strong>After a right answer</strong>
+      <p class="small muted">Move on by itself after a moment, or wait for Continue. Touch the answer card to stay and read it.</p>
+      ${seg('autoNext', [[true, 'Move on'], [false, 'Wait']])}
+    </section>
+    <section class="card">
       <strong>Readings on sentence blocks</strong>${seg('hints', [[true, 'Show'], [false, 'Hide']])}
     </section>
     <section class="card">
@@ -3023,6 +3031,8 @@ const PARAM_SCREENS = [
   [/^trip\/(\w+)$/, (id) => screenScene(id)],
   [/^course\/story\/(u\d+)$/, (id) => screenStory(id)],
   [/^listen\/radio\/([\w-]+)$/, (id) => screenRadio(id)],
+  // The run takes over at once; when it ends, you land on Listen, not back in the run.
+  [/^listen\/hear\/(u\d+|mix)$/, (id) => { location.replace('#/listen'); screenListen(); startListening(id); }],
   [/^dojo\/cards\/(\w+-[ws])$/, (id) => screenDeck(id)],
 ];
 
@@ -3100,6 +3110,9 @@ function noteClick(e) {
 }
 
 async function init() {
+  // A right answer moves on by itself in a run, unless you'd rather tap Continue. Not when
+  // looking back at answered items, and not in listening, where you may want to hear it again.
+  setAutoNext(() => state.settings.autoNext !== false && Boolean(run) && !run.browse && !run.sound && !run.steps[run.i]?.done);
   // Any listen button, on any screen.
   document.addEventListener('click', (e) => {
     // Quiz runs outside Trip stay silent, even if a listen button slips through.

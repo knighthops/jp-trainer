@@ -133,5 +133,7 @@
 "趣味":{"y":"しゅみ","ro":"shumi","m":"hobby"},
 "熱":{"y":"ねつ","ro":"netsu","m":"fever"},
 "試験":{"y":"しけん","ro":"shiken","m":"exam"},
-"教科書":{"y":"きょうかしょ","ro":"kyōkasho","m":"textbook"}
+"教科書":{"y":"きょうかしょ","ro":"kyōkasho","m":"textbook"},
+"貼ります":{"y":"はります","ro":"harimasu","m":"stick (on), put on"},
+"コピーします":{"y":"コピーします","ro":"kopī shimasu","m":"copy"}
 }

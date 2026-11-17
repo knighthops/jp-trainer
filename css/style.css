@@ -1376,3 +1376,12 @@ body.quiet .say{display:none}
 
 button.crow{width:100%;background:none;border:0;border-bottom:1px solid var(--line2);font:inherit;text-align:left;cursor:pointer}
 button.crow:last-child{border-bottom:0}
+a.btn{text-decoration:none}
+/* Continue fills up while a right answer moves on by itself. */
+#cont.auto{position:relative;overflow:hidden}
+#cont.auto::after{content:"";position:absolute;left:0;bottom:0;height:3px;width:100%;background:currentColor;opacity:.45;transform-origin:left;animation:autofill var(--auto-ms,1400ms) linear forwards}
+@keyframes autofill{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@media (prefers-reduced-motion:reduce){#cont.auto::after{animation:none;transform:none}}
+/* Passage questions: short answers two by two, so all four sit above the Next bar on a phone. */
+.choices.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.choices.grid2 .choice{margin:0}

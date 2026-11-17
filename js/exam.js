@@ -25,6 +25,47 @@ function prepared(q, rng) {
   return { ...q, o, a: o.indexOf(q.o[0]) };
 }
 
+// Quick response, as the listening section asks it: one line is heard, and you pick the
+// reply. Built only from conversations you've finished, so every word is taught. A wrong reply
+// answers a different kind of question, one that can't pass for an answer here: a price for
+// a yes/no question, はい for "where". "What do you do?" fits almost any action, so it only
+// takes はい/いいえ or a number as wrong replies.
+const QWORDS = [['何時', 'when'], ['何曜日', 'when'], ['いつ', 'when'], ['何人', 'num'], ['いくら', 'num'], ['いくつ', 'num'],
+  ['何', 'what'], ['なに', 'what'], ['なん', 'what'], ['どこ', 'where'], ['だれ', 'who'], ['誰', 'who'],
+  ['どれ', 'which'], ['どの', 'which'], ['どちら', 'which'], ['どんな', 'how'], ['どう', 'how'], ['なぜ', 'why']];
+const askKind = (t) => {
+  const ts = words(t);
+  // 何か, だれか: "something", "someone", which makes a yes/no question.
+  const hit = QWORDS.find(([w]) => ts.some((x, j) => x.startsWith(w) && x !== `${w}か` && !(x === w && ts[j + 1] === 'か')));
+  return hit ? hit[1] : 'yn';
+};
+const FITS_NOT = { yn: ['num', 'when', 'who', 'where', 'which'], what: ['yn', 'num'], how: ['yn', 'num'], why: ['yn', 'num'] };
+const asking = (t) => /か\s*[。？]?$/.test(t.trim());
+const replyPairs = (u) => (u.dialogue?.lines || []).flatMap((l, i, all) => {
+  const next = all[i + 1];
+  // A question, answered by the other speaker with more than a nod, and not with a question back.
+  if (!next || next.s === l.s || !asking(l.t) || asking(next.t) || words(next.t).length < 2) return [];
+  return [{ unit: u, i, ask: l.t, en: l.en, reply: next.t, kind: askKind(l.t) }];
+});
+export function quickReplies(heard, unit, rng = Math.random, max = 2) {
+  const all = heard.flatMap(replyPairs);
+  const flat = (t) => t.replace(/ +/g, '');
+  const yesNo = (t) => /^(はい|いいえ|ええ|うん)/.test(t);
+  const kindOf = (o) => (yesNo(o.reply) ? 'yn' : o.kind);
+  return shuffled(replyPairs(unit), rng).flatMap((p) => {
+    const ok = FITS_NOT[p.kind] || Object.keys(FITS_NOT).concat('num', 'when', 'who', 'where', 'which').filter((k) => k !== p.kind && !['what', 'how', 'why'].includes(k));
+    const wrong = shuffled(all.filter((o) => o.unit !== p.unit && ok.includes(kindOf(o)) && flat(o.reply) !== flat(p.reply)), rng);
+    const picked = [];
+    for (const o of wrong) if (picked.length < 2 && !picked.some((x) => flat(x) === flat(o.reply))) picked.push(o.reply);
+    if (picked.length < 2) return [];
+    return [{
+      q: 'Listen, then choose the best reply.', ask: 'Quick response', ao: true, play: [['A', p.ask]],
+      o: [p.reply, ...picked],
+      w: `They asked ${flat(p.ask)} (${p.en}) The reply: ${flat(p.reply)}.`,
+    }];
+  }).slice(0, max);
+}
+
 export function mockExam(paper) {
   const rng = seeded(paper.id);
   return {
@@ -153,7 +194,16 @@ export function unitTest(unit, data, rng = Math.random) {
   };
   // A word the unit's own quiz already asks about (はじめまして) isn't asked twice.
   const quizzed = new Set((unit.quiz || []).map((q) => q.q.replace(/[\s[\]。]/g, '')));
-  const chosen = shuffled(taught.filter((v) => !quizzed.has(v.w)), rng).slice(0, 6);
+  // The spelling question picks its word first, so a unit with few kanji words still gets one;
+  // the word questions then leave that word alone. Set in one of the unit's sentences if it can be.
+  const taughtKanji = data.units.slice(0, data.units.indexOf(unit) + 1)
+    .flatMap((u) => u.lessons.flatMap((l) => l.kanji || []));
+  const lines = unit.lessons.flatMap((l) => [...l.drills.filter((d) => d.b).map((d) => d.b), ...(l.examples || []).map((e) => e.t)]).filter(ok);
+  const spelled = shuffled(taught.filter((v) => /[一-龯]/.test(v.w) && v.w !== v.y && !KATAKANA.test(v.y) && !quizzed.has(v.w)
+    && [...v.w].every((c) => !/[一-龯]/.test(c) || taughtKanji.includes(c))), rng)
+    .map((v) => ({ v, q: spellingQuestion(v, taughtKanji, data, `${unit.id}-k`, rng, lines.find((t) => words(t).includes(v.w))) })).find((x) => x.q);
+  const spelling = spelled?.q;
+  const chosen = shuffled(taught.filter((v) => !quizzed.has(v.w) && v !== spelled?.v), rng).slice(0, 6);
   const wordQs = chosen.map((v, i) => (i % 2 === 0 && v.w !== v.y
     ? { id: `${unit.id}-r${i}`, q: `[${v.w}]`, ask: 'How is this read?', o: [v.y, ...others('y', v.y, v)], w: `${v.w} is read ${v.y}: ${v.m}.`, word: v.w }
     : { id: `${unit.id}-m${i}`, q: `[${v.w}]`, ask: 'What does this mean?', o: [v.m, ...others('m', v.m, v)], w: `${v.w} means ${v.m}.`, word: v.w }));
@@ -167,16 +217,10 @@ export function unitTest(unit, data, rng = Math.random) {
   // The two JLPT formats a word list alone doesn't practise: putting pieces in order (★)
   // and picking the right kanji spelling of a word written in kana.
   const order = shuffled(unit.lessons.flatMap((l) => [...l.drills.filter((d) => d.b).map((d) => d.b), ...(l.examples || []).map((e) => e.t)]), rng)
-    .map((b) => starQuestion(b, `${unit.id}-s`, rng)).find((q) => q && ok(q.w));
-  const taughtKanji = data.units.slice(0, data.units.indexOf(unit) + 1)
-    .flatMap((u) => u.lessons.flatMap((l) => l.kanji || []));
-  // Never a word the test already asks about, and set in one of the unit's sentences if it can be.
-  const asked = new Set(chosen.map((v) => v.w));
-  const lines = unit.lessons.flatMap((l) => [...l.drills.filter((d) => d.b).map((d) => d.b), ...(l.examples || []).map((e) => e.t)]).filter(ok);
-  const spelling = shuffled(taught.filter((v) => /[一-龯]/.test(v.w) && v.w !== v.y && !KATAKANA.test(v.y) && !asked.has(v.w) && !quizzed.has(v.w)
-    && [...v.w].every((c) => !/[一-龯]/.test(c) || taughtKanji.includes(c))), rng)
-    .map((v) => spellingQuestion(v, taughtKanji, data, `${unit.id}-k`, rng, lines.find((t) => words(t).includes(v.w)))).find(Boolean);
-  for (const q of [order, spelling]) if (q) written.push(q);
+    .map((b, i) => starQuestion(b, `${unit.id}-s${i}`, rng)).filter((q) => q && ok(q.w))
+    // Two, as the exam sets several: from different sentences.
+    .filter((q, i, all) => all.findIndex((x) => x.w === q.w) === i).slice(0, 2);
+  for (const q of [...order, spelling]) if (q) written.push(q);
   // Every few units, a longer passage with questions in Japanese, as the reading section asks.
   const passage = unit.passage && ok(unit.passage.p) ? unit.passage : null;
   if (passage) {
@@ -331,7 +375,7 @@ export function startExam(ctx, exam, { mode = 'exam', resume = null } = {}) {
         ${romajiOf()}
         ${tappable ? glossHtml() : ''}
       </div>
-      <div class="reach"><div class="choices" id="opts">${q.o.map((o, i) => `<button class="choice jp ${st.answers[q.id] === i ? 'picked' : ''}" data-i="${i}">
+      <div class="reach"><div class="choices ${q.p && q.o.every((o) => o.length <= 12) ? 'grid2' : ''}" id="opts">${q.o.map((o, i) => `<button class="choice jp ${st.answers[q.id] === i ? 'picked' : ''}" data-i="${i}">
         <span class="cnum">${i + 1}</span><span class="grow">${hideOptions ? '' : display(o)}</span></button>`).join('')}</div></div>
       <div class="dock"><button class="btn" id="next">${st.i === list.length - 1 ? 'Review' : 'Next'}</button>
         <button class="link" id="map">All questions</button></div>`;

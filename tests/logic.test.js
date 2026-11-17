@@ -13,7 +13,7 @@ import {
   UNIT_FILES, mergeCourse, nextUp, isUnlocked, examUnlocked, lessonSteps, LEVELS, levelUnlocked, toBlocks, autoAlts, words, particleItem,
   courseSteps, rankOf, LESSON_NEW, wordsNeededEarly, unitStars, unitItems, grammarId, passUnit, lessonStars, isTaught, choiceShown, lessonParts, tokenWords, textTaught, strayTaught,
 } from '../js/course.js';
-import { unitTest, mockExam, grade, wordKind } from '../js/exam.js';
+import { unitTest, mockExam, grade, wordKind, quickReplies } from '../js/exam.js';
 import { wordQuestion, kanaTiles, spellPuzzle, sameMeaning } from '../js/exercises.js';
 import { checkLogin, hashPassword, userId } from '../js/lock.js';
 import { radioChannels } from '../js/radio.js';
@@ -1539,12 +1539,14 @@ test('unit tests practise the ★ order and kanji spelling formats fairly', asyn
   assert.ok(s.o.slice(1).every((o) => !real.has(o) && o.length === 2));
   let stars = 0, spells = 0;
   for (const unit of merged.units) {
-    for (const x of unitTest(unit, merged).sections[0].questions) {
-      if (/-s$/.test(x.id)) stars++;
-      if (/-k$/.test(x.id)) spells++;
-    }
+    const qs = unitTest(unit, merged).sections[0].questions;
+    const mine = qs.filter((x) => /-s\d+$/.test(x.id));
+    // Two ★ questions a test, from different sentences.
+    if (mine.length >= 2) stars++;
+    assert.equal(new Set(mine.map((x) => x.w)).size, mine.length, unit.id);
+    spells += qs.filter((x) => /-k$/.test(x.id)).length;
   }
-  assert.ok(stars >= merged.units.length * 0.7, `★ questions in most units (${stars})`);
+  assert.ok(stars >= merged.units.length * 0.7, `two ★ questions in most units (${stars})`);
   assert.ok(spells >= merged.units.length * 0.7, `spelling questions in most units (${spells})`);
 });
 
@@ -1611,4 +1613,38 @@ test('a unit test never asks one word twice, and keeps passage questions togethe
       if (firstP >= 0) assert.ok(qs.slice(firstP).every((q) => q.p), `${unit.id}: passage questions together at the end`);
     }
   }
+});
+
+test('quick-response listening: the real reply, and wrong ones from finished conversations that cannot fit', () => {
+  const merged = course();
+  let n = 0;
+  for (const [i, unit] of merged.units.entries()) {
+    const heard = merged.units.slice(0, i + 1);
+    const lines = new Set(heard.flatMap((u) => u.dialogue.lines.map((l) => l.t)));
+    for (const q of quickReplies(heard, unit, Math.random, 9)) {
+      n++;
+      const at = unit.dialogue.lines.findIndex((l) => l.t === q.play[0][1]);
+      assert.equal(q.o[0], unit.dialogue.lines[at + 1].t, unit.id);
+      assert.equal(new Set(q.o).size, 3, unit.id);
+      // Every reply was heard in a conversation you've finished, so all of it is taught.
+      assert.ok(q.o.every((o) => lines.has(o)), unit.id);
+      // No question as a reply, and a yes/no question never has はい/いいえ as a wrong one.
+      assert.ok(q.o.every((o) => !/か\s*[。？]?$/.test(o)), unit.id);
+      if (!/何|どこ|だれ|いつ|いくら|いくつ|どれ|どの|どちら|どんな|どう|なぜ/.test(q.play[0][1])) {
+        assert.ok(q.o.slice(1).every((o) => !/^(はい|いいえ)/.test(o)), `${unit.id} ${q.o}`);
+      }
+    }
+  }
+  assert.ok(n >= 20, `quick responses across the course (${n})`);
+});
+
+test('romaji reads verb forms the glossary does not list from a form it does', () => {
+  const g = course().glossary;
+  const ro = (w) => romajiLine([w], g, '');
+  assert.equal(ro('食べませんでした'), 'Tabemasendeshita');
+  assert.equal(ro('来ませんでした'), 'Kimasendeshita');
+  assert.equal(ro('来ない'), 'Konai');
+  assert.equal(ro('泳ぎませんでした'), 'Oyogimasendeshita');
+  // Kanji the stem can't account for stay as they are, so the line is left out, not half read.
+  assert.match(ro('五十円'), /[一-龯]/);
 });
