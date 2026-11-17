@@ -46,7 +46,7 @@
 "lessons":[
 {"id":"u15a","title":"つ and other counters","pattern":"X を 三つ ください","note":["Japanese counts with a counter word that matches the thing. The general one is つ: 一つ, 二つ, 三つ up to 九つ, then just 十. いくつ asks “how many”.","Other common ones: 枚 for flat things (paper, stamps), 本 for long things (pencils, bottles), 冊 for books. The count goes after the particle, before the verb: 切手を二枚ください."],
 "examples":[{"t":"りんご を 三つ ください","en":"Three apples, please."},{"t":"切手 を 五枚 買いました","en":"I bought five stamps."},{"t":"鉛筆 は 何本 あります か","en":"How many pencils are there?"}],
-"kanji":[],"words":["一つ","四つ","五つ","六つ","七つ","八つ","九つ"],
+"kanji":[],"words":["四つ","五つ","六つ","七つ","八つ","九つ"],
 "drills":[{"b":"りんご を 二つ ください","en":"Two apples, please."},{"b":"切手 を 三枚 買いました","en":"I bought three stamps."},{"b":"本 を 二冊 読みました","en":"I read two books."},
 {"c":"卵 を ___ 買いました","en":"I bought four eggs.","a":"四つ","label":"Choose the count","w":{"四人":"四人 counts people.","四枚":"四枚 counts flat things."}},
 {"c":"紙 を ___ ください","en":"Five sheets of paper, please.","a":"五枚","label":"Choose the count","w":{"五本":"五本 counts long things like pencils.","五人":"五人 counts people."}},
@@ -74,7 +74,7 @@
 {"c":"明日 学校 に ___ ください","en":"Please go to school tomorrow.","a":"行って","label":"Choose the て form","w":{"行いて":"行きます is the exception: 行って.","行きて":"行きます is the exception: 行って."}}]},
 {"id":"u16b","title":"てください: please do","pattern":"X を Y て ください","note":["て form plus ください makes a polite request: 窓を開けてください, “Please open the window.” You'll hear this in shops, classrooms and on signs.","To ask for something again, say もう一度言ってください. To ask someone to go slower, say ゆっくり話してください."],
 "examples":[{"t":"窓 を 開けて ください","en":"Please open the window."},{"t":"ゆっくり 話して ください","en":"Please speak slowly."},{"t":"入口 で 待って ください","en":"Please wait at the entrance."}],
-"kanji":["立","休","買"],"words":["立つ","休む","休み","買う"],
+"kanji":["立","休","買"],"words":["立つ","休む"],
 "drills":[{"b":"ドア を 閉めて ください","en":"Please close the door."},{"b":"ゆっくり 話して ください","en":"Please speak slowly."},{"b":"ここ に 座って ください","en":"Please sit here."},{"b":"出口 で 待って ください","en":"Please wait at the exit."},
 {"c":"窓 を ___ ください","en":"Please open the window.","a":"開けて","label":"Choose the verb","w":{"閉めて":"閉めて means “close”.","待って":"待って means “wait”."}},
 {"c":"ちょっと ___ ください","en":"Please rest for a bit.","a":"休んで","label":"Choose the verb","w":{"立って":"立って means “stand”.","出して":"出して means “hand in”."}},

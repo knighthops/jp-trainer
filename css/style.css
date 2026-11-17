@@ -1373,3 +1373,6 @@ body.no-roles .legend{display:none}
 
 /* Quiz runs outside Trip make no sound, so their listen buttons are hidden. */
 body.quiet .say{display:none}
+
+button.crow{width:100%;background:none;border:0;border-bottom:1px solid var(--line2);font:inherit;text-align:left;cursor:pointer}
+button.crow:last-child{border-bottom:0}

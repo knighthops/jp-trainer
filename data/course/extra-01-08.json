@@ -66,7 +66,7 @@
 "lessons":[
 {"id":"u05w","kind":"words","title":"Words: meals and mornings","note":["Meals are built on ご飯: 朝ご飯 (breakfast), 昼ご飯 (lunch) and 晩ご飯 (dinner). ご飯 alone means cooked rice, or a meal.","Morning verbs: 起きる (get up), 顔を洗う (wash your face), 歯を磨く (brush your teeth), シャワーを浴びる (take a shower). お in お茶 and お菓子 makes them sound polite."],
 "examples":[{"t":"毎朝 シャワー を 浴びます","en":"I take a shower every morning."},{"t":"朝ご飯 に パン と 卵 を 食べます","en":"I have bread and an egg for breakfast."},{"t":"毎晩 歯 を 磨きます","en":"I brush my teeth every night."}],
-"kanji":[],"words":["ご飯","朝ご飯","昼ご飯","晩ご飯","パン","肉","魚","卵","野菜","果物","牛乳","お茶","紅茶","お酒","お弁当","お菓子","起きる","寝る","浴びる","シャワー","洗う","磨く","歯","顔"],
+"kanji":["魚"],"words":["ご飯","朝ご飯","昼ご飯","晩ご飯","肉","魚","卵","野菜","果物","牛乳","お茶","紅茶","お酒","お弁当","お菓子","起きる","寝る","浴びる","シャワー","洗う","磨く","歯","顔"],
 "drills":[{"c":"毎朝 顔 を ___","en":"I wash my face every morning.","a":"洗います","label":"Choose the verb","w":{"磨きます":"磨きます is for teeth.","浴びます":"浴びます is for a shower."}},
 {"c":"毎晩 ___ を 磨きます","en":"I brush my teeth every night.","a":"歯","label":"Choose the word","w":{"顔":"You wash your face, not brush it.","手":"手 is a hand."}},
 {"c":"___ に お弁当 を 食べます","en":"I eat a boxed lunch for lunch.","a":"昼ご飯","label":"Choose the meal","w":{"朝ご飯":"朝ご飯 is breakfast.","晩ご飯":"晩ご飯 is dinner."}}]}],
@@ -78,7 +78,7 @@
 "lessons":[
 {"id":"u06w","kind":"words","title":"Words: free time","note":["Many activities are a noun plus します: 勉強します (study), 料理します (cook), 掃除します (clean), 洗濯します (do the laundry), 散歩します (take a walk), 練習します (practise).","You can also put を between them: 掃除をします. Both are fine. 習う is learning from a teacher, like ピアノを習います."],
 "examples":[{"t":"日曜日 に 掃除 と 洗濯 を しました","en":"I did the cleaning and laundry on Sunday."},{"t":"去年 ピアノ を 習いました","en":"I took piano lessons last year."},{"t":"夜 ラジオ で 音楽 を 聞きました","en":"I listened to music on the radio at night."}],
-"kanji":[],"words":["映画","映画館","音楽","歌","スポーツ","テスト","パーティー","旅行","散歩","練習","習う","夏休み","宿題","勉強","仕事","料理","掃除","洗濯","テレビ","ラジオ"],
+"kanji":[],"words":["映画","映画館","音楽","歌","スポーツ","テスト","パーティー","旅行","散歩","練習","習う","夏休み","宿題","勉強","料理","掃除","洗濯","ラジオ"],
 "drills":[{"c":"映画館 で ___ を 見ました","en":"I watched a movie at the cinema.","a":"映画","label":"Choose the word","w":{"音楽":"You listen to 音楽, music.","歌":"歌 is a song."}},
 {"c":"日曜日 に 部屋 の ___ を しました","en":"I cleaned my room on Sunday.","a":"掃除","label":"Choose the word","w":{"洗濯":"洗濯 is laundry.","料理":"料理 is cooking."}},
 {"c":"先週 ピアノ を ___","en":"I took piano lessons last week.","a":"習いました","label":"Choose the verb","w":{"見ました":"見ました means “watched”.","聞きました":"聞きました means “listened”."}}]}],

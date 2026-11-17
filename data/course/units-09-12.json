@@ -4,7 +4,7 @@
 "lessons":[
 {"id":"u09a","title":"あります and います: there is","pattern":"場所 に X が あります / います","note":["Japanese has two verbs for “there is”. Use あります for objects and plants, and います for people and animals.","The place takes に and the thing takes が. Negatives are ありません and いません. ここ, そこ and あそこ mean here, there and over there."],
 "examples":[{"t":"部屋 に テレビ が あります","en":"There's a TV in the room."},{"t":"公園 に 犬 が います","en":"There's a dog in the park."},{"t":"トイレ は あそこ です","en":"The toilet is over there."}],
-"kanji":["中","外","間"],"words":["中","外","間","外国","外国人"],
+"kanji":["中","外","間"],"words":["外","間","外国","外国人"],
 "drills":[{"b":"部屋 に 机 が あります","en":"There's a desk in the room."},{"b":"公園 に 猫 が います","en":"There's a cat in the park."},{"b":"教室 に 先生 が います","en":"There's a teacher in the classroom."},
 {"c":"箱 の 中 に 本 が ___","en":"There's a book in the box.","a":"あります","label":"Choose the verb","w":{"います":"います is for people and animals. A book takes あります.","です":"です can't say that something exists."}},
 {"c":"あそこ に 犬 が ___","en":"There's a dog over there.","a":"います","label":"Choose the verb","w":{"あります":"あります is for objects. A dog takes います.","ありません":"ありません means “there isn't”, and it's for objects."}},
@@ -25,7 +25,7 @@
 "lessons":[
 {"id":"u10a","title":"い adjectives: big, small, new","pattern":"X は 大きい です · 大きい X","note":["Most Japanese adjectives end in い, like 大きい. Put です after them to be polite: 大きいです.","They go straight before a noun with nothing between: 新しい本 is “a new book”. Note that 高い means both “tall” and “expensive”."],
 "examples":[{"t":"この かばん は 大きい です","en":"This bag is big."},{"t":"新しい 車 を 買いました","en":"I bought a new car."},{"t":"あの 山 は 高い です","en":"That mountain is tall."}],
-"kanji":["大","小","高","安"],"words":["大きい","小さい","高い","安い"],
+"kanji":["大","小","高","安"],"words":["大きい","高い","安い"],
 "drills":[{"b":"この 本 は 小さい です","en":"This book is small."},{"b":"あの 店 は 安い です","en":"That shop is cheap."},{"b":"大きい かばん を 買いました","en":"I bought a big bag."},
 {"c":"この カメラ は ___ です","en":"This camera is expensive.","a":"高い","label":"Choose the adjective","w":{"安い":"安い means “cheap”.","小さい":"小さい means “small”."}},
 {"c":"___ 本 を 読みました","en":"I read a long book.","a":"長い","label":"Choose the adjective","w":{"短い":"短い means “short”.","白い":"白い means “white”."}},

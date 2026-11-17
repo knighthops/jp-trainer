@@ -141,7 +141,7 @@ test('glossary covers every word in the particle guides and drills', () => {
 });
 
 test('content meets the MVP targets, with no duplicates', () => {
-  assert.equal(data.kanji.length, 100);
+  assert.equal(data.kanji.length, 103);
   assert.ok(data.vocab.length >= 140, `${data.vocab.length} words`);
   assert.equal(data.sentences.length, 50);
   assert.equal(new Set(data.kanji.map((k) => k.k)).size, data.kanji.length);
@@ -1545,4 +1545,15 @@ test('sentence builder spares are only particles already taught', async () => {
     assert.deepEqual(spare.map((b) => b.t), ['も']);
   }
   assert.deepEqual(decoysFor(sentence, Math.random, () => false), []);
+});
+
+test('longer passages reach the unit tests, with every word taught by then', () => {
+  const merged = course();
+  const withPassage = merged.units.filter((u) => u.passage);
+  assert.ok(withPassage.length >= 5);
+  for (const unit of withPassage) {
+    const qs = unitTest(unit, merged).sections[0].questions.filter((q) => /-p\d+$/.test(q.id));
+    assert.equal(qs.length, unit.passage.questions.length, `${unit.id}: passage questions all kept`);
+    assert.ok(qs.every((q) => q.p === unit.passage.p));
+  }
 });

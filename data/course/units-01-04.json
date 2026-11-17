@@ -61,7 +61,7 @@
 "lessons":[
 {"id":"u04a","title":"何時: telling the time","pattern":"今 X時 です","note":["時 means o'clock (じ), 分 means minutes (ふん or ぷん), and 半 means half past. Watch the unusual ones: 四時 is よじ, 七時 is しちじ, and 九時 is くじ.","午前 is a.m. and 午後 is p.m., and both go before the time."],
 "examples":[{"t":"今 何時 です か","en":"What time is it now?"},{"t":"今 三時 です","en":"It's 3:00 now."},{"t":"午前 九時 半 です","en":"It's 9:30 a.m."}],
-"kanji":["時","分","半","今"],"words":["今","何時","時間","半分","五分","十分","午前","午後"],
+"kanji":["時","分","半","今","午"],"words":["今","何時","時間","半分","五分","十分","午前","午後"],
 "drills":[{"b":"今 何時 です か","en":"What time is it now?"},{"b":"今 午後 三時 です","en":"It's 3:00 p.m. now."},{"b":"午前 七時 半 です","en":"It's 7:30 a.m."},
 {"c":"今 ___ です","en":"It's 4:00 now.","a":"四時","label":"Choose the time","w":{"八時":"八時 is 8:00.","四分":"四分 is four minutes, not 4:00."}},
 {"c":"___ 九時 です","en":"It's 9:00 p.m.","a":"午後","label":"Choose the word","w":{"午前":"午前 is a.m.","今日":"今日 means “today”."}}]},

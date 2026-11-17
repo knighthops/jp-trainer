@@ -47,9 +47,14 @@ const MIN_QUESTIONS = 10;
 const KATAKANA = /^[゠-ヿ]+$/;
 // A rough word class from the vocab list, which has no part of speech: verbs are glossed
 // "to …", and い-adjectives are kanji with a trailing い (きれい and friends count as nouns).
+// な-adjectives and question words are short fixed lists at N5, so they're named here.
+const NA_ADJ = new Set(['きれい', '静か', 'にぎやか', '有名', '元気', '好き', '嫌い', '大好き', '上手', '下手', '便利', '大丈夫', '大切', '暇', '簡単', 'いろいろ', '丈夫', '大変', '親切', '同じ']);
+const QUESTION = new Set(['何', 'なに', 'なん', 'だれ', '誰', 'どなた', 'どこ', 'どちら', 'どれ', 'どの', 'どんな', 'いつ', 'いくら', 'いくつ', 'どう', 'どうして', 'なぜ', '何時', '何人', '何歳']);
 export function wordKind(v) {
   if (/^to /.test(v.m)) return 'verb';
-  if (/[一-鿿]い$/.test(v.w)) return 'adj';
+  if (QUESTION.has(v.w)) return 'question';
+  if (NA_ADJ.has(v.w)) return 'na';
+  if (/[一-鿿]い$/.test(v.w) || /^(大きい|小さい|おいしい|おもしろい|かわいい|やさしい|うれしい|いい|よい|ない|まずい|ひくい|せまい|ひろい|あつい|さむい|つめたい|あたたかい)$/.test(v.w)) return 'adj';
   return 'noun';
 }
 
@@ -152,6 +157,13 @@ export function unitTest(unit, data, rng = Math.random) {
     && [...v.w].every((c) => !/[一-龯]/.test(c) || taughtKanji.includes(c))), rng)
     .map((v) => spellingQuestion(v, taughtKanji, data, `${unit.id}-k`, rng)).find(Boolean);
   for (const q of [order, spelling]) if (q) written.push(q);
+  // Every few units, a longer passage with questions in Japanese, as the reading section asks.
+  const passage = unit.passage && ok(unit.passage.p) ? unit.passage : null;
+  if (passage) {
+    written.push(...passage.questions.map((q, i) => ({
+      ...q, id: `${unit.id}-p${i}`, p: passage.p, part: passage.title, ask: 'Read the passage, then answer.',
+    })).map(trim).filter(fair));
+  }
   const room = Math.max(0, MIN_QUESTIONS - wordQs.length - written.length);
   written.push(...shuffled(blanks, rng).slice(0, room));
   return {
@@ -294,7 +306,7 @@ export function startExam(ctx, exam, { mode = 'exam', resume = null } = {}) {
         ${tappable ? glossHtml() : ''}
       </div>
       <div class="reach"><div class="choices" id="opts">${q.o.map((o, i) => `<button class="choice jp ${st.answers[q.id] === i ? 'picked' : ''}" data-i="${i}">
-        <span class="cnum">${i + 1}</span><span class="grow">${hideOptions ? '' : display(o)}${!hideOptions && help && /[ぁ-ヶ一-龯]/.test(o) ? `<small class="ro">${romajiLine(plain(o), glossary, '')}</small>` : ''}</span></button>`).join('')}</div></div>
+        <span class="cnum">${i + 1}</span><span class="grow">${hideOptions ? '' : display(o)}</span></button>`).join('')}</div></div>
       <div class="dock"><button class="btn" id="next">${st.i === list.length - 1 ? 'Review' : 'Next'}</button>
         <button class="link" id="map">All questions</button></div>`;
     if (tappable) bindGloss(view.querySelector('.gloss-zone'), glossary);

@@ -392,7 +392,42 @@ function screenListen() {
     <section class="clist">${trip.map(chRow).join('')}</section>
     <div class="caps sect"><span><span class="jp">講座</span> Course radio</span></div>
     <section class="clist">${course.length ? course.map(chRow).join('') : '<p class="small muted pad">Finish a course lesson to tune in to what you have learned.</p>'}</section>
-    <p class="small muted center">Each line plays in Japanese, pauses, then in English.${data.trip.some((s) => s.say.every(hasClips)) ? ' Recorded channels keep playing with the phone locked.' : ' Keep the screen on while listening.'}</p>`;
+    <p class="small muted center">Each line plays in Japanese, pauses, then in English.${data.trip.some((s) => s.say.every(hasClips)) ? ' Recorded channels keep playing with the phone locked.' : ' Keep the screen on while listening.'}</p>
+    <div class="caps sect"><span><span class="jp">聴解</span> Listening practice</span><span class="muted">Exam skill</span></div>
+    ${listeningList()}`;
+  view.querySelectorAll('[data-hear]').forEach((b) => { b.onclick = () => startListening(b.dataset.hear); });
+}
+
+// The course is silent, so its dialogues are practised for listening here, by choice:
+// play the conversation without the words, then answer the questions about it.
+function heardUnits() {
+  return (data.units || []).filter((u) => {
+    const last = u.lessons.filter((l) => !isWords(l)).at(-1);
+    return u.dialogue && last && state.course.done[last.id];
+  });
+}
+
+function listeningList() {
+  const units = heardUnits();
+  if (!units.length) return '<section class="clist"><p class="small muted pad">Finish the last grammar lesson of a unit to practise its conversation by ear.</p></section>';
+  const row = (id, jp, title, sub) => `<button class="crow" data-hear="${id}">
+      <span class="cjp jp big">${jp}</span>
+      <span class="grow"><strong>${title}</strong><span class="small muted">${sub}</span></span>
+      <span class="playdot" aria-hidden="true">${icons.play}</span></button>`;
+  return `<section class="clist">
+    ${units.length > 1 ? row('mix', '混', 'Three conversations, mixed', `From ${units.length} units you've finished`) : ''}
+    ${units.slice().reverse().map((u) => row(u.id, u.n, u.dialogue.title, `Unit ${u.n} · ${u.dialogue.check.length} questions`)).join('')}</section>`;
+}
+
+function startListening(id) {
+  const units = heardUnits();
+  const picked = id === 'mix' ? shuffled(units).slice(0, 3) : units.filter((u) => u.id === id);
+  if (!picked.length) return;
+  const steps = picked.flatMap((u) => [
+    { type: 'dialogue', ref: u.dialogue, unit: u },
+    ...u.dialogue.check.map((q, n) => ({ type: 'check', id: `${u.id}-dlg-${n}`, ref: q })),
+  ]);
+  startRun(steps, id === 'mix' ? 'Listening practice' : `Listening · Unit ${picked[0].n}`, { sound: true });
 }
 
 function screenRadio(id) {
@@ -2089,6 +2124,17 @@ function runUnitTest(unit) {
       if (result.pass) {
         if (!state.course.passed[unit.id]) dayStats(state).tests = (dayStats(state).tests || 0) + 1;
         cleared = passUnit(state, data.units, unit);
+        // Units passed by testing out still feed reviews: their words and kanji join as
+        // known, spread over the next week so they don't all come due at once.
+        let n = 0;
+        for (const u of cleared) {
+          for (const id of u.lessons.flatMap((l) => [...(l.words || []).map((w) => `w:${w}`), ...(l.kanji || []).map((c) => `k:${c}`)])) {
+            if (state.items[id]) continue;
+            const rec = rate(newRecord(), 'good');
+            rec.due += (n++ % 7) * DAY_MS;
+            state.items[id] = rec;
+          }
+        }
         // Passing the unit settles its old misses.
         for (const id of Object.keys(state.course.missed)) if (id.startsWith(`${unit.id}-`)) delete state.course.missed[id];
       } else {

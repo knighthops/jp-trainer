@@ -68,7 +68,7 @@
 "lessons":[
 {"id":"u20a","title":"Dictionary form: 〜のが好き, 〜前に","pattern":"X の が 好き です · X 前 に","note":["The dictionary form is the plain form you've seen in word lists, like 食べる and 読む. Friends use it instead of ます, and it also joins into longer sentences.","Add の to turn a verb into a noun: 読むのが好きです, “I like reading.” Add 前に for “before”: 寝る前に本を読みます. Note that the verb stays in dictionary form, even if the sentence is in the past."],
 "examples":[{"t":"私 は 本 を 読む の が 好き です","en":"I like reading books."},{"t":"寝る 前 に シャワー を 浴びます","en":"I take a shower before going to bed."},{"t":"私 は 歌 を 歌う の が 好き です","en":"I like singing songs."}],
-"kanji":[],"words":["前"],
+"kanji":[],"words":[],
 "drills":[{"b":"私 は 料理 を 作る の が 好き です","en":"I like cooking."},{"b":"寝る 前 に 本 を 読みます","en":"I read a book before going to bed."},{"b":"食べる 前 に 手 を 洗います","en":"I wash my hands before eating."},
 {"c":"泳ぐ ___ が 好き です","en":"I like swimming.","a":"の","label":"Choose the word","w":{"を":"Use の to turn the verb into a noun first.","で":"で marks a place or means."}},
 {"c":"___ 前 に 手 を 洗います","en":"I wash my hands before eating.","a":"食べる","label":"Choose the form","w":{"食べます":"Before 前に, use the dictionary form.","食べた":"Before 前に, the verb stays in dictionary form, not past."}},

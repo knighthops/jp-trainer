@@ -14,7 +14,7 @@ import { stageOf, STRONG, MASTERED } from './srs.js';
 export const JLPT_LEVELS = [
   {
     id: 'n5', name: 'N5', kanji: 'kanji-n5', vocab: 'vocab-n5',
-    units: ['units-01-04', 'units-05-08', 'units-09-12', 'units-13-16', 'units-17-20', 'units-21-24', 'extra-01-08', 'extra-09-16', 'extra-17-24', 'fill-n5'],
+    units: ['units-01-04', 'units-05-08', 'units-09-12', 'units-13-16', 'units-17-20', 'units-21-24', 'extra-01-08', 'extra-09-16', 'extra-17-24', 'fill-n5', 'order-n5', 'read-n5'],
     exams: ['exam-n5-1', 'exam-n5-2'],
   },
 ];
@@ -337,7 +337,7 @@ export function isTaught(w, state, data, at, extra = new Set()) {
   return Boolean(state.course?.done?.[l.id] || state.course?.passed?.[u.id]);
 }
 
-function firstLessonIndex(data) {
+export function firstLessonIndex(data) {
   if (data._firstLesson) return data._firstLesson;
   const order = (data.units || []).flatMap((u) => u.lessons);
   const first = new Map();
