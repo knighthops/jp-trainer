@@ -33,6 +33,7 @@ src = src.replace("import test from 'node:test';", 'const test = window.__test;'
   .replace("import assert from 'node:assert/strict';", 'const assert = window.__assert;')
   .replace("import { readFileSync } from 'node:fs';", 'const readFileSync = window.__read;')
   .replace(/from '\.\.\/js\//g, `from '${base}js/`)
+  .replace(/import\('\.\.\/js\//g, `import('${base}js/`)
   .replace(/import\.meta\.url/g, `'${base}tests/x.js'`);
 await import(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
 const fail = [];

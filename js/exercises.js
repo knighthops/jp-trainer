@@ -11,7 +11,9 @@ const KANJI = /[一-龯々]/;
 // Two meanings that share a content word ("half" and "half past", "student" and "school
 // student") are both right, so one is never a wrong option for the other.
 const STOP = new Set(['the', 'and', 'for', 'one', 'thing', 'things', 'something', 'someone', 'very', 'with', 'from', 'that', 'this']);
-const contentWords = (m) => String(m).toLowerCase().replace(/\([^)]*\)/g, ' ').split(/[^a-z]+/).filter((w) => w.length > 2 && !STOP.has(w) && w !== 'to');
+// Words that mean the same thing in English count as one (お手洗い "restroom" and トイレ "toilet").
+const SYNONYM = { toilet: 'restroom', bathroom: 'restroom', lavatory: 'restroom', movie: 'film', fall: 'autumn', shop: 'store', large: 'big', little: 'small', begin: 'start', finish: 'end', tasty: 'delicious', pupil: 'student', mum: 'mother', dad: 'father', photo: 'photograph', picture: 'photograph' };
+const contentWords = (m) => String(m).toLowerCase().replace(/\([^)]*\)/g, ' ').split(/[^a-z]+/).filter((w) => w.length > 2 && !STOP.has(w) && w !== 'to').map((w) => SYNONYM[w] || w);
 export const sameMeaning = (a, b) => {
   const set = new Set(contentWords(b));
   return a === b || contentWords(a).some((w) => set.has(w));
@@ -193,6 +195,8 @@ export function renderMatch(root, pairs, { rng = Math.random, review = false, on
   let pick = null;
   let clean = true;
   let matched = 0;
+  // Only the pairs you mixed up count as missed, not the whole set.
+  const missed = new Set();
   root.innerHTML = `<div class="qz">
       <span class="qz-tag">Match the pairs</span>
       <p class="qz-q">Tap a word, then what it means</p>
@@ -206,7 +210,7 @@ export function renderMatch(root, pairs, { rng = Math.random, review = false, on
     right: clean,
     headline: clean ? 'All matched' : 'Got there',
     lines: pairs.map((p) => `<span class="jp">${p.jp}</span> <span class="small muted">· ${p.en}</span>`),
-  }, () => onDone(clean));
+  }, () => onDone(clean, [...missed].map((i) => pairs[i])));
   box.onclick = (e) => {
     const b = e.target.closest('.mt');
     if (!b || b.disabled) return;
@@ -224,6 +228,8 @@ export function renderMatch(root, pairs, { rng = Math.random, review = false, on
       return;
     }
     clean = false;
+    missed.add(Number(pick.dataset.i));
+    missed.add(Number(b.dataset.i));
     const was = pick;
     pick = null;
     was.classList.remove('sel');

@@ -343,7 +343,7 @@ mark{background:var(--act-soft);color:var(--act);font-weight:700;border-radius:3
 .ptile.short{min-height:78px;justify-content:center}
 
 /* Exams */
-.passage{padding:12px;border-radius:12px;background:var(--paper);font-size:17px;line-height:1.6}
+.passage{padding:12px;border-radius:12px;background:var(--paper);font-size:17px;line-height:1.6;max-height:34vh;overflow-y:auto;overscroll-behavior:contain}
 .link{display:block;width:100%;min-height:44px;margin-top:6px;color:var(--mute);font-size:14px;font-weight:600}
 .btn:disabled{opacity:.45}
 .qmap{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}

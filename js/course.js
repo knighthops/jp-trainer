@@ -287,18 +287,50 @@ export function tokenWords(token, data) {
 // checked one by one (wrongWords), since an untaught one can simply be left off.
 export function drillWords(d, data) {
   const shown = [...words(String(d.b || d.c || '').replace('___', ' ')), d.a].filter(Boolean);
-  return [...new Set(shown.flatMap((t) => tokenWords(t, data)))];
+  return [...new Set(shown.flatMap((t) => contentWords(t, data)))];
+}
+
+// Names and places that need no lesson: people in the stories, and countries and cities.
+export const NAMES = ['田中', '山田', '鈴木', '佐藤', '中村', '山本', '木村', '東京', '京都', '大阪', 'ベン', 'タマ', 'ポチ', 'マイク', 'ジョン', 'マリア', 'アンナ', 'キム', 'ワン', 'リー',
+  'アメリカ', 'イギリス', 'フランス', 'ドイツ', 'カナダ', 'オーストラリア', 'ブラジル', 'インド'];
+const NAMES_LONGEST = [...NAMES].sort((a, b) => b.length - a.length);
+// A token that is no course word but has kanji or katakana (二階, 九時, 持って来て) is shown
+// as "?token", and counts as taught only once each of its kanji has been met in a word or a
+// lesson's kanji, and each katakana word in it is taught or a name.
+function contentWords(token, data) {
+  const ws = tokenWords(token, data);
+  return ws.length || !/[一-龯々ァ-ヶ]/.test(token) ? ws : [`?${token}`];
+}
+function kanjiFirst(data) {
+  if (data._kanjiFirst) return data._kanjiFirst;
+  const first = new Map();
+  (data.units || []).flatMap((u) => u.lessons).forEach((l, i) => {
+    for (const c of [...(l.kanji || []), ...(l.words || []).join('')]) if (/[一-龯々]/.test(c) && !first.has(c)) first.set(c, i);
+  });
+  data._kanjiFirst = first;
+  return first;
+}
+// known(id) says whether this sitting or your items already have it (k:字 or w:ワード).
+export function strayTaught(token, data, at, known = () => false) {
+  let rest = token;
+  for (const n of NAMES_LONGEST) rest = rest.split(n).join(' ');
+  const first = firstLessonIndex(data);
+  const kf = kanjiFirst(data);
+  for (const run of rest.match(/[ァ-ヶー]+/g) || []) if (!((first.get(run) ?? Infinity) < at) && !known(`w:${run}`)) return false;
+  for (const c of rest.match(/[一-龯々]/g) || []) if (!((kf.get(c) ?? Infinity) < at) && !known(`k:${c}`)) return false;
+  return true;
 }
 // A particle offered as a wrong option counts as taught once the lesson that introduces it
 // (its pattern names it) has been reached.
 export const TAUGHT_PARTICLES = ['は', 'が', 'を', 'に', 'へ', 'で', 'と', 'も', 'の', 'か', 'や', 'から', 'まで', 'より', 'ね', 'よ', 'だけ', 'しか', 'ぐらい', 'ごろ'];
-export const wrongWords = (option, data) => (TAUGHT_PARTICLES.includes(option) ? [option] : tokenWords(option, data));
+export const wrongWords = (option, data) => (TAUGHT_PARTICLES.includes(option) ? [option] : contentWords(option, data));
 // Whether a piece of text shows only what the course has taught before lesson index `at`
 // (a unit test passes the index just past its last lesson).
 export function textTaught(text, data, at) {
   const first = firstLessonIndex(data);
   const parts = particleLesson(data);
   return words(String(text).replace(/[[\]*。、？！?!「」]|___/g, ' ')).every((t) => wrongWords(t, data).every((w) => {
+    if (w.startsWith('?')) return strayTaught(w.slice(1), data, at);
     const i = first.has(w) ? first.get(w) : parts.get(w);
     return i === undefined || i < at;
   }));
@@ -326,6 +358,7 @@ export function choiceShown(ref, taught, data) {
 // you have it (or its kanji) as an item, or the course already went past the lesson that
 // teaches it (testing out of a unit); `extra` holds what this sitting has just taught.
 export function isTaught(w, state, data, at, extra = new Set()) {
+  if (w.startsWith('?')) return strayTaught(w.slice(1), data, at, (id) => extra.has(id) || Boolean(state.items[id]));
   if (extra.has(`w:${w}`) || extra.has(`k:${w}`)) return true;
   if (state.items[`w:${w}`] || state.items[`k:${w}`]) return true;
   if (TAUGHT_PARTICLES.includes(w) && !firstLessonIndex(data).has(w)) return (particleLesson(data).get(w) ?? Infinity) <= at;
@@ -484,8 +517,8 @@ export function lessonSteps(unit, lesson, state, data, resume = null) {
   // No listening step: the course stays silent so music from other apps keeps playing.
   const intro = { type: 'lesson', ref: lesson, unit };
   if (more) return [intro, ...groups, ...extra, ...spread, { type: 'lessonPart', id: lesson.id }];
-  // The dialogue (listening) closes the last grammar lesson; the reading closes the Words lesson.
-  const isLast = unit.lessons.filter((l) => !isWords(l)).at(-1) === lesson;
+  // The reading closes the Words lesson, and the dialogue closes the unit, after every word it uses is taught.
+  const isLast = unit.lessons.at(-1) === lesson;
   const dialogue = isLast && unit.dialogue
     ? [{ type: 'dialogue', ref: unit.dialogue, unit }, ...unit.dialogue.check.map((q, n) => ({ type: 'check', id: `${unit.id}-dlg-${n}`, ref: q }))]
     : [];
@@ -497,8 +530,8 @@ export function lessonSteps(unit, lesson, state, data, resume = null) {
     ...groups,
     ...extra,
     ...spread,
-    ...dialogue,
     ...reading,
+    ...dialogue,
     { type: 'lessonEnd', id: lesson.id },
   ];
 }

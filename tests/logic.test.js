@@ -11,7 +11,7 @@ import { matchReading } from '../js/readings.js';
 import { reviewSteps, kanjiId, talkId } from '../js/session.js';
 import {
   UNIT_FILES, mergeCourse, nextUp, isUnlocked, examUnlocked, lessonSteps, LEVELS, levelUnlocked, toBlocks, autoAlts, words, particleItem,
-  courseSteps, rankOf, LESSON_NEW, wordsNeededEarly, unitStars, unitItems, grammarId, passUnit, lessonStars, isTaught, choiceShown, lessonParts, tokenWords,
+  courseSteps, rankOf, LESSON_NEW, wordsNeededEarly, unitStars, unitItems, grammarId, passUnit, lessonStars, isTaught, choiceShown, lessonParts, tokenWords, textTaught, strayTaught,
 } from '../js/course.js';
 import { unitTest, mockExam, grade, wordKind } from '../js/exam.js';
 import { wordQuestion, kanaTiles, spellPuzzle, sameMeaning } from '../js/exercises.js';
@@ -682,7 +682,7 @@ test('course steps count lessons and unit tests, and ranks only rise', () => {
   assert.equal(rankOf(24).next, null);
 });
 
-test('every unit ends on a Words lesson with a reading, and keeps its dialogue on the last grammar lesson', () => {
+test('every unit ends on a Words lesson with its reading, then the dialogue, once its words are taught', () => {
   const merged = course();
   const ids = merged.units.flatMap((u) => u.lessons.map((l) => l.id));
   assert.equal(new Set(ids).size, ids.length, 'a lesson id is used twice');
@@ -691,10 +691,15 @@ test('every unit ends on a Words lesson with a reading, and keeps its dialogue o
     assert.equal(last.kind, 'words', `${u.id} ends on ${last.id}`);
     assert.ok(u.reading?.lines.length >= 4 && u.reading.check.length >= 2, `${u.id} reading`);
     const steps = lessonSteps(u, last, blank(), merged, { fresh: [], part: false });
-    assert.ok(steps.some((s) => s.type === 'reading'), `${u.id} words lesson has no reading`);
-    assert.ok(!steps.some((s) => s.type === 'dialogue'), `${u.id} dialogue moved into the words lesson`);
+    const types = steps.map((s) => s.type);
+    assert.ok(types.includes('reading'), `${u.id} words lesson has no reading`);
+    assert.ok(types.indexOf('dialogue') > types.indexOf('reading'), `${u.id} dialogue comes after the reading`);
     const grammar = u.lessons.filter((l) => l.kind !== 'words').at(-1);
-    assert.ok(lessonSteps(u, grammar, blank(), merged, { fresh: [], part: false }).some((s) => s.type === 'dialogue'), `${u.id} lost its dialogue`);
+    assert.ok(!lessonSteps(u, grammar, blank(), merged, { fresh: [], part: false }).some((s) => s.type === 'dialogue'), `${u.id} dialogue before its words`);
+    // Every word of the dialogue is taught by the end of its unit.
+    const end = merged.units.slice(0, merged.units.indexOf(u) + 1).reduce((n, x) => n + x.lessons.length, 0);
+    for (const l of [...u.dialogue.lines, ...u.reading.lines]) assert.ok(textTaught(l.t, merged, end), `${u.id} dialogue or reading: ${l.t}`);
+    if (u.passage) assert.ok(textTaught(u.passage.p, merged, end), `${u.id} passage`);
   }
   // Extra lessons can slot in before an existing one.
   const u16 = merged.units.find((u) => u.id === 'u16');
@@ -1127,8 +1132,7 @@ test('flashcards: decks by unit, all of N5 and finished lessons, with a picture 
 test('home reading card: finished lessons first, never the same card twice running', () => {
   const d = course();
   const first = homeCard(d.units, {}, () => 0);
-  assert.equal(first.kind, 'word', 'nothing finished yet: a word from unit 1');
-  assert.equal(first.unit.n, 1);
+  assert.equal(first, null, 'nothing finished yet: no card, so nothing untaught is shown');
   const done = Object.fromEntries(d.units[1].lessons.map((l) => [l.id, 1]));
   const card = homeCard(d.units, done, () => 0);
   assert.equal(card.kind, 'sentence');
@@ -1297,23 +1301,39 @@ test('XP is a sum of logged work, and the streak forgives up to two rest days a 
 
 test('unit-test word options are the same kind of word as the answer', () => {
   const merged = course();
-  assert.equal(wordKind({ w: '帰る', y: 'かえる', m: 'to go home' }), 'verb');
+  // Real course data: verbs aren't always glossed "to …".
+  const real = (w) => merged.vocab.find((v) => v.w === w);
+  for (const w of ['帰る', '引く', '開ける', '乗る', '待つ', 'ある']) assert.equal(wordKind(real(w)), 'verb', w);
+  for (const w of ['新しい', '難しい', '楽しい', 'おいしい']) assert.equal(wordKind(real(w)), 'adj', w);
+  for (const w of ['一つ', 'お手洗い']) assert.equal(wordKind(real(w)), 'noun', w);
+  assert.equal(wordKind(real('にぎやか')), 'na');
   assert.equal(wordKind({ w: '高い', y: 'たかい', m: 'high, expensive' }), 'adj');
   assert.equal(wordKind({ w: 'ドア', y: 'ドア', m: 'door' }), 'noun');
-  const byM = new Map(merged.vocab.map((v) => [v.m, v]));
+  // Meanings shared by two words (黒い and 黒, both "black") are left out of the kind check.
+  const meanings = merged.vocab.map((v) => v.m);
+  const byM = new Map(merged.vocab.filter((v) => meanings.indexOf(v.m) === meanings.lastIndexOf(v.m)).map((v) => [v.m, v]));
   const byY = new Map(merged.vocab.map((v) => [v.y, v]));
+  const off = [];
+  let asked = 0;
   for (const unit of merged.units) {
     for (const q of unitTest(unit, merged).sections[0].questions) {
       const right = q.o[q.a];
       if (/-r\d+$/.test(q.id)) {
         for (const o of q.o) assert.ok(!/^[゠-ヿ]+$/.test(o), `${q.id}: no katakana among readings (${o})`);
       }
-      if (/-m\d+$/.test(q.id) && wordKind(byM.get(right)) === 'verb') {
-        assert.ok(q.o.every((o) => /^to /.test(o)), `${q.id}: verbs beside a verb: ${q.o}`);
+      // A meaning question's wrong options are the same kind of word as the answer.
+      if (/-m\d+$/.test(q.id) && q.word) {
+        const kind = wordKind(real(q.word));
+        if (kind !== 'verb' && kind !== 'adj') continue;
+        asked++;
+        if (q.o.map((o) => byM.get(o)).filter(Boolean).some((v) => wordKind(v) !== kind)) off.push(`${q.id} ${q.word}: ${q.o}`);
       }
+      assert.ok(right !== undefined);
     }
   }
   assert.ok(byY.size > 0);
+  // Early units teach too few verbs to fill a set, so a few mixed sets are allowed.
+  assert.ok(off.length <= Math.max(2, asked * 0.15), `${off.length} of ${asked}: ${off.join(' | ')}`);
 });
 
 test('Rush keeps a separate best for the struggling-only game', () => {
@@ -1483,6 +1503,8 @@ test('the course has no listening steps, so it never makes a sound', () => {
 });
 
 test('speech stays silent while a quiz run has muted it', async () => {
+  // Needs a stand-in for window, which the browser runner can't replace.
+  if (typeof document !== 'undefined') return;
   const spoken = [];
   globalThis.window = { speechSynthesis: { speak: (u) => spoken.push(u.text), cancel() {}, getVoices: () => [], speaking: false, pending: false } };
   globalThis.SpeechSynthesisUtterance = class { constructor(text) { this.text = text; } };
@@ -1528,9 +1550,12 @@ test('unit tests practise the ★ order and kanji spelling formats fairly', asyn
 
 test('levels list every course file, and every unit knows its level', async () => {
   const { JLPT_LEVELS: LEVELS, EXAM_FILES } = await import('../js/course.js');
-  const { readdirSync } = await import('node:fs');
-  const files = readdirSync(new URL('../data/course/', import.meta.url)).map((f) => f.replace(/\.json$/, ''));
-  for (const f of files) assert.ok(UNIT_FILES.includes(f) || EXAM_FILES.includes(f), `${f} is listed in a level`);
+  // The folder listing needs Node; the browser runner checks the rest.
+  if (typeof document === 'undefined') {
+    const { readdirSync } = await import('node:fs');
+    const files = readdirSync(new URL('../data/course/', import.meta.url)).map((f) => f.replace(/\.json$/, ''));
+    for (const f of files) assert.ok(UNIT_FILES.includes(f) || EXAM_FILES.includes(f), `${f} is listed in a level`);
+  }
   const merged = course();
   const ids = LEVELS.map((l) => l.id);
   assert.ok(merged.units.every((u) => ids.includes(u.level)), 'every unit has a level');
@@ -1555,5 +1580,35 @@ test('longer passages reach the unit tests, with every word taught by then', () 
     const qs = unitTest(unit, merged).sections[0].questions.filter((q) => /-p\d+$/.test(q.id));
     assert.equal(qs.length, unit.passage.questions.length, `${unit.id}: passage questions all kept`);
     assert.ok(qs.every((q) => q.p === unit.passage.p));
+  }
+});
+
+test('a word no lesson teaches counts as taught only once its kanji are met', () => {
+  const merged = course();
+  const order = merged.units.flatMap((u) => u.lessons.map((l) => l.id));
+  const at = (id) => order.indexOf(id);
+  // 九時 needs 時; it is fine once the lesson that teaches 時 is behind you.
+  assert.equal(strayTaught('九時', merged, 0), false);
+  assert.equal(strayTaught('九時', merged, at('u05a')), true);
+  // A kanji no lesson has met is never taught; names need no lesson.
+  assert.equal(strayTaught('鬱', merged, order.length), false);
+  assert.equal(strayTaught('田中', merged, 0), true);
+  assert.equal(strayTaught('アメリカ', merged, 0), true);
+  assert.equal(textTaught('二階 に あります', merged, at('u09w')), false);
+  assert.equal(textTaught('二階 に あります', merged, at('u10a')), true);
+  // The runtime check counts a kanji just learned in this sitting.
+  assert.equal(isTaught('?九時', { items: {}, course: { done: {}, passed: {} } }, merged, 0, new Set(['k:九', 'k:時'])), true);
+});
+
+test('a unit test never asks one word twice, and keeps passage questions together at the end', () => {
+  const merged = course();
+  for (let n = 0; n < 5; n++) {
+    for (const unit of merged.units) {
+      const qs = unitTest(unit, merged).sections[0].questions;
+      const spell = qs.find((q) => /-k$/.test(q.id));
+      if (spell) assert.ok(!qs.some((q) => q !== spell && q.word === spell.word), `${unit.id}: ${spell.word} asked twice`);
+      const firstP = qs.findIndex((q) => q.p);
+      if (firstP >= 0) assert.ok(qs.slice(firstP).every((q) => q.p), `${unit.id}: passage questions together at the end`);
+    }
   }
 });

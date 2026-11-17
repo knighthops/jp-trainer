@@ -433,10 +433,13 @@ export function renderCheck(root, q, { glossary, review = false, onDone }) {
   const show = (o) => (/[A-Za-z]/.test(o) ? o : o.replace(/ +/g, ''));
   const wordHtml = (w) => (secret(w) ? `<u>${bare(w)}</u>`
     : glossary[w] ? `<button class="word" data-word="${w}">${w}</button>` : `<span>${w}</span>`);
-  const romajiRow = hasSecret ? '' : `<p class="romaji center">${romajiLine(tokens, glossary, '')} ${sayBtn(tokens.join(' '))}</p>`;
+  // Romaji only when every word has a reading: half-converted lines (使tte) help no one.
+  const ro = hasSecret ? '' : romajiLine(tokens, glossary, '');
+  const romajiRow = hasSecret || /[一-龯々]/.test(ro) ? '' : `<p class="romaji center">${ro} ${sayBtn(tokens.join(' '))}</p>`;
   root.innerHTML = `
     <div class="card gloss-zone">
       <span class="caps">Check</span>
+      ${q.p ? `<div class="passage jp">${q.p.replace(/ +/g, '').replace(/\n/g, '<br>')}</div>` : ''}
       ${q.ask ? `<p class="small muted">${q.ask}</p>` : ''}
       ${english ? `<p class="en">${q.q}</p>` : `<div class="pline small-line">${tokens.map(wordHtml).join('')}</div>
       ${romajiRow}

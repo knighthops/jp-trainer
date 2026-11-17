@@ -402,14 +402,15 @@ function screenListen() {
 // play the conversation without the words, then answer the questions about it.
 function heardUnits() {
   return (data.units || []).filter((u) => {
-    const last = u.lessons.filter((l) => !isWords(l)).at(-1);
-    return u.dialogue && last && state.course.done[last.id];
+    // The dialogue closes the unit's last lesson; a unit passed by testing out counts too.
+    const last = u.lessons.at(-1);
+    return u.dialogue && last && (state.course.done[last.id] || state.course.passed[u.id]);
   });
 }
 
 function listeningList() {
   const units = heardUnits();
-  if (!units.length) return '<section class="clist"><p class="small muted pad">Finish the last grammar lesson of a unit to practise its conversation by ear.</p></section>';
+  if (!units.length) return '<section class="clist"><p class="small muted pad">Finish a unit to practise its conversation by ear.</p></section>';
   const row = (id, jp, title, sub) => `<button class="crow" data-hear="${id}">
       <span class="cjp jp big">${jp}</span>
       <span class="grow"><strong>${title}</strong><span class="small muted">${sub}</span></span>
@@ -451,7 +452,7 @@ const kanjiKnown = () => Object.keys(state.items).filter((id) => id.startsWith('
 // `redo` marks a run of mistakes gone over again.
 const starMap = () => Object.fromEntries((data.units || []).map((u) => [u.id, unitStars(state, u)]));
 
-function startRun(steps, title, { useSrs = false, browse = false, start = 0, more = null, onDrill = null, lesson = null, then = null, drill = null, redo = false, sound = false } = {}) {
+function startRun(steps, title, { useSrs = false, browse = false, start = 0, more = null, onDrill = null, lesson = null, then = null, drill = null, redo = false, sound = false, restore = null } = {}) {
   run = {
     steps: [...steps], i: start, title, useSrs, browse, more, onDrill, lesson, then, drill, redo, sound,
     kanjiBefore: kanjiKnown(), ups: [0, 0, 0, 0], starsBefore: starMap(), clean: 0, drills: 0, cards: 0,
@@ -460,6 +461,16 @@ function startRun(steps, title, { useSrs = false, browse = false, start = 0, mor
     // First answers only: what was asked, and what was missed (by id, in order).
     seen: new Set(), misses: new Map(),
   };
+  // A resumed lesson keeps what was asked and missed before you left, so its summary is true.
+  if (restore) {
+    run.seen = new Set(restore.seen || []);
+    for (const key of restore.missed || []) {
+      const step = run.steps.find((x) => (x.key || x.id) === key && !x.again);
+      if (step) run.misses.set(key, step);
+    }
+    run.clean = restore.clean || 0;
+    run.drills = restore.drills || 0;
+  }
   document.body.classList.add('in-run');
   // Only Trip runs make sound. Elsewhere listen buttons are hidden, since any audio on
   // iPhone pauses music playing in other apps.
@@ -536,7 +547,11 @@ function toast(text) {
 // A new item missed in a lesson comes back once, a few steps later, as practice.
 function requeue(step) {
   if (!step.isNew || step.again || !run.useSrs) return;
-  run.steps.splice(Math.min(run.i + 4, run.steps.length), 0, { ...step, done: false, result: undefined, q: undefined, again: true });
+  const at = Math.min(run.i + 4, run.steps.length);
+  run.steps.splice(at, 0, { ...step, done: false, result: undefined, q: undefined, again: true });
+  // Remembered, so a resumed lesson still brings it back.
+  const cur = run.lesson && state.course.current;
+  if (cur?.lesson === run.lesson.lesson.id) (cur.again ||= []).push({ id: step.id, at });
 }
 
 function record(id, grade) {
@@ -595,8 +610,13 @@ function renderStep() {
     return advance();
   }
   // Save the place in a course lesson, so leaving the app doesn't lose it.
-  if (run.lesson && state.course.current?.lesson === run.lesson.lesson.id && state.course.current.i !== run.i) {
-    state.course.current.i = run.i;
+  if (run.lesson && state.course.current?.lesson === run.lesson.lesson.id) {
+    const cur = state.course.current;
+    cur.i = run.i;
+    cur.seen = [...run.seen];
+    cur.missed = [...run.misses.keys()];
+    cur.clean = run.clean;
+    cur.drills = run.drills;
     save(state);
   }
   // After Previous, the count turns into a jump straight back to where you left off.
@@ -671,7 +691,7 @@ function renderStep() {
   } else if (step.type === 'spell') {
     step.q ||= spellPuzzle(step.ref);
     renderSpell(view, step.q, { review, onDone: (clean) => finishExercise(clean, { srs: false }) });
-  } else if (step.type === 'match') renderMatch(view, step.pairs, { review, onDone: (clean) => finishExercise(clean, { srs: false }) });
+  } else if (step.type === 'match') renderMatch(view, step.pairs, { review, onDone: (clean, missed) => { step.missedPairs = missed; finishExercise(clean, { srs: false }); } });
   else if (step.type === 'lesson') renderLesson(step);
   else if (step.type === 'dialogue') renderDialogue(step);
   else if (step.type === 'reading') renderReading(step);
@@ -1275,13 +1295,14 @@ function renderDialogue(step) {
       <div class="seg mini" id="speed"><button class="on" data-r="${NORMAL}">Normal</button><button data-r="${SLOW}">Slow</button></div>
       <p class="small muted center" id="nowline" aria-live="polite">&nbsp;</p>
       <button class="btn ghost" id="show">Show the words</button>`}
-      <div id="lines" ${quiet ? '' : 'hidden'}>${d.lines.map((l, i) => `<div class="dline" data-i="${i}"><span class="who">${l.s}</span><div class="grow">
+      <div id="lines" class="${quiet ? 'reading' : ''}" ${quiet ? '' : 'hidden'}>${d.lines.map((l, i) => `<div class="dline" data-i="${i}"><span class="who">${l.s}</span><div class="grow">
         <div class="stem jp">${wordLine(l.t)}</div>
-        <p class="romaji">${lineRomaji(l.t)}</p><p class="small muted">${l.en}</p></div>
+        <p class="romaji">${lineRomaji(l.t)}</p><p class="small muted sen">${l.en}</p></div>
         <button class="say" data-line="${i}" aria-label="Play line ${i + 1}">${icons.speaker}</button></div>`).join('')}
         ${glossHtml()}</div>
+      ${quiet ? '<button class="btn ghost" id="showen">Show the English</button>' : ''}
     </div>
-    <div class="dock"><button class="btn" id="next">Continue</button></div>`;
+    <div class="dock"><button class="btn" id="next">${quiet ? 'Answer the questions' : 'Continue'}</button></div>`;
   bindGloss(view.querySelector('.gloss-zone'), data.glossary);
   // The line being spoken lights up, and the status says whose turn it is, words shown or not.
   const rows = view.querySelectorAll('.dline');
@@ -1291,6 +1312,11 @@ function renderDialogue(step) {
     nowline.innerHTML = i < 0 ? '&nbsp;' : `Speaker ${d.lines[i].s} · line ${i + 1} of ${d.lines.length}`;
   };
   if (quiet) {
+    // As in the reading, the English waits behind a tap, so the questions test the Japanese.
+    view.querySelector('#showen').onclick = (e) => {
+      view.querySelector('#lines').classList.add('open');
+      e.currentTarget.hidden = true;
+    };
     view.querySelector('#next').onclick = advance;
     return;
   }
@@ -1455,7 +1481,10 @@ function missLine(step) {
   const r = step.ref || {};
   if (isKanjiStep(step)) return { jp: r.k, en: `${headReading(r)} · ${r.mean[0]}` };
   if (step.type === 'card' || step.type === 'wordq' || step.type === 'spell') return { jp: r.w, en: `${r.y} · ${r.m}` };
-  if (step.type === 'match') return { jp: step.pairs.map((p) => p.jp).join(' '), en: 'Matching pairs' };
+  if (step.type === 'match') {
+    const ps = step.missedPairs?.length ? step.missedPairs : step.pairs;
+    return { jp: ps.map((p) => p.jp).join(' '), en: ps.length < step.pairs.length ? ps.map((p) => p.en).join(', ') : 'Matching pairs' };
+  }
   if (step.type === 'sentence') return { jp: r.blocks.map((b) => b.t).join(''), en: r.en };
   if (step.type === 'particle') return { jp: flat(`${r.before ?? step.set?.noun ?? ''}${r.answer}${r.after ?? ''}`), en: r.en };
   if (step.type === 'check') return { jp: latin(r.q) ? r.q : flat(r.q), en: `Answer: ${latin(r.o[0]) ? r.o[0] : flat(r.o[0])}` };
@@ -2011,15 +2040,22 @@ function startLesson(unit, lesson) {
   if (parts.count > 1) (state.course.parts ||= {})[lesson.id] ||= parts.sizes;
   const saved = state.course.current?.lesson === lesson.id ? state.course.current : null;
   const steps = lessonSteps(unit, lesson, state, data, saved);
+  // Missed items queued to come back are put back where they were.
+  for (const a of saved?.again || []) {
+    const step = steps.find((x) => x.id === a.id && !x.again);
+    if (step) steps.splice(Math.min(a.at, steps.length), 0, { ...step, again: true });
+  }
   const start = saved ? Math.min(saved.i, steps.length - 1) : 0;
   state.course.current = {
     lesson: lesson.id,
     fresh: steps.filter((s) => s.type === 'learn').map((s) => s.id),
     part: steps.at(-1).type === 'lessonPart',
     i: start,
+    again: saved?.again || [],
+    seen: saved?.seen || [], missed: saved?.missed || [], clean: saved?.clean || 0, drills: saved?.drills || 0,
   };
   save(state);
-  startRun(steps, lesson.title, { useSrs: true, start, lesson: { unit, lesson, parts } });
+  startRun(steps, lesson.title, { useSrs: true, start, lesson: { unit, lesson, parts }, restore: saved });
 }
 
 const resumable = (next) => next?.type === 'lesson' && state.course.current?.lesson === next.lesson.id && state.course.current.i > 0;
@@ -2087,7 +2123,8 @@ const examContext = () => ({
 });
 
 // A missed question, in the shape the check drill uses: right answer first.
-const asCheck = (q) => ({ id: q.id, q: q.q, ask: q.ask, w: q.w, o: [q.o[q.a], ...q.o.filter((_, i) => i !== q.a)] });
+// A passage question keeps its passage (p), or it couldn't be answered later.
+const asCheck = (q) => ({ id: q.id, q: q.q, ask: q.ask, w: q.w, ...(q.p ? { p: q.p } : {}), o: [q.o[q.a], ...q.o.filter((_, i) => i !== q.a)] });
 
 // Minutes left before a failed unit test can be retaken.
 const retryWait = (unit) => Math.max(0, Math.ceil(((state.course.retry?.[unit.id] || 0) - Date.now()) / 60000));
@@ -2185,9 +2222,9 @@ function runUnitTest(unit) {
 
 // What a lesson covers, as a textbook would label it.
 function lessonKind(unit, lesson) {
-  if (isWords(lesson)) return `Words · ${(lesson.words || []).length}${unit.reading ? ' · Reading' : ''}`;
-  const lastGrammar = unit.lessons.filter((l) => !isWords(l)).at(-1) === lesson;
-  return `Grammar${lesson.kanji?.length ? ` · Kanji ${lesson.kanji.join(' ')}` : ''}${lastGrammar && unit.dialogue ? ' · Dialogue' : ''}`;
+  const dialogue = unit.lessons.at(-1) === lesson && unit.dialogue ? ' · Dialogue' : '';
+  if (isWords(lesson)) return `Words · ${(lesson.words || []).length}${unit.reading ? ' · Reading' : ''}${dialogue}`;
+  return `Grammar${lesson.kanji?.length ? ` · Kanji ${lesson.kanji.join(' ')}` : ''}${dialogue}`;
 }
 
 // The unit's parts at a glance: grammar, words, kanji, reading and dialogue.

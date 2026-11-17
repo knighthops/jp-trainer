@@ -9,7 +9,7 @@
 {"q":"電車 の [外] を 見ます 。","o":["そと","なか","うえ","した"],"w":"外 is そと, outside.","en":"I look outside the train."},
 {"q":"切手 を [八つ] ください 。","o":["やっつ","はちつ","ようつ","むっつ"],"w":"八つ is やっつ.","en":"Eight stamps, please."}]},
 {"id":"v2","title":"Orthography","instr":"Choose how the underlined word is written.","questions":[
-{"q":"[ひだり] に 銀行 が あります 。","o":["左","右","友","有"],"w":"ひだり is 左.","en":"There's a bank on the left."},
+{"q":"[ひだり] に 銀行 が あります 。","o":["左","右","友","大"],"w":"ひだり is 左.","en":"There's a bank on the left."},
 {"q":"[がっこう] へ 歩いて 行きます 。","o":["学校","字校","学効","学交"],"w":"がっこう is 学校.","en":"I walk to school."},
 {"q":"朝 、 [パン] を 食べました 。","o":["パン","ハン","バン","パソ"],"w":"パン starts with the パ sound.","en":"I ate bread this morning."},
 {"q":"[はな] が きれい です 。","o":["花","北","左","木"],"w":"はな is 花.","en":"The flowers are beautiful."},
@@ -66,12 +66,12 @@
 {"play":[["M","医者 と 男の人 が 話しています 。 男の人 は 今晩 何 を しません か 。"],["F","今晩 は お風呂 に 入らないで ください 。 薬 を 飲んで 、 早く 寝て ください 。"],["M","分かりました 。"],["M","男の人 は 今晩 何 を しません か 。"]],"o":["お風呂 に 入る","薬 を 飲む","早く 寝る","ご飯 を 食べる"],"w":"The doctor says お風呂に入らないでください.","en":"He won't take a bath."},
 {"play":[["F","学生 が 話しています 。 男の学生 は 今 どこ に 行きます か 。"],["F","今 から 図書館 へ 行きます か 。"],["M","いいえ 、 図書館 は 午後 です 。 今 から 食堂 へ 行きます 。"],["F","男の学生 は 今 どこ に 行きます か 。"]],"o":["食堂","図書館","教室","駅"],"w":"He goes to the library in the afternoon, and to the cafeteria now.","en":"He's going to the cafeteria now."}]},
 {"id":"l2","title":"Key points","instr":"Listen, then choose the best answer.","questions":[
-{"play":[["M","女の人 は どの 国 へ 行きました か 。"],["M","夏休み に 中国 へ 行きました か 。"],["F","いいえ 、 中国 は 去年 です 。 今年 は アメリカ へ 行きました 。"],["M","女の人 は 今年 どの 国 へ 行きました か 。"]],"o":["アメリカ","中国","フランス","韓国"],"w":"China was last year, and America was this year.","en":"America."},
+{"play":[["M","女の人 は どの 国 へ 行きました か 。"],["M","夏休み に 中国 へ 行きました か 。"],["F","いいえ 、 中国 は 去年 です 。 今年 は アメリカ へ 行きました 。"],["M","女の人 は 今年 どの 国 へ 行きました か 。"]],"o":["アメリカ","中国","フランス","イギリス"],"w":"China was last year, and America was this year.","en":"America."},
 {"play":[["F","テスト は いつ です か 。"],["F","テスト は 金曜日 です か 。"],["M","いいえ 、 木曜日 です よ 。"],["F","テスト は いつ です か 。"]],"o":["木曜日","金曜日","水曜日","土曜日"],"w":"He corrects her: 木曜日です.","en":"Thursday."},
 {"play":[["M","コーヒー は いくら です か 。"],["M","すみません 、 コーヒー と ケーキ は いくら です か 。"],["F","コーヒー は 四百円 、 ケーキ は 五百円 です 。"],["M","コーヒー は いくら です か 。"]],"o":["四百円","五百円","九百円","三百円"],"w":"Coffee is 400 yen, and cake is 500 yen.","en":"400 yen."},
 {"play":[["F","男の人 は 何人 で 来ました か 。"],["F","今日 は お一人 です か 。"],["M","いいえ 、 父 と 母 と 姉 も います 。"],["F","男の人 は 何人 で 来ました か 。"]],"o":["四人","三人","二人","一人"],"w":"Himself, his father, mother and sister make four.","en":"Four people."},
 {"play":[["M","女の人 は どうして 映画 を 見ません か 。"],["M","今晩 映画 を 見ません か 。"],["F","すみません 。 明日 テスト が あります から 。"],["M","女の人 は どうして 映画 を 見ません か 。"]],"o":["明日 テスト が あるから","お金 が ないから","映画 が 好き では ないから","もう 見たから"],"w":"She says 明日テストがありますから.","en":"She has a test tomorrow."},
-{"play":[["F","男の人 の 仕事 は 何 です か 。"],["F","お父さん は 先生 です か 。"],["M","いいえ 、 父 は 医者 です 。 私 は 銀行員 です 。"],["F","男の人 の 仕事 は 何 です か 。"]],"o":["銀行員","医者","先生","学生"],"w":"His father is a doctor, and he works at a bank.","en":"He's a bank employee."}]},
+{"play":[["F","男の人 の 仕事 は 何 です か 。"],["F","お父さん は 先生 です か 。"],["M","いいえ 、 父 は 医者 です 。 私 は 会社員 です 。"],["F","男の人 の 仕事 は 何 です か 。"]],"o":["会社員","医者","先生","学生"],"w":"His father is a doctor, and he works for a company.","en":"He's a company employee."}]},
 {"id":"l3","title":"Verbal expressions","instr":"Listen to the situation. Choose what the person would say.","questions":[
 {"ao":true,"play":[["F","夜 、 寝る 前 に 家族 に 何 と 言います か 。"]],"o":["おやすみなさい","おはようございます","いらっしゃいませ","いただきます"],"w":"おやすみなさい is good night.","en":"Before bed, at night."},
 {"ao":true,"play":[["F","家 に 帰りました 。 何 と 言います か 。"]],"o":["ただいま","いってきます","いってらっしゃい","おじゃまします"],"w":"ただいま is what you say on returning home.","en":"You've come home."},

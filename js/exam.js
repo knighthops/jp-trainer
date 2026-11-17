@@ -50,11 +50,19 @@ const KATAKANA = /^[゠-ヿ]+$/;
 // な-adjectives and question words are short fixed lists at N5, so they're named here.
 const NA_ADJ = new Set(['きれい', '静か', 'にぎやか', '有名', '元気', '好き', '嫌い', '大好き', '上手', '下手', '便利', '大丈夫', '大切', '暇', '簡単', 'いろいろ', '丈夫', '大変', '親切', '同じ']);
 const QUESTION = new Set(['何', 'なに', 'なん', 'だれ', '誰', 'どなた', 'どこ', 'どちら', 'どれ', 'どの', 'どんな', 'いつ', 'いくら', 'いくつ', 'どう', 'どうして', 'なぜ', '何時', '何人', '何歳']);
+// Verbs written in kana only, and words that end like a verb or adjective but aren't one.
+const NOT_VERB = new Set(['向こう', '近く', '遠く']);
+const KANA_VERBS = new Set(['はく', 'かぶる', 'ある', 'いる', 'する', 'なる', 'わかる', 'できる', 'あげる', 'もらう', 'くれる', 'いらっしゃる', 'かかる', 'ちがう', 'つく', 'つける', 'しまう']);
+const NOT_ADJ = new Set(['お手洗い', '手洗い', '違い', 'お祝い', 'お願い']);
 export function wordKind(v) {
-  if (/^to /.test(v.m)) return 'verb';
   if (QUESTION.has(v.w)) return 'question';
   if (NA_ADJ.has(v.w)) return 'na';
-  if (/[一-鿿]い$/.test(v.w) || /^(大きい|小さい|おいしい|おもしろい|かわいい|やさしい|うれしい|いい|よい|ない|まずい|ひくい|せまい|ひろい|あつい|さむい|つめたい|あたたかい)$/.test(v.w)) return 'adj';
+  // Kanji with okurigana ending in an u-row kana is a verb (帰る, 引く, 待つ), but not
+  // a counted thing (一つ, 五つ); so are kana-only verbs and する verbs.
+  if (!NOT_VERB.has(v.w) && (/^to /.test(v.m) || KANA_VERBS.has(v.w) || /する$/.test(v.w)
+    || (/[一-鿿][ぁ-ん]*[うくぐすつぬぶむる]$/.test(v.w) && !/^[一二三四五六七八九十幾]つ$/.test(v.w)))) return 'verb';
+  if (!NOT_ADJ.has(v.w) && (/[一-鿿][ぁ-ん]*い$/.test(v.w)
+    || /^(大きい|小さい|おいしい|おもしろい|かわいい|やさしい|うれしい|いい|よい|ない|まずい|ひくい|せまい|ひろい|あつい|さむい|つめたい|あたたかい|すずしい|あぶない|うるさい|きたない|ちかい|とおい|はやい|おそい|わるい|あかるい|くらい|たかい|やすい|ながい|みじかい|おもい|かるい|ふるい|あたらしい|むずかしい|やさしい|いそがしい|たのしい|さびしい|からい|あまい|まるい|ぬるい|つまらない|ほしい)$/.test(v.w))) return 'adj';
   return 'noun';
 }
 
@@ -80,9 +88,10 @@ export function starQuestion(sentence, id, rng = Math.random) {
   };
 }
 
-// Picks the right kanji for a word written in kana. Wrong spellings swap one kanji for a
-// taught kanji that looks or sounds alike, and are never a real word.
-export function spellingQuestion(v, taughtKanji, data, id, rng = Math.random) {
+// Picks the right kanji for a word written in kana, underlined in a sentence when one from
+// the unit uses it. Wrong spellings swap one kanji for a taught kanji that looks or sounds
+// alike (sharing a part or a reading) where the course has taught one, and are never a real word.
+export function spellingQuestion(v, taughtKanji, data, id, rng = Math.random, sentence = null) {
   const info = (c) => data.kanji.find((k) => k.k === c);
   const partsOf = (c) => new Set((info(c)?.parts || []).map((p) => p.c));
   const real = new Set(data.vocab.map((x) => x.w));
@@ -92,16 +101,22 @@ export function spellingQuestion(v, taughtKanji, data, id, rng = Math.random) {
     const c = v.w[i];
     const mine = partsOf(c);
     const on = new Set(info(c)?.on || []);
-    const near = (k) => ([...partsOf(k)].some((p) => mine.has(p)) ? 0 : 1) + ((info(k)?.on || []).some((r) => on.has(r)) ? 0 : 1);
-    const pool = shuffled([...new Set(taughtKanji)].filter((k) => k !== c), rng).sort((a, b) => near(a) - near(b));
+    const strokes = info(c)?.strokes || 0;
+    const like = (k) => [...partsOf(k)].filter((p) => mine.has(p) && p !== k).length * 2
+      + ((info(k)?.on || []).some((r) => on.has(r)) ? 2 : 0)
+      + (Math.abs((info(k)?.strokes || 0) - strokes) <= 1 ? 1 : 0);
+    const pool = shuffled([...new Set(taughtKanji)].filter((k) => k !== c), rng).sort((a, b) => like(b) - like(a));
     for (const k of pool) {
       const fake = v.w.slice(0, i) + k + v.w.slice(i + 1);
       if (fakes.length < 3 && !real.has(fake) && !fakes.includes(fake)) fakes.push(fake);
     }
   }
   if (fakes.length < 3) return null;
+  const tokens = sentence ? words(sentence) : [];
+  const at = tokens.indexOf(v.w);
+  const q = at >= 0 ? [...tokens.slice(0, at), `[${v.y}]`, ...tokens.slice(at + 1)].join(' ') : `[${v.y}]`;
   return {
-    id, q: `[${v.y}]`, ask: 'How is the underlined word written?',
+    id, q, ask: at >= 0 ? 'How is the underlined word written?' : 'Which is the right way to write this word?',
     o: [v.w, ...fakes.slice(0, 3)], w: `${v.y} is written ${v.w}: ${v.m}.`, word: v.w,
   };
 }
@@ -129,7 +144,9 @@ export function unitTest(unit, data, rng = Math.random) {
     const kanji = [...of.w].filter((c) => /[一-龯]/.test(c));
     const near = (v) => (kanji.some((c) => v.w.includes(c)) ? 0 : known.has(v.w) ? 1 : 2)
       + (field === 'y' ? (Math.abs(v.y.length - right.length) + (v.y.at(-1) === right.at(-1) ? 0 : 0.5)) / 10 : 0);
-    const ranked = shuffled(same.length >= 3 ? same : pool, rng).sort((a, b) => near(a) - near(b));
+    // Same-kind words first, nearest first; other words only to make up three.
+    const byNear = (list) => shuffled(list, rng).sort((a, b) => near(a) - near(b));
+    const ranked = [...byNear(same), ...byNear(pool.filter((v) => !same.includes(v)))];
     const out = [];
     for (const v of ranked) if (out.length < 3 && !out.some((o) => o === v[field] || (field === 'm' && sameMeaning(o, v.m)))) out.push(v[field]);
     return out;
@@ -153,9 +170,12 @@ export function unitTest(unit, data, rng = Math.random) {
     .map((b) => starQuestion(b, `${unit.id}-s`, rng)).find((q) => q && ok(q.w));
   const taughtKanji = data.units.slice(0, data.units.indexOf(unit) + 1)
     .flatMap((u) => u.lessons.flatMap((l) => l.kanji || []));
-  const spelling = shuffled(taught.filter((v) => /[一-龯]/.test(v.w) && v.w !== v.y && !KATAKANA.test(v.y)
+  // Never a word the test already asks about, and set in one of the unit's sentences if it can be.
+  const asked = new Set(chosen.map((v) => v.w));
+  const lines = unit.lessons.flatMap((l) => [...l.drills.filter((d) => d.b).map((d) => d.b), ...(l.examples || []).map((e) => e.t)]).filter(ok);
+  const spelling = shuffled(taught.filter((v) => /[一-龯]/.test(v.w) && v.w !== v.y && !KATAKANA.test(v.y) && !asked.has(v.w) && !quizzed.has(v.w)
     && [...v.w].every((c) => !/[一-龯]/.test(c) || taughtKanji.includes(c))), rng)
-    .map((v) => spellingQuestion(v, taughtKanji, data, `${unit.id}-k`, rng)).find(Boolean);
+    .map((v) => spellingQuestion(v, taughtKanji, data, `${unit.id}-k`, rng, lines.find((t) => words(t).includes(v.w)))).find(Boolean);
   for (const q of [order, spelling]) if (q) written.push(q);
   // Every few units, a longer passage with questions in Japanese, as the reading section asks.
   const passage = unit.passage && ok(unit.passage.p) ? unit.passage : null;
@@ -170,7 +190,11 @@ export function unitTest(unit, data, rng = Math.random) {
     key: unit.id,
     title: `Unit ${unit.n} test`,
     scoring: 'unit',
-    sections: [{ title: `Unit ${unit.n} test`, minutes: null, questions: shuffled([...wordQs, ...written], rng).map((q) => prepared(q, rng)) }],
+    sections: [{
+      title: `Unit ${unit.n} test`, minutes: null,
+      // Questions on one passage stay together at the end, as on the exam.
+      questions: [...shuffled([...wordQs, ...written.filter((q) => !q.p)], rng), ...written.filter((q) => q.p)].map((q) => prepared(q, rng)),
+    }],
   };
 }
 
@@ -285,7 +309,9 @@ export function startExam(ctx, exam, { mode = 'exam', resume = null } = {}) {
     const lone = tokens.length === 1 && !q.p && !q.play;
     const romajiOf = () => {
       if (!help || lone || tokens.every(secret)) return '';
-      return `<p class="romaji">${romajiLine(tokens.map((w) => (secret(w) ? null : plain(w)[0])), glossary, '')}</p>`;
+      const ro = romajiLine(tokens.map((w) => (secret(w) ? null : plain(w)[0])), glossary, '');
+      // A line with words it can't read (山田 san) is left out rather than half converted.
+      return /[一-龯々]/.test(ro) ? '' : `<p class="romaji">${ro}</p>`;
     };
     const tappable = help && !q.ao && !lone && tokens.some((w) => !secret(w) && glossary[w]);
     const stem = lone ? `<div class="stem lone jp">${display(q.q)}</div>` : q.q ? (tappable

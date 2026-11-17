@@ -76,7 +76,7 @@
 {"ao":true,"play":[["F","友達 の 家 に 入ります 。 何 と 言います か 。"]],"o":["おじゃまします","いただきます","ごちそうさまでした","おやすみなさい"],"w":"おじゃまします is what you say entering someone's home.","en":"You're entering a friend's home."},
 {"ao":true,"play":[["F","朝 、 学校 で 先生 に 会いました 。 何 と 言います か 。"]],"o":["おはようございます","こんばんは","おやすみなさい","さようなら"],"w":"In the morning, say おはようございます.","en":"You meet your teacher in the morning."},
 {"ao":true,"play":[["F","これ から ご飯 を 食べます 。 何 と 言います か 。"]],"o":["いただきます","ごちそうさまでした","いってきます","ただいま"],"w":"いただきます comes before eating.","en":"You're about to eat."},
-{"ao":true,"play":[["F","友達 に プレゼント を もらいました 。 何 と 言います か 。"]],"o":["ありがとうございます","どういたしまして","いらっしゃいませ","お願いします"],"w":"You thank the person who gave you a present.","en":"A friend gave you a present."},
+{"ao":true,"play":[["F","友達 に 本 を もらいました 。 何 と 言います か 。"]],"o":["ありがとうございます","どういたしまして","いらっしゃいませ","お願いします"],"w":"You thank the person who gave you something.","en":"A friend gave you a book."},
 {"ao":true,"play":[["F","店 で 水 が ほしい です 。 何 と 言います か 。"]],"o":["水 を ください 。","水 は いかが です か 。","水 を 飲みません か 。","水 が あります 。"],"w":"ください asks for something.","en":"You want water at a shop."}]},
 {"id":"l4","title":"Quick response","instr":"Listen and choose the best reply.","questions":[
 {"ao":true,"play":[["M","お名前 は 。"]],"o":["田中 です 。","二十歳 です 。","元気 です 。","東京 です 。"],"w":"The question asks your name.","en":"What's your name?"},

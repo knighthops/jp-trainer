@@ -8,8 +8,8 @@
 "drills":[{"c":"あの 方 は ___ です か","en":"Who is that person? (polite)","a":"どなた","label":"Choose the word","w":{"どこ":"どこ means “where”.","何":"何 means “what”."}},
 {"c":"私 は ___ です","en":"I'm an international student.","a":"留学生","label":"Choose the word","w":{"生徒":"生徒 is a school pupil.","医者":"医者 is a doctor."}},
 {"c":"年 は ___ です","en":"I'm twenty.","a":"二十歳","label":"Choose the word","w":{"二人":"二人 is two people.","二つ":"二つ is two things."}}]}],
-"reading":{"title":"Ben introduces himself","lines":[{"t":"はじめまして 。 私 は ベン です","en":"Nice to meet you. I'm Ben."},{"t":"アメリカ人 です 。 留学生 です","en":"I'm American. I'm an international student."},{"t":"年 は 二十歳 です","en":"I'm twenty."},{"t":"田中 さん は 私 の 大学 の 先生 です","en":"Mr Tanaka is a teacher at my university."},{"t":"どうぞ よろしく おねがいします","en":"Pleased to meet you."}],
-"check":[{"q":"How old is Ben?","o":["Twenty","Nineteen","Thirty"],"w":"年は二十歳です. 二十歳 (はたち) is twenty."},{"q":"Who is Mr Tanaka?","o":["A teacher at Ben's university","Ben's friend","A doctor"],"w":"田中さんは私の大学の先生です."}]}},
+"reading":{"title":"Ben introduces himself","lines":[{"t":"はじめまして 。 私 は ベン です","en":"Nice to meet you. I'm Ben."},{"t":"アメリカ人 です 。 留学生 です","en":"I'm American. I'm an international student."},{"t":"年 は 二十歳 です","en":"I'm twenty."},{"t":"田中 さん は 先生 です","en":"Mr Tanaka is a teacher."},{"t":"どうぞ よろしく おねがいします","en":"Pleased to meet you."}],
+"check":[{"q":"How old is Ben?","o":["Twenty","Nineteen","Thirty"],"w":"年は二十歳です. 二十歳 (はたち) is twenty."},{"q":"Who is Mr Tanaka?","o":["A teacher","A student","A doctor"],"w":"田中さんは先生です."}]}},
 
 {"id":"u02",
 "lex":{"これ":["これ","this one"],"それ":["それ","that one"],"あれ":["あれ","that one over there"],"どれ":["どれ","which one"],"この":["この","this (before a noun)"],"その":["その","that (before a noun)"],"あの":["あの","that over there (before a noun)"],"どの":["どの","which (before a noun)"],"傘":["かさ","umbrella"],"かばん":["かばん","bag"],"時計":["とけい","watch, clock"],"辞書":["じしょ","dictionary"],"雑誌":["ざっし","magazine"],"鉛筆":["えんぴつ","pencil"],"ボールペン":["ボールペン","ballpoint pen"],"ペン":["ペン","pen"],"ノート":["ノート","notebook"],"財布":["さいふ","wallet"],"かぎ":["かぎ","key"],"めがね":["めがね","glasses"],"帽子":["ぼうし","hat, cap"],"写真":["しゃしん","photo"],"物":["もの","thing"],"カメラ":["カメラ","camera"],"も":["も","too, also"],"と":["と","and; with"],"日本人":["にほんじん","Japanese person"],"ではありません":["ではありません","is not","dewa arimasen"],"本":["ほん","book"],"友達":["ともだち","friend"]},
@@ -39,7 +39,7 @@
 "drills":[{"c":"りんご は ___ です か","en":"How much are the apples?","a":"いくら","label":"Choose the word","w":{"いくつ":"いくつ asks how many, not how much.","いつ":"いつ means “when”."}},
 {"c":"みかん を ___ ください","en":"Three mandarins, please.","a":"三つ","label":"Choose the word","w":{"三人":"三人 counts people.","三本":"三本 counts long things."}},
 {"c":"___ で いくら です か","en":"How much is it all together?","a":"全部","label":"Choose the word","w":{"全然":"全然 means “not at all”.","たくさん":"たくさん means “a lot”."}}]}],
-"reading":{"title":"At the greengrocer","lines":[{"t":"ここ は 八百屋 です","en":"This is a greengrocer."},{"t":"りんご は 一つ 百円 です","en":"Apples are 100 yen each."},{"t":"みかん は 三つ で 二百円 です","en":"Mandarins are 200 yen for three."},{"t":"りんご を 二つ と みかん を 三つ ください","en":"Two apples and three mandarins, please."},{"t":"全部で 四百円 です","en":"That's 400 yen all together."}],
+"reading":{"title":"At the greengrocer","lines":[{"t":"ここ は 八百屋 です","en":"This is a greengrocer."},{"t":"りんご は 一つ 百円 です","en":"Apples are 100 yen each."},{"t":"みかん は 三つ 二百円 です","en":"Mandarins are 200 yen for three."},{"t":"りんご を 二つ と みかん を 三つ ください","en":"Two apples and three mandarins, please."},{"t":"全部で 四百円 です","en":"That's 400 yen all together."}],
 "check":[{"q":"How much is one apple?","o":["100 yen","200 yen","400 yen"],"w":"りんごは一つ百円です."},{"q":"What is the total?","o":["400 yen","300 yen","500 yen"],"w":"Two apples (200) and three mandarins (200): 全部で四百円."}]}},
 
 {"id":"u04",

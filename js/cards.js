@@ -65,13 +65,12 @@ export function emojiOf(card, map) {
   return '';
 }
 
-// Something to read on Home: a sentence from a finished lesson, else a word, else the
-// first unit's words. `rng` picks; `skip` is the card shown last, so it doesn't repeat.
+// Something to read on Home: a sentence from a finished lesson, else a word from one.
+// Nothing until the first lesson is done: it never shows a word you haven't been taught. `rng` picks; `skip` is the card shown last, so it doesn't repeat.
 export function homeCard(units, done, rng = Math.random, skip = null) {
   for (const pool of [
     sentenceDeck(units, (l) => !!done[l.id]),
     wordDeck(units).filter((c) => done[c.lesson]),
-    units.length ? wordDeck(units.slice(0, 1)) : [],
   ]) {
     const list = pool.filter((c) => (c.t || c.w) !== skip);
     if (list.length) return list[Math.floor(rng() * list.length)];
