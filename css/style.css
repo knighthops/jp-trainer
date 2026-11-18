@@ -1385,3 +1385,21 @@ a.btn{text-decoration:none}
 /* Passage questions: short answers two by two, so all four sit above the Next bar on a phone. */
 .choices.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .choices.grid2 .choice{margin:0}
+/* Build questions (unit tests): tap the pieces into the gaps in order. */
+.build-line{gap:6px;row-gap:8px}
+.build-line .gap{width:52px;height:44px;border-radius:11px;border:1.5px dashed var(--line)}
+.build-line .gap.next{border-color:var(--act)}
+.build-line .block{font-size:20px}
+.build-bank{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;padding:4px 0}
+.build-bank .block{font-size:22px;min-height:52px;min-width:56px}
+.build-bank .block.used{opacity:.25;transform:none;pointer-events:none}
+/* Results: answers you got right sit after the misses, quieter. */
+.card.got{gap:6px}
+.got-right summary{cursor:pointer;list-style:none}
+.got-right summary::-webkit-details-marker{display:none}
+.got-right summary span::after{content:' ▸'}
+.got-right[open] summary span::after{content:' ▾'}
+.got-right[open]{display:flex;flex-direction:column;gap:12px}
+/* Rush: the kanji is centred by its own box too, so a shake on the card can't leave it off to one side. */
+.rush-k{width:100%;text-align:center}
+.rush-pass{display:block;margin:10px auto 0;min-height:40px}

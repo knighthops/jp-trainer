@@ -835,7 +835,10 @@ function skipStep() {
 // The one reading to learn first, in hiragana: the kanji as a word if it is one
 // (人 is ひと, 本 is ほん), else the reading its words use most (学 is がく from 学生
 // and 大学; 食 is たべる), else its first Chinese reading (京 is きょう, not みやこ).
+// Numbers are read as the course counts (八 is はち, 四 is よん), not by their one word (八つ).
+const COUNTED = { 一: 'いち', 二: 'に', 三: 'さん', 四: 'よん', 五: 'ご', 六: 'ろく', 七: 'なな', 八: 'はち', 九: 'きゅう', 十: 'じゅう', 百: 'ひゃく', 千: 'せん', 万: 'まん' };
 function headReading(k) {
+  if (COUNTED[k.k]) return COUNTED[k.k];
   const alone = wordEntry(k.k);
   if (alone) return toHiragana(alone.y);
   const tally = new Map();
@@ -1683,14 +1686,25 @@ function renderDrillDone() {
 
 /* ---------- Other tabs ---------- */
 
-// Kanji Rush plays the kanji you have met: N5 kanji you've studied or reached in the course,
-// and the other kanji in words from lessons you've finished. Topped up so there's always a field.
+// Kanji Rush plays the kanji you have met: N5 kanji you've studied or that finished lessons
+// taught, and the other kanji in those lessons' words. Topped up so there's always a field.
+// A kanji you passed on stays out until a lesson teaching it is finished after the pass.
 function rushPool() {
+  const done = (data.units || []).flatMap((u) => u.lessons).filter((l) => state.course.done[l.id]);
   const seen = data.kanji.filter((k) => state.items[kanjiId(k)]);
-  const doneWords = (data.units || []).flatMap((u) => u.lessons.filter((l) => state.course.done[l.id]).flatMap((l) => l.words || []));
-  const fromWords = kanjiIn(doneWords.join('')).filter((k) => !data.kanji.includes(k));
-  const pool = [...new Set([...seen, ...levelKanji(), ...fromWords])];
-  return pool.length >= 8 ? pool : [...new Set([...pool, ...data.kanji])].slice(0, 8);
+  const taught = kanjiIn(done.flatMap((l) => l.kanji || []).join(''));
+  const fromWords = kanjiIn(done.flatMap((l) => l.words || []).join('')).filter((k) => !data.kanji.includes(k));
+  const passed = state.practice.rushPassed || {};
+  const back = (k) => !passed[k.k] || done.some((l) => state.course.done[l.id] > passed[k.k]
+    && [...(l.kanji || []), ...(l.words || [])].some((w) => w.includes(k.k)));
+  const pool = [...new Set([...seen, ...taught, ...fromWords])].filter(back);
+  return pool.length >= 8 ? pool : [...new Set([...pool, ...data.kanji.filter(back)])].slice(0, 8);
+}
+
+// Passing on a kanji in Rush says you haven't met it: it leaves the Rush pool, and nothing is scored.
+function rushPass(k) {
+  (state.practice.rushPassed ||= {})[k.k] = Date.now();
+  save(state);
 }
 
 // Best scores are kept per mode and clock. The old single best was for meanings at 60 seconds.
@@ -1724,7 +1738,7 @@ function rushMiss(k) {
 const headCache = new Map();
 function screenRush() {
   screenCleanup = startRush({
-    view, setTop, pool: rushPool(), weak: struggleKanji(), onMiss: rushMiss, all: [...data.kanji, ...(data.kanjiMore || [])], readOf: (k) => headCache.get(k) ?? headCache.set(k, headReading(k)).get(k),
+    view, setTop, pool: rushPool(), weak: struggleKanji(), onMiss: rushMiss, onPass: rushPass, all: [...data.kanji, ...(data.kanjiMore || [])], readOf: (k) => headCache.get(k) ?? headCache.set(k, headReading(k)).get(k),
     settings: state.practice.rush || {},
     saveSettings: (s) => { state.practice.rush = s; save(state); },
     best: rushBest,

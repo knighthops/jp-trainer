@@ -13,7 +13,7 @@ import {
   UNIT_FILES, mergeCourse, nextUp, isUnlocked, examUnlocked, lessonSteps, LEVELS, levelUnlocked, toBlocks, autoAlts, words, particleItem,
   courseSteps, rankOf, LESSON_NEW, wordsNeededEarly, unitStars, unitItems, grammarId, passUnit, lessonStars, isTaught, choiceShown, lessonParts, tokenWords, textTaught, strayTaught,
 } from '../js/course.js';
-import { unitTest, mockExam, grade, wordKind, quickReplies } from '../js/exam.js';
+import { unitTest, mockExam, grade, wordKind, quickReplies, answerText } from '../js/exam.js';
 import { wordQuestion, kanaTiles, spellPuzzle, sameMeaning } from '../js/exercises.js';
 import { checkLogin, hashPassword, userId } from '../js/lock.js';
 import { radioChannels } from '../js/radio.js';
@@ -376,7 +376,8 @@ test('unit tests mix written and word questions, and options keep their answers'
   const exam = unitTest(merged.units[0], merged);
   const list = exam.sections[0].questions;
   assert.ok(list.length >= 7);
-  for (const q of list) assert.ok(q.a >= 0 && q.o[q.a] !== undefined, q.id);
+  // A build question's answer is its pieces in order; every other answer is an option.
+  for (const q of list) assert.ok(q.build ? q.a.split(' ').every((p) => q.o.includes(p)) : q.a >= 0 && q.o[q.a] !== undefined, q.id);
   const all = Object.fromEntries(list.map((q) => [q.id, q.a]));
   assert.equal(grade(exam, all).pass, true);
   assert.equal(grade(exam, {}).pass, false);
@@ -1317,7 +1318,7 @@ test('unit-test word options are the same kind of word as the answer', () => {
   let asked = 0;
   for (const unit of merged.units) {
     for (const q of unitTest(unit, merged).sections[0].questions) {
-      const right = q.o[q.a];
+      const right = q.build ? q.a : q.o[q.a];
       if (/-r\d+$/.test(q.id)) {
         for (const o of q.o) assert.ok(!/^[゠-ヿ]+$/.test(o), `${q.id}: no katakana among readings (${o})`);
       }
@@ -1530,7 +1531,10 @@ test('unit tests practise the ★ order and kanji spelling formats fairly', asyn
   const q = starQuestion('私 は 友達 の 本 を 読みます', 'x', rng);
   assert.equal(q.w, '私 は 友達 の 本 を 読みます');
   assert.equal(q.o.length, 4);
-  assert.ok(q.q.includes('（★）'));
+  assert.ok(q.build);
+  // The pieces in order between what comes before and after make the whole sentence.
+  assert.equal([...q.before, ...q.o, ...q.after].join(' '), q.w);
+  assert.ok(q.after.length >= 1);
   assert.equal(starQuestion('私 は 学生 です', 'x', rng), null);
   const merged = course();
   const v = merged.vocab.find((x) => x.w === '学生');
@@ -1543,9 +1547,13 @@ test('unit tests practise the ★ order and kanji spelling formats fairly', asyn
   for (const unit of merged.units) {
     const qs = unitTest(unit, merged).sections[0].questions;
     const mine = qs.filter((x) => /-s\d+$/.test(x.id));
-    // Two ★ questions a test, from different sentences.
+    // Two build questions a test, from different sentences, never shown already in order.
     if (mine.length >= 2) stars++;
     assert.equal(new Set(mine.map((x) => x.w)).size, mine.length, unit.id);
+    for (const x of mine) {
+      assert.notEqual(x.o.join(' '), x.a, `${x.id} starts unsolved`);
+      assert.equal(answerText(x, x.a), x.w, x.id);
+    }
     spells += qs.filter((x) => /-k$/.test(x.id)).length;
   }
   assert.ok(stars >= merged.units.length * 0.7, `two ★ questions in most units (${stars})`);

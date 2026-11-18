@@ -1,7 +1,8 @@
 // Kanji Rush: as many kanji as you can before the clock runs out. Pick each one's
 // meaning, or its reading in kana. A miss costs time unless that's turned off.
 // A miss on a kanji you're studying is logged as Shaky, so it comes back sooner in reviews.
-// "Struggling" plays only the kanji you keep missing.
+// "Struggling" plays only the kanji you keep missing. Pass skips a kanji you haven't met:
+// no score, no penalty, and it leaves the pool until the course teaches it.
 import { shuffled } from './drills.js';
 import { romaji, toHiragana } from './romaji.js';
 
@@ -41,12 +42,13 @@ const optHtml = (o, mode) => (mode === 'reading'
   ? `<button class="opt kana" data-o="${o}"><span class="jp">${o}</span><small>${romaji(o)}</small></button>`
   : `<button class="opt" data-o="${o}">${o}</button>`);
 
-// ctx: { view, setTop, pool, weak (struggling kanji), all, onMiss(kanji), readOf(kanji), settings, saveSettings(s), best(key), onBest(key, score), onExit }
+// ctx: { view, setTop, pool, weak (struggling kanji), all, onMiss(kanji), onPass(kanji), readOf(kanji), settings, saveSettings(s), best(key), onBest(key, score), onExit }
 export function startRush(ctx) {
   const { view, setTop } = ctx;
   const opts = { mode: 'meaning', secs: 60, penalty: true, only: 'all', ...ctx.settings };
   if (!ctx.weak?.length) opts.only = 'all';
-  const pool = () => (opts.only === 'weak' ? ctx.weak : ctx.pool);
+  const passed = new Set();
+  const pool = () => (opts.only === 'weak' ? ctx.weak : ctx.pool).filter((k) => !passed.has(k));
   let timer = null;
 
   function intro() {
@@ -85,14 +87,16 @@ export function startRush(ctx) {
     let combo = 0;
     let q = null;
     const misses = [];
-    const stop = () => { clearInterval(timer); finish(score, tries, misses); };
+    const passes = [];
+    const stop = () => { clearInterval(timer); finish(score, tries, misses, passes); };
     setTop('Kanji Rush', { close: true, confirm: true, onClose: () => { clearInterval(timer); ctx.onExit(); } });
     view.innerHTML = `
       ${total ? '<div class="rush-bar"><i id="rbar"></i></div>' : ''}
       <div class="rush-stats"><span><b class="num" id="rscore">0</b> right</span><span id="rcombo" class="muted"></span>
         ${total ? `<span class="num" id="rtime">${opts.secs}</span>` : '<button class="chip" id="rstop">Finish</button>'}</div>
       <section class="card rush-card"><div class="rush-k jp" id="rk"></div></section>
-      <div class="reach"><div class="opts long rush-opts ${opts.mode}" id="ropts"></div></div>`;
+      <div class="reach"><div class="opts long rush-opts ${opts.mode}" id="ropts"></div>
+        <button class="link rush-pass" id="rpass">Pass · I haven't learned this one</button></div>`;
     const el = (id) => view.querySelector(`#${id}`);
     const ask = () => {
       q = rushQuestion(pool(), ctx.all, Math.random, q?.k, opts.mode, ctx.readOf);
@@ -128,13 +132,22 @@ export function startRush(ctx) {
       ask();
       tick();
     };
+    el('rpass').onclick = () => {
+      if (!q) return;
+      combo = 0;
+      el('rcombo').textContent = '';
+      if (!passes.includes(q.k)) { passes.push(q.k); passed.add(q.k); ctx.onPass?.(q.k); }
+      // Nothing left to play once every kanji is passed.
+      if (!pool().length) { stop(); return; }
+      ask();
+    };
     el('rstop')?.addEventListener('click', stop);
     ask();
     if (total) timer = setInterval(tick, 100);
     tick();
   }
 
-  function finish(score, tries, misses) {
+  function finish(score, tries, misses, passes) {
     clearInterval(timer);
     const key = bestKey(opts);
     const before = ctx.best(key);
@@ -153,6 +166,8 @@ export function startRush(ctx) {
       </section>
       ${misses.length ? `<div class="caps sect"><span>Missed</span></div>
         <section class="card">${misses.map((k) => `<div class="row"><b class="jp rush-mk">${k.k}</b><span class="grow">${answer(k)}</span></div>`).join('')}</section>` : ''}
+      ${passes.length ? `<div class="caps sect"><span>Passed</span></div>
+        <section class="card"><p class="small muted">Left out of Rush until a lesson teaches them.</p>${passes.map((k) => `<div class="row"><b class="jp rush-mk">${k.k}</b><span class="grow">${answer(k)}</span></div>`).join('')}</section>` : ''}
       <div class="dock stack"><button class="btn" id="again">Play again</button><button class="btn ghost" id="done">Change settings</button></div>`;
     view.querySelector('#again').onclick = play;
     view.querySelector('#done').onclick = intro;

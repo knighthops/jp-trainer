@@ -21,8 +21,21 @@ function seeded(text) {
 }
 
 function prepared(q, rng) {
+  // A build question's pieces come in order; any shuffle but the right one will do.
+  if (q.build) {
+    let o = shuffled(q.o, rng);
+    for (let n = 0; n < 5 && o.join(' ') === q.o.join(' '); n++) o = shuffled(q.o, rng);
+    if (o.join(' ') === q.o.join(' ')) o = [...o.slice(1), o[0]];
+    return { ...q, o, a: q.o.join(' ') };
+  }
   const o = shuffled(q.o, rng);
   return { ...q, o, a: o.indexOf(q.o[0]) };
+}
+
+// What an answer says, for the results: the option picked, or the sentence as built.
+export function answerText(q, ans) {
+  if (!q.build) return q.o[ans];
+  return [...q.before, ...String(ans).split(' '), ...q.after].join(' ');
 }
 
 // Quick response, as the listening section asks it: one line is heard, and you pick the
@@ -129,9 +142,10 @@ const MOVES = new Set(['ぜんぜん', 'ときどき', 'いつも', 'よく', '�
   'みんなで', '全部', '毎朝', '毎日', '毎晩', '毎週', '毎年', '今日', '明日', '昨日', '今', '今朝', '今晩', '今週', '先週', '来週', '今月', '先月', '来月', '今年', '去年', '来年',
   'おととい', 'あさって', '朝', '昼', '夜', '晩', '午前', '午後', 'さっき', 'これから', '初めて', 'まっすぐ', 'だんだん', 'もっと', 'いちばん', 'ほんとうに', '本当に']);
 
-// A ★ question as the exam sets it: four pieces of a sentence go in the slots, and you
-// pick the one that lands on ★ (the third slot). Needs at least one word after the slots (and
-// the slots and four different pieces, so there's only one way to read the answer.
+// A build question: four pieces of a sentence are shuffled below it, and you tap them into
+// the gaps in order. Needs at least one word after the gaps and four different pieces, so
+// there's only one way to read the answer. The answer is the pieces joined by spaces, so it
+// compares like any other answer.
 export function starQuestion(sentence, id, rng = Math.random) {
   const list = words(sentence).filter((w) => !/^[。、？！]$/.test(w));
   if (list.length < 5) return null;
@@ -147,11 +161,11 @@ export function starQuestion(sentence, id, rng = Math.random) {
   const start = starts.find((s) => fits(list.slice(s, s + 4)) && !(s === 0 && list.slice(0, 4).includes('は')));
   if (start === undefined) return null;
   const pieces = list.slice(start, start + 4);
-  const slots = '（　）（　）（★）（　）';
   return {
-    id, q: [...list.slice(0, start), slots, ...list.slice(start + 4)].join(' '),
-    ask: 'Put the four pieces in order. Which one goes in ★?',
-    o: [pieces[2], ...pieces.filter((_, i) => i !== 2)],
+    id, build: true, before: list.slice(0, start), after: list.slice(start + 4),
+    q: [...list.slice(0, start), '＿＿', ...list.slice(start + 4)].join(' '),
+    ask: 'Tap the pieces in order to build the sentence.',
+    o: pieces,
     w: list.join(' '),
   };
 }
@@ -221,7 +235,7 @@ export function unitTest(unit, data, rng = Math.random) {
   };
   // A word the unit's own quiz already asks about (はじめまして) isn't asked twice.
   const quizzed = new Set((unit.quiz || []).map((q) => q.q.replace(/[\s[\]。]/g, '')));
-  // Two ★ questions, as the exam sets several, from sentences of different patterns (not 五人 です and
+  // Two build questions (the exam’s ★ format, built in full), from sentences of different patterns (not 五人 です and
   // 四人 です). The unit's own sentences and conversation first, then earlier units'. Never
   // the spelling question's word, whose kanji the pieces would give away: it is picked after these.
   const sentencesOf = (u) => [...u.lessons.flatMap((l) => [...l.drills.filter((d) => d.b).map((d) => d.b), ...(l.examples || []).map((e) => e.t)]),
@@ -266,7 +280,7 @@ export function unitTest(unit, data, rng = Math.random) {
       id: `${unit.id}-c${i}`, q: d.c, ask: d.en ? `You want to say: “${d.en}”` : 'Which fits the blank?',
       o: [d.a, ...Object.keys(d.w)].slice(0, 4), w: d.note || '',
     })).map(trim).filter(fair);
-  // The two JLPT formats a word list alone doesn't practise: putting pieces in order (★)
+  // The two JLPT formats a word list alone doesn't practise: putting pieces in order
   // and picking the right kanji spelling of a word written in kana.
   for (const q of [...order, spelling]) if (q) written.push(q);
   // Every few units, a longer passage with questions in Japanese, as the reading section asks.
@@ -412,6 +426,13 @@ export function startExam(ctx, exam, { mode = 'exam', resume = null } = {}) {
         : glossary[w] ? `<button class="word" data-word="${w}">${w}</button>` : `<span>${w}</span>`)).join('')}</div>`
       : `<div class="stem flow jp">${display(q.q)}</div>`) : '';
     const hideOptions = q.ao && !help;
+    // A build question: the sentence with four gaps, and its pieces to tap into them.
+    // Only a finished sentence counts as an answer; a half-built one waits in st.parts.
+    st.parts ||= {};
+    const built = q.build ? String(st.answers[q.id] ?? st.parts[q.id] ?? '').split(' ').filter(Boolean) : [];
+    const buildHtml = () => `<div class="stem jp build-line">${q.before.map((w) => `<span>${w}</span>`).join('')}${q.o.map((_, i) => (built[i]
+      ? `<button class="block placed" data-gap="${i}">${built[i]}</button>` : `<span class="gap ${i === built.length ? 'next' : ''}"></span>`)).join('')}${q.after.map((w) => `<span>${w}</span>`).join('')}</div>`;
+    const bankHtml = () => `<div class="build-bank">${q.o.map((o) => `<button class="block ${built.includes(o) ? 'used' : ''}" data-piece="${o}">${o}</button>`).join('')}</div>`;
     view.innerHTML = `
       <div class="card ${tappable ? 'gloss-zone' : ''}">
         <span class="caps">${q.part || section().title}</span>
@@ -420,12 +441,12 @@ export function startExam(ctx, exam, { mode = 'exam', resume = null } = {}) {
         ${q.play ? `<button class="btn ghost" id="play">${icons.speaker}<span>Play</span></button>
           ${help ? `<div class="seg mini" id="speed"><button class="on" data-r="${NORMAL}">Normal</button><button data-r="${SLOW}">Slow</button></div>` : ''}` : ''}
         ${q.ask ? `<p class="small muted">${q.ask}</p>` : ''}
-        ${stem}
-        ${romajiOf()}
+        ${q.build ? buildHtml() : stem}
+        ${q.build ? '' : romajiOf()}
         ${tappable ? glossHtml() : ''}
       </div>
-      <div class="reach"><div class="choices ${q.p && q.o.every((o) => o.length <= 12) ? 'grid2' : ''}" id="opts">${q.o.map((o, i) => `<button class="choice jp ${st.answers[q.id] === i ? 'picked' : ''}" data-i="${i}">
-        <span class="cnum">${i + 1}</span><span class="grow">${hideOptions ? '' : display(o)}</span></button>`).join('')}</div></div>
+      ${q.build ? `<div class="reach">${bankHtml()}</div>` : `<div class="reach"><div class="choices ${q.p && q.o.every((o) => o.length <= 12) ? 'grid2' : ''}" id="opts">${q.o.map((o, i) => `<button class="choice jp ${st.answers[q.id] === i ? 'picked' : ''}" data-i="${i}">
+        <span class="cnum">${i + 1}</span><span class="grow">${hideOptions ? '' : display(o)}</span></button>`).join('')}</div></div>`}
       <div class="dock"><button class="btn" id="next">${st.i === list.length - 1 ? 'Review' : 'Next'}</button>
         <button class="link" id="map">All questions</button></div>`;
     if (tappable) bindGloss(view.querySelector('.gloss-zone'), glossary);
@@ -457,13 +478,35 @@ export function startExam(ctx, exam, { mode = 'exam', resume = null } = {}) {
       rate = Number(b.dataset.r);
       view.querySelectorAll('#speed button').forEach((x) => x.classList.toggle('on', x === b));
     });
-    view.querySelector('#opts').onclick = (e) => {
+    if (q.build) {
+      // Tap a piece to put it in the next gap; tap a placed piece to take it back out.
+      view.querySelector('.card').addEventListener('click', (e) => {
+        const b = e.target.closest('[data-gap]');
+        if (!b) return;
+        built.splice(Number(b.dataset.gap), 1);
+        keep();
+      });
+      view.querySelector('.build-bank').parentElement.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-piece]');
+        if (!b || built.includes(b.dataset.piece) || built.length >= q.o.length) return;
+        built.push(b.dataset.piece);
+        keep();
+      });
+      const keep = () => {
+        if (built.length === q.o.length) { st.answers[q.id] = built.join(' '); delete st.parts[q.id]; }
+        else { delete st.answers[q.id]; st.parts[q.id] = built.join(' '); }
+        save();
+        view.querySelector('.build-line').outerHTML = buildHtml();
+        view.querySelector('.build-bank').outerHTML = bankHtml();
+      };
+    }
+    view.querySelector('#opts')?.addEventListener('click', (e) => {
       const b = e.target.closest('.choice');
       if (!b) return;
       st.answers[q.id] = Number(b.dataset.i);
       save();
       view.querySelectorAll('.choice').forEach((x) => x.classList.toggle('picked', x === b));
-    };
+    });
     view.querySelector('#next').onclick = () => {
       cancel();
       if (st.i === list.length - 1) overview();
@@ -526,7 +569,19 @@ export function startExam(ctx, exam, { mode = 'exam', resume = null } = {}) {
       ? `<div class="row"><span class="grow">Vocabulary, grammar and reading<br><span class="small muted">Needs at least 38</span></span><span class="num">${r.language} / 120</span></div>
          <div class="row"><span class="grow">Listening<br><span class="small muted">Needs at least 19</span></span><span class="num">${r.listening} / 60</span></div>`
       : '';
-    const missed = exam.sections.flatMap((s) => s.questions).filter((q) => st.answers[q.id] !== q.a);
+    const all = exam.sections.flatMap((s) => s.questions);
+    const missed = all.filter((q) => st.answers[q.id] !== q.a);
+    const right = all.filter((q) => st.answers[q.id] === q.a);
+    // A built sentence is shown whole, so its explanation (the same sentence) is left off.
+    const answerCard = (q, ok) => `<section class="card ${ok ? 'got' : ''}">
+          ${q.p && !ok ? `<div class="passage jp">${display(q.p)}</div>` : ''}
+          ${q.play ? `<div class="passage jp">${q.play.map(([s, t]) => `${s}: ${display(t)}`).join('<br>')}</div>` : ''}
+          ${q.q && !q.build ? `<div class="stem flow jp">${display(q.q)}</div>` : ''}
+          ${ok ? '' : st.answers[q.id] === undefined ? '<p class="small muted">Not answered</p>' : `<p class="small bad-text jp">Your answer: ${display(answerText(q, st.answers[q.id]))}</p>`}
+          <p class="small good-text jp">${ok ? 'Your answer' : 'Answer'}: ${display(answerText(q, q.a))}</p>
+          ${q.w && !q.build ? `<p class="small">${q.w}</p>` : ''}
+          ${q.en ? `<p class="small muted">${q.en}</p>` : ''}
+        </section>`;
     view.innerHTML = `<section class="card hero done-hero">
         <div class="score">${headline}</div>
         <h2>${r.pass ? 'Passed' : 'Not yet'}</h2>
@@ -537,15 +592,11 @@ export function startExam(ctx, exam, { mode = 'exam', resume = null } = {}) {
       </section>
       ${rows || r.sections.length > 1 ? `<section class="card list">${rows}${r.sections.map((s) => `<div class="row"><span class="grow small">${s.title}</span><span class="num small">${s.right} / ${s.total}</span></div>`).join('')}</section>` : ''}
       ${missed.length ? `<div class="caps sect"><span>Answers to go over</span></div>
-        ${missed.map((q) => `<section class="card">
-          ${q.p ? `<div class="passage jp">${display(q.p)}</div>` : ''}
-          ${q.play ? `<div class="passage jp">${q.play.map(([s, t]) => `${s}: ${display(t)}`).join('<br>')}</div>` : ''}
-          ${q.q ? `<div class="stem flow jp">${display(q.q)}</div>` : ''}
-          ${st.answers[q.id] === undefined ? '<p class="small muted">Not answered</p>' : `<p class="small bad-text jp">Your answer: ${display(q.o[st.answers[q.id]])}</p>`}
-          <p class="small good-text jp">Answer: ${display(q.o[q.a])}</p>
-          ${q.w ? `<p class="small">${q.w}</p>` : ''}
-          ${q.en ? `<p class="small muted">${q.en}</p>` : ''}
-        </section>`).join('')}` : ''}
+        ${missed.map((q) => answerCard(q, false)).join('')}` : ''}
+      ${right.length ? (exam.scoring === 'jlpt'
+        // A mock exam has a hundred questions, so the ones you got stay folded away.
+        ? `<details class="got-right"><summary class="caps sect"><span>Answers you got right · ${right.length}</span></summary>${right.map((q) => answerCard(q, true)).join('')}</details>`
+        : `<div class="caps sect"><span>Answers you got right</span></div>${right.map((q) => answerCard(q, true)).join('')}`) : ''}
       <div class="dock stack">${actions.map((a, i) => `<button class="btn ${i ? 'ghost' : ''}" data-act="${i}">${a.label}</button>`).join('')}</div>`;
     view.querySelector('.dock').onclick = (e) => {
       const b = e.target.closest('[data-act]');
