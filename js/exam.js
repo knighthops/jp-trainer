@@ -3,7 +3,7 @@
 // question is the right one. Options are shuffled here, with a fixed order per exam
 // so a mock exam can be resumed.
 import { words, PASS_SHARE, textTaught } from './course.js';
-import { shuffled, romajiLine, bindGloss, glossHtml } from './drills.js';
+import { shuffled, romajiLine, bindGloss, glossHtml, compareHtml, MARK_SVG } from './drills.js';
 import { sameMeaning } from './exercises.js';
 import { speakLines, cancel, SLOW, NORMAL } from './tts.js';
 import { icons } from './icons.js';
@@ -577,8 +577,8 @@ export function startExam(ctx, exam, { mode = 'exam', resume = null } = {}) {
           ${q.p && !ok ? `<div class="passage jp">${display(q.p)}</div>` : ''}
           ${q.play ? `<div class="passage jp">${q.play.map(([s, t]) => `${s}: ${display(t)}`).join('<br>')}</div>` : ''}
           ${q.q && !q.build ? `<div class="stem flow jp">${display(q.q)}</div>` : ''}
-          ${ok ? '' : st.answers[q.id] === undefined ? '<p class="small muted">Not answered</p>' : `<p class="small bad-text jp">Your answer: ${display(answerText(q, st.answers[q.id]))}</p>`}
-          <p class="small good-text jp">${ok ? 'Your answer' : 'Answer'}: ${display(answerText(q, q.a))}</p>
+          ${ok ? `<p class="got-line jp"><span class="got-mark">${MARK_SVG.good}</span>${display(answerText(q, q.a))}</p>`
+            : compareHtml({ label: st.answers[q.id] === undefined ? 'Skipped' : 'You picked', text: st.answers[q.id] === undefined ? '<span class="muted">Not answered</span>' : `<span class="jp">${display(answerText(q, st.answers[q.id]))}</span>` }, `<span class="jp">${display(answerText(q, q.a))}</span>`)}
           ${q.w && !q.build ? `<p class="small">${q.w}</p>` : ''}
           ${q.en ? `<p class="small muted">${q.en}</p>` : ''}
         </section>`;

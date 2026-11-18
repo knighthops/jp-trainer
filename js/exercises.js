@@ -115,9 +115,16 @@ export function renderWordQ(root, q, { tag, review = false, onDone }) {
       else b.classList.add('dim');
     });
     root.querySelector('#skip')?.remove();
+    // A wrong pick is shown for what it really is, so the mix-up teaches something too.
+    const x = right ? null : q.items?.[picked];
+    const was = x && (q.dir === 'jp'
+      ? { text: `<span class="jp">${x.w}</span>`, note: `${x.w !== x.y ? `<span class="jp">${x.y}</span> · ` : ''}${x.m}` }
+      : { text: x.m, note: `That's <span class="jp">${x.w}</span>${x.w !== x.y ? ` <span class="jp">${x.y}</span>` : ''}` });
     showSheet(root, {
       right,
-      headline: right ? 'Correct' : q.dir === 'jp' ? `It's ${v.w}` : `It means ${v.m}`,
+      headline: right ? 'Correct' : 'Not quite',
+      picked: was || (right ? null : { text: q.options[picked] }),
+      answer: q.dir === 'jp' ? `<span class="jp">${v.w}</span>` : v.m,
       glyph: KANJI.test(v.w) && v.w.length <= 2 ? v.w : '',
       title: `<span class="jp">${v.w}</span> ${v.w !== v.y ? `<span class="jp muted">${v.y}</span>` : ''}`,
       lines: [`<span class="small muted">${romaji(v.y)} · ${v.m}</span> ${sayBtn(v.y)}`],
@@ -135,6 +142,7 @@ export function renderSpell(root, p, { review = false, onDone }) {
   const v = p.word;
   const placed = [];
   let clean = true;
+  const tries = [];
   root.innerHTML = `<div class="qz">
       <span class="qz-tag">Spell the reading</span>
       <p class="qz-big jp">${v.w}</p>
@@ -154,6 +162,7 @@ export function renderSpell(root, p, { review = false, onDone }) {
     if (b.t !== p.tiles[placed.length]) {
       clean = false;
       fb.className = 'fb bad';
+      tries.push({ text: `<span class="jp">${b.t}</span>`, note: b.spare ? 'Not in this word' : 'Right sound, wrong place' });
       fb.textContent = b.spare ? `${b.t} isn't in this word.` : 'Not that sound yet. Say the word to yourself, one sound at a time.';
       if (b.spare) el.classList.add('used', 'gone');
       else {
@@ -175,6 +184,7 @@ export function renderSpell(root, p, { review = false, onDone }) {
       showSheet(root, {
         right: clean,
         headline: clean ? 'Spelled it' : 'Got there',
+        picked: tries,
         title: `<span class="jp">${v.w}</span> <span class="jp muted">${v.y}</span>`,
         lines: [`<span class="small muted">${romaji(v.y)} · ${v.m}</span> ${sayBtn(v.y)}`],
       }, () => onDone(clean));
@@ -298,6 +308,7 @@ export function renderPartsBuild(root, p, { review = false, onDone }) {
   const k = p.kanji;
   const found = [];
   let clean = true;
+  const tries = [];
   root.innerHTML = `<div class="qz">
       <span class="qz-tag">Build the kanji</span>
       <p class="qz-q">Which parts make the kanji for</p>
@@ -316,6 +327,7 @@ export function renderPartsBuild(root, p, { review = false, onDone }) {
     showSheet(root, {
       right: clean,
       headline: clean ? 'Built it' : 'Got there',
+      picked: tries,
       title: `<span class="jp">${k.k}</span> <span class="small muted">${k.mean.slice(0, 2).join(', ')}</span>`,
       lines: p.parts.map((x) => `<span class="jp">${x.c}</span> <strong>${x.label}</strong> <span class="small muted">${x.mn}</span>`),
     }, () => onDone(clean));
@@ -325,6 +337,7 @@ export function renderPartsBuild(root, p, { review = false, onDone }) {
     if (!el || el.classList.contains('used')) return;
     const x = p.pool[Number(el.dataset.n)];
     if (x.spare) {
+      tries.push({ text: `<span class="jp">${x.c}</span> ${x.label}`, note: 'Not one of its parts' });
       clean = false;
       fb.className = 'fb bad';
       fb.textContent = `${x.c} (${x.label}) isn't in this kanji.`;
@@ -349,6 +362,7 @@ export function renderCompound(root, p, { review = false, onDone }) {
   const v = p.word;
   const placed = [];
   let clean = true;
+  const tries = [];
   root.innerHTML = `<div class="qz">
       <span class="qz-tag">Build the word</span>
       <p class="qz-q">Put the kanji together for</p>
@@ -369,6 +383,7 @@ export function renderCompound(root, p, { review = false, onDone }) {
       clean = false;
       fb.className = 'fb bad';
       if (x.spare) {
+        tries.push({ text: `<span class="jp">${x.c}</span>`, note: `means “${x.m}”, not in this word` });
         fb.textContent = `${x.c} means “${x.m}”. It isn't in this word.`;
         el.classList.add('used', 'gone');
       } else {
@@ -391,6 +406,7 @@ export function renderCompound(root, p, { review = false, onDone }) {
       showSheet(root, {
         right: clean,
         headline: clean ? 'Built it' : 'Got there',
+        picked: tries,
         title: `<span class="jp">${v.w}</span> <span class="jp muted">${v.y}</span>`,
         lines: [`<span class="small muted">${romaji(v.y)} · ${v.m}</span> ${sayBtn(v.y)}`],
       }, () => onDone(clean));

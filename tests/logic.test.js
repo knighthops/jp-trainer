@@ -8,7 +8,7 @@ import { quizQuestion, similarKanji, drillKanji, kindFor, readWords } from '../j
 import { romaji, toHiragana, toKana, judgeReading } from '../js/romaji.js';
 import { speechText } from '../js/tts.js';
 import { matchReading } from '../js/readings.js';
-import { reviewSteps, kanjiId, talkId } from '../js/session.js';
+import { reviewSteps, kanjiId, talkId, buildAsCheck } from '../js/session.js';
 import {
   UNIT_FILES, mergeCourse, nextUp, isUnlocked, examUnlocked, lessonSteps, LEVELS, levelUnlocked, toBlocks, autoAlts, words, particleItem,
   courseSteps, rankOf, LESSON_NEW, wordsNeededEarly, unitStars, unitItems, grammarId, passUnit, lessonStars, isTaught, choiceShown, lessonParts, tokenWords, textTaught, strayTaught,
@@ -1741,4 +1741,18 @@ test('lessons build a new kanji and a word, and every tile is taught', () => {
   }
   assert.ok(kparts >= 10, `kanji builds (${kparts})`);
   assert.ok(compounds >= 10, `word builds (${compounds})`);
+});
+
+test('a missed build question comes back as a check with one right order', () => {
+  const q = { id: 'u01-s0', q: 'ベン ＿＿ か', w: 'ベン さん は 学生 です か' };
+  // Saved before the fix: the answer slot was null.
+  const old = { ...q, o: [null, 'は', 'です', 'さん', '学生'] };
+  const state = blank();
+  state.course.missed = { [q.id]: old };
+  const steps = reviewSteps(state, course(), NOW);
+  const c = steps.find((s) => s.id === q.id).ref;
+  assert.equal(c.o[0], 'さん は 学生 です');
+  assert.ok(c.o.length >= 3 && c.o.every((o) => typeof o === 'string' && o.split(' ').length === 4));
+  assert.equal(new Set(c.o).size, c.o.length);
+  assert.deepEqual(buildAsCheck({ ...q, build: true, o: ['です', 'は', 'さん', '学生'] }).o[0], 'さん は 学生 です');
 });

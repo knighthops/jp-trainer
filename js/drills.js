@@ -175,56 +175,65 @@ export function orders(sentence) {
 
 // The sheet that slides up after every answer, whatever the exercise: right or wrong, a
 // headline, then what was asked with its reading and meaning, and one Continue.
-export function feedbackSheet({ right, headline, glyph = '', title = '', lines = [] }) {
+// A drawn tick or cross for the sheet's badge and the answer marks.
+export const MARK_SVG = {
+  good: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12.6l3.9 3.9L18 8.4"/></svg>',
+  bad: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 7.5l9 9"/><path d="M16.5 7.5l-9 9"/></svg>',
+};
+
+// A wrong answer side by side with the right one: what you picked (and what that really is),
+// then the answer, made the loudest thing on the sheet. picked: one or a list of
+// { text, note } (note: what the picked option actually means, or why it doesn't fit).
+export function compareHtml(picked, answer) {
+  // The same slip twice is shown once, and three at most keep the sheet short.
+  const list = [].concat(picked || []).filter((p, i, a) => p && p.text && a.findIndex((x) => x?.text === p.text) === i).slice(0, 3);
+  if (!list.length && !answer) return '';
+  const row = (cls, label, text, note) => `<div class="cmp-row ${cls}"><span class="cmp-l">${label}</span>
+    <span class="cmp-v"><span class="cmp-t">${text}</span>${note ? `<span class="cmp-n">${note}</span>` : ''}</span></div>`;
+  return `<div class="cmp">${list.map((p) => row('was', p.label || (list.length > 1 ? 'Tried' : 'You picked'), p.text, p.note)).join('')}${
+    answer ? row('is', 'Answer', answer) : ''}</div>`;
+}
+
+// The sheet that slides up after every answer, whatever the exercise: right or wrong, a
+// headline, then what was asked with its reading and meaning, and one Continue.
+// A wrong answer adds the comparison (picked, answer); a run of right answers adds a streak chip.
+export function feedbackSheet({ right, headline, glyph = '', title = '', lines = [], picked = null, answer = '', streak = 0 }) {
   const body = glyph || title || lines.length
     ? `<div class="sh-body">${glyph ? `<span class="sh-k jp">${glyph}</span>` : ''}
       <span class="grow">${title ? `<strong>${title}</strong>` : ''}${lines.filter(Boolean).map((l) => `<span class="sh-line">${l}</span>`).join('')}</span></div>`
     : '';
+  const chip = right && streak >= 3 ? `<span class="sh-streak" aria-label="${streak} right in a row">${streak} in a row</span>` : '';
   return `<div class="sheet ${right ? 'good' : 'bad'}" role="status">
-    <div class="sh-head"><span class="sh-badge" aria-hidden="true">${right ? '✓' : '✕'}</span><b>${headline}</b></div>
-    ${body}<button class="btn" id="cont">Continue</button></div>`;
+    <div class="sh-head"><span class="sh-badge" aria-hidden="true">${right ? MARK_SVG.good : MARK_SVG.bad}</span><b>${headline}</b>${chip}</div>
+    ${right ? '' : compareHtml(picked, answer)}${body}<button class="btn" id="cont">Continue</button></div>`;
 }
 
-// After a right answer the run can move on by itself, saving a tap per item. The app says
-// when (a setting, and never while browsing answers). Touching the sheet stops it, so
-// there's time to read a note.
-let autoNext = () => false;
-export const setAutoNext = (fn) => { autoNext = fn; };
-export const AUTO_MS = 1400;
-// After moving on by itself, taps are ignored for a moment: a Continue tapped just late
-// would otherwise land on the next question's options, or skip a teaching screen.
-const LATE_MS = 450;
+// How many right in a row this answer makes, for the sheet's streak chip. The app says (0 when
+// looking back at answers, or outside a run).
+let streakOf = () => 0;
+export const setStreak = (fn) => { streakOf = fn; };
+// Continue sits where the answers were. A quick double tap would land its second tap on the
+// next question's options, so real taps are ignored for a moment after Continue.
+const LATE_MS = 300;
 let quietUntil = 0;
 const swallow = (e) => {
-  if (Date.now() < quietUntil) { e.stopPropagation(); e.preventDefault(); }
+  if (e.isTrusted && Date.now() < quietUntil) { e.stopPropagation(); e.preventDefault(); }
 };
 if (typeof document !== 'undefined') for (const t of ['pointerdown', 'click']) document.addEventListener(t, swallow, true);
 export function showSheet(root, opts, onContinue) {
   root.querySelector('.sheet')?.remove();
   // opts.html: a sheet of the step's own (the kanji quiz's); opts.review: an answer looked back at.
-  root.insertAdjacentHTML('beforeend', opts.html || feedbackSheet(opts));
+  const streak = opts.right ? streakOf(opts) : 0;
+  root.insertAdjacentHTML('beforeend', opts.html || feedbackSheet({ ...opts, streak }));
   document.body.classList.add('has-sheet');
   const cont = root.querySelector('#cont');
-  let timer = null;
-  const go = (auto = false) => {
-    clearTimeout(timer);
+  cont.onclick = () => {
     if (!cont.isConnected || cont.dataset.gone) return;
     cont.dataset.gone = '1';
-    if (auto === true) quietUntil = Date.now() + LATE_MS;
+    quietUntil = Date.now() + LATE_MS;
     document.body.classList.remove('has-sheet');
     onContinue();
   };
-  cont.onclick = () => go();
-  if (opts.right && autoNext(opts)) {
-    cont.classList.add('auto');
-    cont.style.setProperty('--auto-ms', `${AUTO_MS}ms`);
-    timer = setTimeout(() => go(true), AUTO_MS);
-    root.querySelector('.sheet').addEventListener('pointerdown', (e) => {
-      if (e.target.closest('#cont')) return;
-      clearTimeout(timer);
-      cont.classList.remove('auto');
-    });
-  }
 }
 
 // Headline for a finished item: right first time, or got there after a wrong tap.
@@ -268,6 +277,7 @@ export function renderSentence(root, sentence, { hints, glossary = {}, review = 
 
   const placed = [];
   let clean = true;
+  const tries = [];
   const blockHtml = (b, cls = '') => `<button class="block ${ROLE_NAMES[b.r]} ${cls}" data-i="${b.i}">
     <span>${b.t}</span>${b.y && (typeof hints === 'function' ? hints(b) : hints) ? `<small>${b.y}</small>` : ''}</button>`;
 
@@ -297,6 +307,7 @@ export function renderSentence(root, sentence, { hints, glossary = {}, review = 
       // A spare tile that belongs nowhere: it says so and leaves the pool.
       clean = false;
       fb.className = 'fb bad';
+      tries.push({ text: `<span class="jp">${block.t}</span>`, note: 'Not in this sentence' });
       fb.textContent = `${block.t} doesn't belong in this sentence.`;
       el.classList.add('used', 'gone');
       return;
@@ -304,6 +315,7 @@ export function renderSentence(root, sentence, { hints, glossary = {}, review = 
     if (!validNext(sentence, placed).has(block.t)) {
       clean = false;
       fb.className = 'fb bad';
+      tries.push({ text: `<span class="jp">${block.t}</span>`, note: explainWrong(sentence, placed, block) });
       fb.textContent = explainWrong(sentence, placed, block);
       el.classList.remove('shake');
       void el.offsetWidth;
@@ -329,6 +341,7 @@ export function renderSentence(root, sentence, { hints, glossary = {}, review = 
         right: clean,
         headline: doneHeadline(clean),
         title: sentence.en,
+        picked: tries,
         lines: [`<span class="romaji shown">${romajiLine(sentence.blocks.map((b) => b.t), glossary, '.')}</span>`, sentence.note ? `<span class="small muted">${sentence.note}</span>` : ''],
       }, () => onDone(clean));
     }
@@ -453,6 +466,7 @@ export function bindGloss(zone, glossary) {
 
 export function renderParticle(root, item, set, cards, { glossary, review = false, onDone }) {
   let clean = true;
+  const tries = [];
   const before = tokenize(item.before ?? set.noun, glossary);
   const after = tokenize(item.after, glossary);
   const wordBtn = (w) => `<button class="word" data-word="${w}">${w}</button>`;
@@ -482,6 +496,7 @@ export function renderParticle(root, item, set, cards, { glossary, review = fals
     const choice = el.dataset.o;
     if (choice !== item.answer) {
       clean = false;
+      tries.push({ text: `<span class="jp">${choice}</span>`, note: item.why[choice] || '' });
       el.classList.add('wrong');
       el.disabled = true;
       fb.className = 'fb bad';
@@ -497,7 +512,7 @@ export function renderParticle(root, item, set, cards, { glossary, review = fals
     fb.className = 'fb';
     fb.textContent = '';
     const why = card ? (item.note ? `${card.name}. ${item.note}` : `${card.name}: ${card.fn}`) : item.note || '';
-    showSheet(root, { right: clean, headline: doneHeadline(clean), glyph: choice, title: item.en, lines: [why ? `<span class="small">${why}</span>` : ''] }, () => onDone(clean));
+    showSheet(root, { right: clean, headline: doneHeadline(clean), glyph: choice, title: item.en, picked: tries, lines: [why ? `<span class="small">${why}</span>` : ''] }, () => onDone(clean));
   };
   if (review) opts.querySelector(`[data-o="${item.answer}"]`).click();
 }
@@ -506,6 +521,7 @@ export function renderParticle(root, item, set, cards, { glossary, review = fals
 // first option in `o` is the right one.
 export function renderCheck(root, q, { glossary, review = false, onDone }) {
   let clean = true;
+  const tries = [];
   // A [bracketed] word is the one being tested, so it gets no romaji, audio or tap-to-translate.
   const tokens = q.q.replace(/([。、？！])/g, ' $1 ').trim().split(/\s+/);
   const secret = (w) => /^\[.*\]$/.test(w);
@@ -547,6 +563,8 @@ export function renderCheck(root, q, { glossary, review = false, onDone }) {
     if (!b || b.disabled) return;
     if (b.dataset.o !== q.o[0]) {
       clean = false;
+      // A quick response's replies are heard, not read, so a wrong one is named by its number.
+      tries.push({ text: q.ao ? `Reply ${b.querySelector('.cnum')?.textContent || ''}` : show(b.dataset.o) });
       b.classList.add('wrong');
       b.disabled = true;
       fb.className = 'fb bad';
@@ -559,7 +577,7 @@ export function renderCheck(root, q, { glossary, review = false, onDone }) {
     root.querySelectorAll('.ao').forEach((x) => { x.hidden = false; });
     fb.className = 'fb';
     fb.textContent = '';
-    showSheet(root, { right: clean, headline: doneHeadline(clean), title: show(q.o[0]), lines: [q.w ? `<span class="small">${q.w}</span>` : ''] }, () => onDone(clean));
+    showSheet(root, { right: clean, headline: doneHeadline(clean), title: clean ? show(q.o[0]) : '', answer: show(q.o[0]), picked: tries, lines: [q.w ? `<span class="small">${q.w}</span>` : ''] }, () => onDone(clean));
   };
   if (review) root.querySelector(`.choice[data-o="${q.o[0]}"]`).click();
 }

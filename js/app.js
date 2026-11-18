@@ -8,11 +8,11 @@ import { startRush, bestKey as rushKey } from './rush.js';
 import {
   GRADES, GRADE_NAMES, GRADE_HELP, CLEARS, isStruggling, struggleOrder, newRecord, rate, label, STAGES, stageOf, STRONG, MASTERED, isDue,
 } from './srs.js';
-import { reviewSteps, kanjiId } from './session.js';
+import { reviewSteps, kanjiId, buildAsCheck } from './session.js';
 import { quizQuestion, drillKanji, kindFor, DRILL_SECONDS } from './quiz.js';
 import { loadStrokes, mountStrokes } from './strokes.js';
 import {
-  renderSentence, renderParticle, renderCheck, particleCardHtml, feedbackSheet, showSheet, setAutoNext, bindGloss, glossHtml, glossText, romajiLine, shuffled, glued, setKanji, partsHtml, wordKanjiHtml, kanjiOf, kanjiIn,
+  renderSentence, renderParticle, renderCheck, particleCardHtml, feedbackSheet, compareHtml, showSheet, setStreak, bindGloss, glossHtml, glossText, romajiLine, shuffled, glued, setKanji, partsHtml, wordKanjiHtml, kanjiOf, kanjiIn,
   setNotes, noteOf, noteSlotInner, noteEditorHtml, togglePeek, peekHtml,
 } from './drills.js';
 import { makeWriteIndex, recognize } from './handwrite.js';
@@ -1111,7 +1111,6 @@ function renderCard(step) {
   const settle = (verdict) => {
     reveal();
     input.disabled = true;
-    const shown = ` It's ${answers[0]}.`;
     fb.hidden = false;
     if (verdict === 'right') {
       fb.className = 'fb good';
@@ -1121,8 +1120,10 @@ function renderCard(step) {
       return;
     }
     fb.className = verdict === 'close' ? 'fb info' : 'fb bad';
-    fb.textContent = verdict === 'close' ? `Close: check the small kana, dakuten and long vowels.${shown}`
-      : `Not this time.${shown}`;
+    // What you typed next to the reading, so the difference is plain to see.
+    const typedKana = toKana(input.value, { done: true }).trim();
+    fb.innerHTML = `<span class="grow">${verdict === 'close' ? 'Close: check the small kana, dakuten and long vowels.' : 'Not this time.'}${
+      compareHtml(typedKana ? { label: 'You typed', text: `<span class="jp">${escHtml(typedKana)}</span>` } : null, `<span class="jp">${answers[0]}</span> ${romaji(answers[0])}`)}</span>`;
     view.querySelector('#act').innerHTML = '<button class="btn" id="next">Next</button>';
     view.querySelector('#next').onclick = () => finishCard(step, verdict === 'close' ? 'hard' : 'again');
   };
@@ -1149,11 +1150,12 @@ function markedWord(k, w) {
 }
 
 // The sheet that slides up after an answer: the kanji, its meaning, and its reading inside a word.
-function answerSheet(k, word, right, headline) {
+// extra: { picked, answer, streak } for the comparison on a wrong answer and the streak chip.
+function answerSheet(k, word, right, headline, extra = {}) {
   const w = word || readingWords(k)[0];
   const m = w ? markedWord(k, w) : null;
   return feedbackSheet({
-    right, headline, glyph: k.k, title: k.mean.slice(0, 2).join(', '),
+    ...extra, right, headline, glyph: k.k, title: k.mean.slice(0, 2).join(', '),
     lines: m ? [`${m.html} ${m.chip}`, `<span class="small muted">${romaji(w.y)} · ${w.m}</span>`] : [`<span class="jp">${headReading(k)}</span>`],
   });
 }
@@ -1232,9 +1234,21 @@ function renderQuiz(step) {
       if (!step.again) record(step.id, !right ? 'again' : step.hinted ? 'hard' : 'good');
       if (!right) requeue(step);
     }
-    const say = q.kind === 'read' ? `It's ${q.options[q.answer]}` : q.kind === 'pick' ? `It's ${q.k.k}` : `It means ${q.k.mean[0]}`;
-    // The 2-minute drill is about speed, so it moves on by itself after a right answer too.
-    showSheet(view, { right: right && !step.hinted, review, html: answerSheet(q.k, q.word, right, right ? (step.hinted ? 'Right, with a hint' : 'Correct') : say) }, advance);
+    // A wrong pick is named for what it really is: the other kanji's meaning, the meaning's
+    // kanji, or the reading in romaji.
+    const o = q.options[picked];
+    const other = q.kind === 'pick' ? data.kanji.find((k) => k.k === o) : meanOf(o);
+    const picks = right ? null : q.kind === 'read' ? { text: `<span class="jp">${o}</span>`, note: romaji(o) }
+      : q.kind === 'pick' ? { text: `<span class="jp">${o}</span>`, note: other ? other.mean.slice(0, 2).join(', ') : '' }
+        : { text: o, note: other ? `That's <span class="jp">${other.k}</span>` : '' };
+    const answer = q.kind === 'read' ? `<span class="jp">${q.options[q.answer]}</span> ${romaji(q.options[q.answer])}`
+      : q.kind === 'pick' ? `<span class="jp">${q.k.k}</span>` : q.k.mean[0];
+    const clean = right && !step.hinted;
+    const streak = clean && !review ? run?.combo || 0 : 0;
+    showSheet(view, {
+      right: clean, review,
+      html: answerSheet(q.k, q.word, right, right ? (step.hinted ? 'Right, with a hint' : 'Correct') : 'Not quite', { picked: picks, answer, streak }),
+    }, advance);
   };
   opts.onclick = (e) => {
     const b = e.target.closest('[data-n]');
@@ -2160,7 +2174,7 @@ const examContext = () => ({
 
 // A missed question, in the shape the check drill uses: right answer first.
 // A passage question keeps its passage (p), or it couldn't be answered later.
-const asCheck = (q) => ({ id: q.id, q: q.q, ask: q.ask, w: q.w, ...(q.p ? { p: q.p } : {}), o: [q.o[q.a], ...q.o.filter((_, i) => i !== q.a)] });
+const asCheck = (q) => (q.build ? buildAsCheck(q) : { id: q.id, q: q.q, ask: q.ask, w: q.w, ...(q.p ? { p: q.p } : {}), o: [q.o[q.a], ...q.o.filter((_, i) => i !== q.a)] });
 
 // Minutes left before a failed unit test can be retaken.
 const retryWait = (unit) => Math.max(0, Math.ceil(((state.course.retry?.[unit.id] || 0) - Date.now()) / 60000));
@@ -2923,7 +2937,21 @@ function screenDict() {
 
 // Study aids from Settings, as hooks the stylesheet reads: romaji always, on tap or never,
 // and the colour-coded roles on sentence blocks.
+// Colour themes: the page and the "do this next" colour, for the picker's swatch and the
+// status bar. Their tokens live in style.css under :root[data-theme].
+const THEMES = [
+  ['lavender', 'Lavender', '#141518', '#a9a4f7', '#111214'],
+  ['ai', 'Ai 藍', '#0f1420', '#7fa6f0', '#0c111b'],
+  ['matcha', 'Matcha', '#131612', '#a8cf7e', '#101310'],
+  ['hinoki', 'Hinoki', '#17140f', '#e8b36a', '#13110c'],
+  ['yoru', 'Yoru 夜', '#0c0f10', '#5fd0cf', '#0a0d0e'],
+];
+
 function applyAids() {
+  const theme = THEMES.find(([id]) => id === state.settings.theme) || THEMES[0];
+  if (theme[0] === 'lavender') delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = theme[0];
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme[4]);
   document.body.dataset.romaji = state.settings.romaji || 'tap';
   document.body.classList.toggle('no-roles', state.settings.roles === false);
 }
@@ -2936,16 +2964,18 @@ function screenSettings() {
   view.innerHTML = `
     <div class="caps sect"><span>Activity</span></div>
     ${heatmap()}
+    <div class="caps sect"><span>Look</span></div>
+    <section class="card">
+      <strong>Theme</strong>
+      <div class="seg themes" data-key="theme">${THEMES.map(([id, name, page, act]) =>
+        `<button class="${(s.theme || 'lavender') === id ? 'on' : ''}" data-v='"${id}"' aria-pressed="${(s.theme || 'lavender') === id}">
+          <i class="dot" style="--sw-p:${page};--sw-a:${act}" aria-hidden="true"></i><span>${name.split(' ')[0]}</span></button>`).join('')}</div>
+    </section>
     <div class="caps sect"><span>Study</span></div>
     <section class="card">
       <strong>Romaji</strong>
       <p class="small muted">Training wheels for reading. Unit tests and exams never show it.</p>
       ${seg('romaji', [['always', 'Always'], ['tap', 'Tap to show'], ['never', 'Never']])}
-    </section>
-    <section class="card">
-      <strong>After a right answer</strong>
-      <p class="small muted">Move on by itself after a moment, or wait for Continue. Touch the answer card to stay and read it.</p>
-      ${seg('autoNext', [[true, 'Move on'], [false, 'Wait']])}
     </section>
     <section class="card">
       <strong>Readings on sentence blocks</strong>${seg('hints', [[true, 'Show'], [false, 'Hide']])}
@@ -3144,9 +3174,9 @@ function noteClick(e) {
 }
 
 async function init() {
-  // A right answer moves on by itself in a run, unless you'd rather tap Continue. Not when
-  // looking back at answered items, and not in listening, where you may want to hear it again.
-  setAutoNext((o) => state.settings.autoNext !== false && Boolean(run) && !run.browse && !run.sound && !(o.review ?? run.steps[run.i]?.done));
+  // A right answer that makes a run of three or more says so on its sheet. Not when looking
+  // back at answered items. The combo counts the answer only after Continue, hence the + 1.
+  setStreak((o) => (run && !run.browse && !(o.review ?? run.steps[run.i]?.done) ? run.combo + 1 : 0));
   // Any listen button, on any screen.
   document.addEventListener('click', (e) => {
     // Quiz runs outside Trip stay silent, even if a listen button slips through.

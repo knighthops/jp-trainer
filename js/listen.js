@@ -52,7 +52,13 @@ export function renderListen(root, sentence, { glossary, others = [], review = f
     root.querySelectorAll('.choice').forEach((b) => {
       b.disabled = true;
       if (b.dataset.o === sentence.en) b.classList.add('right');
+      else if (!b.classList.contains('wrong')) b.classList.add('dim');
     });
+    // Say the result under the reveal, as Trip does; not when looking back at it.
+    if (!review) {
+      fb.className = `fb ${right ? 'good' : 'bad'}`;
+      fb.textContent = right ? 'Right, you caught it.' : `It means: ${sentence.en}`;
+    }
     root.querySelector('#after').innerHTML = '<button class="btn" id="cont">Continue</button>';
     root.querySelector('#cont').onclick = () => onDone(right);
   };

@@ -13,6 +13,22 @@ export const sentenceId = (s) => `s:${s.id}`;
 export const particleId = (item) => `p:${item.id}`;
 export const talkId = (phrase) => `t:${phrase.id}`;
 
+// A missed build question (tap pieces into ＿＿) comes back as a check: the right order of its
+// pieces against the same pieces in other orders. Each build question has only one right order,
+// so every other order is wrong. Its pieces come from the full sentence (w) and the gap in q,
+// which also repairs ones saved before this existed (o began with null).
+export function buildAsCheck(q) {
+  const all = q.w.split(' ');
+  const parts = q.q.split(' ');
+  const gap = parts.indexOf('＿＿');
+  const pieces = all.slice(gap, all.length - (parts.length - gap - 1));
+  const answer = pieces.join(' ');
+  const [a, b, c, d] = pieces;
+  const others = [[b, a, c, d], [a, c, b, d], [a, b, d, c], [...pieces].reverse(), [b, c, d, a]]
+    .map((p) => p.filter(Boolean).join(' ')).filter((o, i, list) => o !== answer && list.indexOf(o) === i).slice(0, 3);
+  return { id: q.id, q: q.q, ask: 'Which order fills the gap?', w: q.w, o: [answer, ...others] };
+}
+
 // A short block of what's due, sized for a pocket of time: cards first, then grammar,
 // a few drills, starred phrases and missed test questions. Run it again for more.
 export function reviewSteps(state, data, now = Date.now(), { cards = 15, grammar = 5, drills = 3, rng = Math.random } = {}) {
@@ -59,6 +75,7 @@ export function reviewSteps(state, data, now = Date.now(), { cards = 15, grammar
     ...(data.talkPhrases || []).filter((x) => saved[x.id]).map((x) => ({ type: 'talk', id: talkId(x), ref: x }))
       .filter((s) => !items[s.id] || due(s)).sort((a, b) => (items[a.id]?.due ?? 0) - (items[b.id]?.due ?? 0)).slice(0, drills),
     // Questions missed on a unit test come back until they are answered.
-    ...Object.values(state.course?.missed || {}).slice(0, drills).map((q) => ({ type: 'check', id: q.id, ref: q, missed: true })),
+    ...Object.values(state.course?.missed || {}).slice(0, drills)
+      .map((q) => ({ type: 'check', id: q.id, ref: q.o.some((o) => o == null) ? buildAsCheck(q) : q, missed: true })),
   ];
 }

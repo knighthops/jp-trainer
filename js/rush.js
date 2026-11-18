@@ -94,7 +94,7 @@ export function startRush(ctx) {
       ${total ? '<div class="rush-bar"><i id="rbar"></i></div>' : ''}
       <div class="rush-stats"><span><b class="num" id="rscore">0</b> right</span><span id="rcombo" class="muted"></span>
         ${total ? `<span class="num" id="rtime">${opts.secs}</span>` : '<button class="chip" id="rstop">Finish</button>'}</div>
-      <section class="card rush-card"><div class="rush-k jp" id="rk"></div></section>
+      <section class="card rush-card"><div class="rush-k jp" id="rk"></div><p class="rush-last" id="rlast" aria-live="polite"></p></section>
       <div class="reach"><div class="opts long rush-opts ${opts.mode}" id="ropts"></div>
         <button class="link rush-pass" id="rpass">Pass · I haven't learned this one</button></div>`;
     const el = (id) => view.querySelector(`#${id}`);
@@ -113,6 +113,8 @@ export function startRush(ctx) {
     el('ropts').onclick = (e) => {
       const b = e.target.closest('[data-o]');
       if (!b || !q) return;
+      // The kanji just answered stays named under the next one: a miss shows its right answer.
+      const last = q;
       const card = el('rk').parentElement;
       card.classList.remove('hit', 'miss');
       void card.offsetWidth;
@@ -127,6 +129,9 @@ export function startRush(ctx) {
         card.classList.add('miss');
         if (!misses.includes(q.k)) { misses.push(q.k); ctx.onMiss?.(q.k); }
       }
+      const hit = b.dataset.o === last.right;
+      const ans = opts.mode === 'reading' ? `<span class="jp">${last.right}</span> ${romaji(last.right)}` : last.right;
+      el('rlast').innerHTML = `<span class="${hit ? 'ok' : 'no'}"><i aria-hidden="true">${hit ? '✓' : '✕'}</i><b class="jp">${last.k.k}</b> ${hit ? '' : 'is '}<b>${ans}</b></span>`;
       el('rscore').textContent = score;
       el('rcombo').textContent = combo >= 3 ? `${combo} in a row` : '';
       ask();
