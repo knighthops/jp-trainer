@@ -14,7 +14,7 @@ import {
   courseSteps, rankOf, LESSON_NEW, wordsNeededEarly, unitStars, unitItems, grammarId, passUnit, lessonStars, isTaught, choiceShown, lessonParts, tokenWords, textTaught, strayTaught,
 } from '../js/course.js';
 import { unitTest, mockExam, grade, wordKind, quickReplies, answerText } from '../js/exam.js';
-import { wordQuestion, kanaTiles, spellPuzzle, sameMeaning } from '../js/exercises.js';
+import { wordQuestion, kanaTiles, spellPuzzle, sameMeaning, partsPuzzle, compoundPuzzle, buildable, compoundable } from '../js/exercises.js';
 import { checkLogin, hashPassword, userId } from '../js/lock.js';
 import { radioChannels } from '../js/radio.js';
 import { clipId, clipSsml, englishSaid } from '../js/clips.js';
@@ -213,7 +213,9 @@ test('reviews take what is due, oldest first, in a short block', () => {
   });
   state.items[kanjiId(merged.kanji[40])] = { ...newRecord(), due: NOW + DAY, reps: 2, interval: 3 };
   const steps = reviewSteps(state, merged, NOW);
-  assert.equal(steps.length, 15);
+  // 15 cards, plus one due kanji to build from its parts.
+  assert.equal(steps.filter((s) => s.id).length, 15);
+  assert.ok(steps.filter((s) => s.type === 'kparts').length <= 1);
   assert.equal(steps[0].id, kanjiId(merged.kanji[29]));
   assert.ok(!steps.some((s) => s.id === kanjiId(merged.kanji[40])));
 });
@@ -1689,4 +1691,54 @@ test('every unit test has two fair ★ questions and a spelling question', () =>
       }
     }
   }
+});
+
+test('build the kanji: its own parts, and spares only from kanji you have met', () => {
+  const merged = course();
+  const k = (c) => merged.kanji.find((x) => x.k === c);
+  assert.ok(!buildable(k('八')), '八 is a single part');
+  assert.ok(buildable(k('時')));
+  const met = merged.kanji.slice(0, 40);
+  for (let n = 0; n < 20; n++) {
+    const p = partsPuzzle(k('時'), met, Math.random);
+    assert.deepEqual(p.parts.map((x) => x.c).sort(), ['寺', '日'].sort());
+    const spares = p.pool.filter((x) => x.spare);
+    assert.equal(spares.length, 2);
+    const metParts = new Set(met.flatMap((x) => x.parts.map((q) => q.c)));
+    for (const s of spares) {
+      assert.ok(metParts.has(s.c), `${s.c} is a part of a kanji you've met`);
+      assert.ok(!p.parts.some((q) => q.c === s.c || q.label.toLowerCase() === s.label.toLowerCase()));
+    }
+  }
+  // Nothing met to borrow spares from: no puzzle.
+  assert.equal(partsPuzzle(k('時'), [k('時')]), null);
+});
+
+test('build the word: its kanji in order, spares only from taught kanji', () => {
+  const merged = course();
+  const v = merged.vocab.find((x) => x.w === '学生');
+  assert.ok(compoundable(v));
+  assert.ok(!compoundable(merged.vocab.find((x) => x.w === '食べる')));
+  const taught = merged.kanji.slice(0, 30);
+  for (let n = 0; n < 20; n++) {
+    const p = compoundPuzzle(v, taught, Math.random);
+    assert.deepEqual(p.chars, ['学', '生']);
+    const spares = p.pool.filter((x) => x.spare);
+    assert.equal(spares.length, 3);
+    for (const s of spares) assert.ok(taught.some((t) => t.k === s.c) && !p.chars.includes(s.c));
+  }
+});
+
+test('lessons build a new kanji and a word, and every tile is taught', () => {
+  const merged = course();
+  let kparts = 0, compounds = 0;
+  for (const unit of merged.units) {
+    for (const lesson of unit.lessons) {
+      const steps = lessonSteps(unit, lesson, blank(), merged);
+      for (const s of steps.filter((x) => x.type === 'kparts')) { kparts++; assert.ok(buildable(s.ref), s.key); }
+      for (const s of steps.filter((x) => x.type === 'compound')) { compounds++; assert.ok(compoundable(s.ref), s.key); }
+    }
+  }
+  assert.ok(kparts >= 10, `kanji builds (${kparts})`);
+  assert.ok(compounds >= 10, `word builds (${compounds})`);
 });

@@ -21,7 +21,7 @@ import {
   LEVELS, levelSentences, levelProgress, levelUnlocked, particleItem, courseSteps, rankOf, RANKS, unitStars, grammarId, passUnit, isWords, lessonStars,
 } from './course.js';
 import { mockExam, unitTest, startExam, RETAKE_MIN, quickReplies } from './exam.js';
-import { wordQuestion, spellPuzzle, renderWordQ, renderSpell, renderMatch, kanaOption } from './exercises.js';
+import { wordQuestion, spellPuzzle, renderWordQ, renderSpell, renderMatch, kanaOption, partsPuzzle, compoundPuzzle, renderPartsBuild, renderCompound } from './exercises.js';
 import { icons } from './icons.js';
 import { romaji, toHiragana, toKana, judgeReading } from './romaji.js';
 import { matchReading } from './readings.js';
@@ -693,6 +693,13 @@ function renderStep() {
   } else if (step.type === 'spell') {
     step.q ||= spellPuzzle(step.ref);
     renderSpell(view, step.q, { review, onDone: (clean) => finishExercise(clean, { srs: false }) });
+  } else if (step.type === 'kparts' || step.type === 'compound') {
+    // Spare tiles come only from kanji you've been taught (and the word's own kanji), so nothing
+    // on screen is ahead of the course. Too few to pick from yet: skip it.
+    const met = data.kanji.filter((k) => state.items[kanjiId(k)] || k === step.ref || (step.ref.w || '').includes(k.k));
+    step.q ||= step.type === 'kparts' ? partsPuzzle(step.ref, met) : compoundPuzzle(step.ref, met);
+    if (!step.q) return skipStep();
+    (step.type === 'kparts' ? renderPartsBuild : renderCompound)(view, step.q, { review, onDone: (clean) => finishExercise(clean, { srs: false }) });
   } else if (step.type === 'match') renderMatch(view, step.pairs, { review, onDone: (clean, missed) => { step.missedPairs = missed; finishExercise(clean, { srs: false }); } });
   else if (step.type === 'lesson') renderLesson(step);
   else if (step.type === 'dialogue') renderDialogue(step);
@@ -1485,7 +1492,8 @@ const latin = (s) => /[A-Za-z]/.test(s);
 function missLine(step) {
   const r = step.ref || {};
   if (isKanjiStep(step)) return { jp: r.k, en: `${headReading(r)} · ${r.mean[0]}` };
-  if (step.type === 'card' || step.type === 'wordq' || step.type === 'spell') return { jp: r.w, en: `${r.y} · ${r.m}` };
+  if (step.type === 'card' || step.type === 'wordq' || step.type === 'spell' || step.type === 'compound') return { jp: r.w, en: `${r.y} · ${r.m}` };
+  if (step.type === 'kparts') return { jp: r.k, en: `${r.parts.filter((p) => p.c !== r.k).map((p) => p.label).join(' + ')} · ${r.mean[0]}` };
   if (step.type === 'match') {
     const ps = step.missedPairs?.length ? step.missedPairs : step.pairs;
     return { jp: ps.map((p) => p.jp).join(' '), en: ps.length < step.pairs.length ? ps.map((p) => p.en).join(', ') : 'Matching pairs' };
@@ -1503,7 +1511,7 @@ const missRows = (list, max) => `<div class="misses">${list.slice(0, max).map((s
 
 // Kanji worth watching: the ones missed, and the ones inside missed words (a one-kanji word already has its row).
 function watchKanji(misses) {
-  const list = misses.flatMap((s) => (isKanjiStep(s) ? [s.ref] : ['card', 'wordq', 'spell'].includes(s.type) ? kanjiIn(s.ref.w).filter((k) => k.k !== s.ref.w) : []));
+  const list = misses.flatMap((s) => (isKanjiStep(s) || s.type === 'kparts' ? [s.ref] : ['card', 'wordq', 'spell', 'compound'].includes(s.type) ? kanjiIn(s.ref.w).filter((k) => k.k !== s.ref.w) : []));
   return [...new Map(list.map((k) => [k.k, k])).values()].slice(0, 8);
 }
 

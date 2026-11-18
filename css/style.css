@@ -1403,3 +1403,12 @@ a.btn{text-decoration:none}
 /* Rush: the kanji is centred by its own box too, so a shake on the card can't leave it off to one side. */
 .rush-k{width:100%;text-align:center}
 .rush-pass{display:block;margin:10px auto 0;min-height:40px}
+/* Build the kanji / Build the word: tiles carry their part's name or the kanji's meaning. */
+.block.ptile,.block.ctile{--c:var(--line);min-width:64px;min-height:64px;padding:6px 10px 8px;gap:2px}
+.block.ptile b,.block.ctile b{font-size:28px;font-weight:500;line-height:1.1}
+.block.ptile small,.block.ctile small{font-size:11px;max-width:84px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.answer.kbuild{justify-content:center;align-content:center;min-height:84px;width:100%;margin-top:10px;gap:8px}
+.answer.kbuild .slot{width:64px;height:64px}
+.answer.kbuild .block.placed{--c:var(--good)}
+.kbuilt{font-size:84px;line-height:1.1;text-align:center;margin-top:6px}
+@media (prefers-reduced-motion:no-preference){.kbuilt{animation:pop-in .35s ease both}}

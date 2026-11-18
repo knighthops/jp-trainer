@@ -245,3 +245,156 @@ export function renderMatch(root, pairs, { rng = Math.random, review = false, on
     finish();
   }
 }
+
+/* ---------- Building kanji and words from pieces ---------- */
+
+// A kanji's own parts, without itself (八 is just 八, so it can't be built).
+const ownParts = (k) => (k.parts || []).filter((p, i, a) => p.c !== k.k && a.findIndex((x) => x.c === p.c) === i);
+export const buildable = (k) => ownParts(k).length >= 2;
+
+// Build a kanji from its parts: its parts and two spare parts from kanji you've met, so every
+// tile is one you've seen. A spare never shares a label with a real part (two "Person" tiles
+// would read as the same thing). Null when there aren't two spares.
+export function partsPuzzle(k, metKanji, rng = Math.random) {
+  const parts = ownParts(k);
+  if (parts.length < 2) return null;
+  const mine = new Set(parts.map((p) => p.c));
+  const labels = new Set(parts.map((p) => p.label.toLowerCase()));
+  const spares = [];
+  for (const other of shuffled(metKanji.filter((x) => x.k !== k.k), rng)) {
+    for (const p of ownParts(other)) {
+      if (spares.length >= 2) break;
+      if (mine.has(p.c) || labels.has(p.label.toLowerCase()) || spares.some((s) => s.c === p.c || s.label === p.label)) continue;
+      spares.push({ ...p, spare: true });
+    }
+    if (spares.length >= 2) break;
+  }
+  if (spares.length < 2) return null;
+  return { kanji: k, parts, pool: shuffled([...parts, ...spares], rng) };
+}
+
+// Build a word from its kanji, in order: two or three spare kanji you've been taught, ones
+// that look or sound like the word's kanji (a shared part or reading) first.
+export const compoundable = (v) => /^[一-龯]{2,3}$/.test(v.w) && new Set(v.w).size === v.w.length;
+export function compoundPuzzle(v, taughtKanji, rng = Math.random) {
+  if (!compoundable(v)) return null;
+  const chars = [...v.w];
+  const inWord = taughtKanji.filter((k) => chars.includes(k.k));
+  const partsOf = (k) => new Set((k.parts || []).map((p) => p.c));
+  const near = (x) => inWord.reduce((n, k) => n + [...partsOf(x)].filter((p) => partsOf(k).has(p)).length
+    + ((x.on || []).some((r) => (k.on || []).includes(r)) ? 1 : 0), 0);
+  const spares = shuffled(taughtKanji.filter((k) => !chars.includes(k.k)), rng)
+    .sort((a, b) => near(b) - near(a)).slice(0, chars.length === 2 ? 3 : 2);
+  if (spares.length < 2) return null;
+  const info = (c) => taughtKanji.find((k) => k.k === c);
+  return {
+    word: v, chars,
+    pool: shuffled([...chars.map((c) => ({ c, m: info(c)?.mean[0] || '' })), ...spares.map((k) => ({ c: k.k, m: k.mean[0], spare: true }))], rng),
+  };
+}
+
+// Tap the parts a kanji is made of, in any order. Its meaning is the clue.
+export function renderPartsBuild(root, p, { review = false, onDone }) {
+  const k = p.kanji;
+  const found = [];
+  let clean = true;
+  root.innerHTML = `<div class="qz">
+      <span class="qz-tag">Build the kanji</span>
+      <p class="qz-q">Which parts make the kanji for</p>
+      <p class="qz-mean">${k.mean.slice(0, 2).join(', ')}</p>
+      <div class="answer kbuild" id="ans">${'<i class="slot"></i>'.repeat(p.parts.length)}</div>
+    </div>
+    <div class="reach">
+      <div class="fb" id="fb" role="status"></div>
+      <div class="pool" id="pool">${p.pool.map((x, n) => `<button class="block ptile" data-n="${n}"><b class="jp">${x.c}</b><small>${x.label}</small></button>`).join('')}</div>
+    </div>`;
+  const fb = root.querySelector('#fb');
+  const pool = root.querySelector('#pool');
+  const done = () => {
+    root.querySelector('#ans').outerHTML = `<div class="kbuilt jp">${k.k}</div>`;
+    pool.querySelectorAll('.block').forEach((x) => x.classList.add('used'));
+    showSheet(root, {
+      right: clean,
+      headline: clean ? 'Built it' : 'Got there',
+      title: `<span class="jp">${k.k}</span> <span class="small muted">${k.mean.slice(0, 2).join(', ')}</span>`,
+      lines: p.parts.map((x) => `<span class="jp">${x.c}</span> <strong>${x.label}</strong> <span class="small muted">${x.mn}</span>`),
+    }, () => onDone(clean));
+  };
+  pool.onclick = (e) => {
+    const el = e.target.closest('.block');
+    if (!el || el.classList.contains('used')) return;
+    const x = p.pool[Number(el.dataset.n)];
+    if (x.spare) {
+      clean = false;
+      fb.className = 'fb bad';
+      fb.textContent = `${x.c} (${x.label}) isn't in this kanji.`;
+      el.classList.add('used', 'gone');
+      return;
+    }
+    found.push(x);
+    el.classList.add('used');
+    const slot = root.querySelector('#ans .slot');
+    slot.insertAdjacentHTML('beforebegin', `<span class="block ptile placed"><b class="jp">${x.c}</b><small>${x.label}</small></span>`);
+    slot.remove();
+    fb.className = 'fb';
+    fb.textContent = '';
+    if (found.length === p.parts.length) done();
+  };
+  if (review) p.pool.forEach((x, n) => { if (!x.spare) pool.querySelector(`[data-n="${n}"]`).click(); });
+}
+
+// Tap a word's kanji in order. Its meaning is the clue; the tiles show no meanings, so you
+// know the kanji by sight. Each placed one shows its meaning, and the reading shows once built.
+export function renderCompound(root, p, { review = false, onDone }) {
+  const v = p.word;
+  const placed = [];
+  let clean = true;
+  root.innerHTML = `<div class="qz">
+      <span class="qz-tag">Build the word</span>
+      <p class="qz-q">Put the kanji together for</p>
+      <p class="qz-mean">${v.m}</p>
+      <div class="answer kbuild" id="ans">${'<i class="slot"></i>'.repeat(p.chars.length)}</div>
+    </div>
+    <div class="reach">
+      <div class="fb" id="fb" role="status"></div>
+      <div class="pool" id="pool">${p.pool.map((x, n) => `<button class="block ctile" data-n="${n}"><b class="jp">${x.c}</b></button>`).join('')}</div>
+    </div>`;
+  const fb = root.querySelector('#fb');
+  const pool = root.querySelector('#pool');
+  pool.onclick = (e) => {
+    const el = e.target.closest('.block');
+    if (!el || el.classList.contains('used')) return;
+    const x = p.pool[Number(el.dataset.n)];
+    if (x.c !== p.chars[placed.length]) {
+      clean = false;
+      fb.className = 'fb bad';
+      if (x.spare) {
+        fb.textContent = `${x.c} means “${x.m}”. It isn't in this word.`;
+        el.classList.add('used', 'gone');
+      } else {
+        fb.textContent = `${x.c} is in this word, but not here yet.`;
+        el.classList.remove('shake');
+        void el.offsetWidth;
+        el.classList.add('shake');
+      }
+      return;
+    }
+    placed.push(x.c);
+    el.classList.add('used');
+    const slot = root.querySelector('#ans .slot');
+    slot.insertAdjacentHTML('beforebegin', `<span class="block ctile placed"><b class="jp">${x.c}</b><small>${x.m}</small></span>`);
+    slot.remove();
+    fb.className = 'fb';
+    fb.textContent = '';
+    if (placed.length === p.chars.length) {
+      pool.querySelectorAll('.block').forEach((b) => b.classList.add('used'));
+      showSheet(root, {
+        right: clean,
+        headline: clean ? 'Built it' : 'Got there',
+        title: `<span class="jp">${v.w}</span> <span class="jp muted">${v.y}</span>`,
+        lines: [`<span class="small muted">${romaji(v.y)} · ${v.m}</span> ${sayBtn(v.y)}`],
+      }, () => onDone(clean));
+    }
+  };
+  if (review) for (const c of p.chars) pool.querySelector(`[data-n="${p.pool.findIndex((x) => x.c === c && !x.spare)}"]`).click();
+}

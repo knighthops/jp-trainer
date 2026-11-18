@@ -2,6 +2,7 @@
 // No DOM, so it can be unit tested.
 import { isDue } from './srs.js';
 import { grammarId, grammarDrills } from './course.js';
+import { buildable, compoundable } from './exercises.js';
 
 // Recalled fewer times than this, an item is reviewed by a checked question, not a self-rating.
 export const YOUNG = 3;
@@ -36,11 +37,19 @@ export function reviewSteps(state, data, now = Date.now(), { cards = 15, grammar
     if (s.kind === 'kanji') return { ...s, type: 'quiz', kind: reps % 2 ? 'read' : 'mean' };
     return { ...s, type: 'wordq', dir: reps % 2 ? 'jp' : 'en' };
   };
+  const cardSteps = pick([
+    ...data.kanji.map((x) => ({ type: 'card', kind: 'kanji', id: kanjiId(x), ref: x })),
+    ...data.vocab.map((x) => ({ type: 'card', kind: 'word', id: wordId(x), ref: x })),
+  ], cards);
+  // One due kanji built from its parts and one due word built from its kanji, as practice
+  // (not scheduled): a different way in to what the cards just asked.
+  const builds = [
+    cardSteps.filter((s) => s.kind === 'kanji' && buildable(s.ref)).map((s) => ({ type: 'kparts', key: `kparts:${s.ref.k}`, ref: s.ref }))[0],
+    cardSteps.filter((s) => s.kind === 'word' && compoundable(s.ref)).map((s) => ({ type: 'compound', key: `compound:${s.ref.w}`, ref: s.ref }))[0],
+  ].filter(Boolean);
   return [
-    ...pick([
-      ...data.kanji.map((x) => ({ type: 'card', kind: 'kanji', id: kanjiId(x), ref: x })),
-      ...data.vocab.map((x) => ({ type: 'card', kind: 'word', id: wordId(x), ref: x })),
-    ], cards).map(asked),
+    ...cardSteps.map(asked),
+    ...builds,
     ...grammarSteps,
     // Trip phrases stay in Trip, which brings back its own due lines: the course is N5 only.
     // Course drills are reviewed through their grammar point, so only the older practice sets come here.

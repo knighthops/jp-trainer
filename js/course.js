@@ -3,7 +3,7 @@
 // words, so each word can be tapped and romaji can be built reliably.
 import { romaji } from './romaji.js';
 import { shuffled } from './drills.js';
-import { sameMeaning } from './exercises.js';
+import { sameMeaning, buildable, compoundable } from './exercises.js';
 import { stageOf, STRONG, MASTERED } from './srs.js';
 
 // Each JLPT level is its own block of data. To add N4: write data/kanji-n4.json,
@@ -514,6 +514,15 @@ export function lessonSteps(unit, lesson, state, data, resume = null) {
   const newWords = learn.filter((s) => s.kind === 'word').map((s) => s.ref);
   const spell = newWords.find((v) => /[一-龯々]/.test(v.w) && v.w !== v.y && v.y.length <= 7);
   if (spell) extra.push({ type: 'spell', key: `spell:${spell.w}`, ref: spell });
+  // Build a new kanji from its parts, and a word from its kanji: a new word, else one you
+  // already know that uses a kanji from this lesson. Spare tiles are picked when it's shown,
+  // from what you've been taught by then.
+  const newKanji = learn.filter((s) => s.kind === 'kanji').map((s) => s.ref);
+  const build = newKanji.find(buildable);
+  if (build) extra.push({ type: 'kparts', key: `kparts:${build.k}`, ref: build });
+  const known = data.vocab.filter((v) => state.items[`w:${v.w}`] && newKanji.some((k) => v.w.includes(k.k)));
+  const word = [...newWords.filter((v) => v !== spell), ...newWords, ...known].find(compoundable);
+  if (word) extra.push({ type: 'compound', key: `compound:${word.w}`, ref: word });
   // No listening step: the course stays silent so music from other apps keeps playing.
   const intro = { type: 'lesson', ref: lesson, unit };
   if (more) return [intro, ...groups, ...extra, ...spread, { type: 'lessonPart', id: lesson.id }];
