@@ -1484,39 +1484,90 @@ a.btn{text-decoration:none}
   box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--gold) 26%,transparent),inset 0 1px 0 rgba(255,255,255,.06),var(--shadow)}
 
 /* Kanji check: one card, tap to reveal, swipe right if known by heart, left if not. */
-.ck{display:flex;flex-direction:column;gap:14px;flex:1;min-height:0}
-.ck-stack{flex:1;display:flex;align-items:stretch;min-height:360px}
-.ck-card{--l:0;--r:0;position:relative;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;
-  width:100%;padding:24px 18px;color:var(--ink);font:inherit;text-align:center;touch-action:pan-y;user-select:none;-webkit-user-select:none;
-  transition:transform .18s ease,opacity .18s ease;cursor:pointer;overflow:hidden}
-.ck-k{font-size:112px;line-height:1;font-weight:500}
-.ck-ans{min-height:150px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:6px;width:100%}
-.ck-hint{color:var(--mute);font-size:15px;line-height:1.5;margin-top:24px}
-.ck-hint small{font-size:13px;opacity:.8}
-.ck-card.open .ck-ans>*{animation:rise .2s ease both}
-.ck-mean{margin:0;font-size:20px;font-weight:650}
+.ck{--l:0;--r:0;display:flex;flex-direction:column;gap:12px;flex:1;min-height:0}
+/* A card dragged or flying off the side never widens the page. */
+html:has(.ck),body:has(.ck){overflow-x:clip}
+/* The deck: the top card with up to two more peeking out below it. */
+.ck-stack{position:relative;flex:1;display:flex;align-items:stretch;min-height:380px;margin-bottom:18px}
+.ck-under{position:absolute;inset:0;border-radius:20px;background:var(--card);box-shadow:inset 0 0 0 1px var(--line),0 6px 16px rgba(0,0,0,.25);transform-origin:50% 100%;pointer-events:none}
+.ck-under.u1{transform:translateY(9px) scale(.95)}
+.ck-under.u2{transform:translateY(18px) scale(.9);background:color-mix(in srgb,var(--card) 55%,var(--page));box-shadow:inset 0 0 0 1px var(--line2)}
+.ck-card{position:relative;z-index:1;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;
+  width:100%;padding:44px 18px 20px;color:var(--ink);font:inherit;text-align:center;touch-action:pan-y;user-select:none;-webkit-user-select:none;
+  background:radial-gradient(120% 60% at 50% 0%,var(--raised),transparent 70%),var(--card);
+  transition:transform .2s ease,opacity .2s ease;cursor:pointer;overflow:hidden}
+@media (prefers-reduced-motion:no-preference){.ck-card{animation:ck-in .24s cubic-bezier(.2,.8,.2,1) backwards}}
+@keyframes ck-in{from{transform:translateY(9px) scale(.95)}}
+/* Drag feedback: the edge you're heading for washes green or coral. */
+.ck-wash,.ck-wash::before,.ck-wash::after{position:absolute;inset:0;border-radius:inherit;pointer-events:none}
+.ck-wash::before,.ck-wash::after{content:""}
+.ck-wash::before{opacity:var(--l);background:linear-gradient(90deg,color-mix(in srgb,var(--bad) 20%,transparent),transparent 75%);box-shadow:inset 0 0 0 2px var(--bad)}
+.ck-wash::after{opacity:var(--r);background:linear-gradient(270deg,color-mix(in srgb,var(--good) 20%,transparent),transparent 75%);box-shadow:inset 0 0 0 2px var(--good)}
+.ck-top{position:absolute;top:14px;left:14px;right:14px;display:flex;justify-content:space-between;pointer-events:none}
+/* The kanji sits in a writing square with dashed guide lines. */
+.ck-k{width:clamp(136px,22vh,176px);aspect-ratio:1;display:grid;place-items:center;border-radius:24px;flex:none;
+  font-size:clamp(92px,15vh,120px);line-height:1;font-weight:500;
+  background:repeating-linear-gradient(90deg,var(--sel) 0 5px,transparent 5px 10px) center/80% 1px no-repeat,
+    repeating-linear-gradient(0deg,var(--sel) 0 5px,transparent 5px 10px) center/1px 80% no-repeat,var(--paper);
+  box-shadow:inset 0 0 0 1px var(--line2)}
+.ck-ans{min-height:214px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:6px;width:100%;margin-top:16px}
+.ck-hint{display:flex;flex-direction:column;gap:4px;color:var(--ink2);font-size:16px;font-weight:600;margin-top:26px}
+.ck-hint small{font-size:13px;font-weight:500;color:var(--mute)}
+@media (prefers-reduced-motion:no-preference){
+  .ck-card.open .ck-ans>*{animation:rise .24s ease both}
+  .ck-card.open .ck-ans>:nth-child(2){animation-delay:.04s}
+  .ck-card.open .ck-ans>:nth-child(3){animation-delay:.08s}
+  .ck-card.open .ck-ans>:nth-child(4){animation-delay:.12s}
+}
+.ck-mean{margin:0;padding:0 6px;font-size:22px;font-weight:700;line-height:1.2;text-wrap:balance}
 .ck-read{margin:0;display:flex;align-items:baseline;gap:8px}
-.ck-read .jp{font-size:26px;font-weight:600}
+.ck-read .jp{font-size:28px;font-weight:600}
 .ck-read small{color:var(--mute);font-size:14px}
-.ck-other{margin:0;color:var(--ink2);font-size:15px}
-.ck-words{display:flex;flex-direction:column;gap:2px;margin-top:6px;font-size:14px;color:var(--ink2)}
-.ck-words b{color:var(--ink);font-weight:600}
-.ck-tint{position:absolute;top:16px;padding:4px 10px;border-radius:999px;font-size:13px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;pointer-events:none}
-.ck-tint.l{left:16px;color:var(--bad);box-shadow:inset 0 0 0 2px var(--bad);opacity:var(--l)}
-.ck-tint.r{right:16px;color:var(--good);box-shadow:inset 0 0 0 2px var(--good);opacity:var(--r)}
-.ck-card.fly-l{transform:translateX(-120%) rotate(-12deg);opacity:0}
-.ck-card.fly-r{transform:translateX(120%) rotate(12deg);opacity:0}
-.ck-btns{display:flex;align-items:center;justify-content:space-between;padding:0 12px calc(8px + env(safe-area-inset-bottom))}
-.ck-btn{width:68px;height:68px;border-radius:50%;font-size:26px;font-weight:900;background:var(--card);box-shadow:var(--shadow)}
-.ck-btn.no{color:var(--bad);box-shadow:inset 0 0 0 2px var(--bad-soft),var(--shadow)}
-.ck-btn.yes{color:var(--good);box-shadow:inset 0 0 0 2px var(--good-soft),var(--shadow)}
-.ck-btn:disabled{opacity:.35}
-.ck-btn:not(:disabled):active{transform:scale(.94)}
+.ck-other{margin:0;display:flex;flex-wrap:wrap;justify-content:center;gap:4px 14px;color:var(--ink2);font-size:15px}
+.ck-other>span{display:inline-flex;align-items:center;gap:6px}
+.ck-other i{font-style:normal;font-size:11px;font-weight:700;width:19px;height:19px;border-radius:6px;display:grid;place-items:center;background:var(--raised);color:var(--mute)}
+.ck-words{display:flex;flex-direction:column;width:100%;margin-top:8px;padding:2px 12px;border-radius:14px;background:var(--paper);text-align:left}
+.ck-words>span{display:flex;align-items:baseline;gap:8px;min-width:0;padding:8px 0;font-size:13.5px;color:var(--ink2)}
+.ck-words>span+span{border-top:1px solid var(--line2)}
+.ck-words b{font-size:17px;font-weight:600;color:var(--ink);flex:none}
+.ck-words .jp:not(b){color:var(--mute);flex:none}
+.ck-words em{font-style:normal;margin-left:auto;text-align:right;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Stamps that grow in as you drag. */
+.ck-tint{position:absolute;z-index:2;top:52px;padding:5px 12px;border-radius:10px;font-size:17px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;pointer-events:none;
+  background:color-mix(in srgb,var(--card) 80%,transparent)}
+.ck-tint.l{right:18px;color:var(--bad);box-shadow:inset 0 0 0 2.5px var(--bad);opacity:var(--l);transform:rotate(12deg) scale(calc(.8 + var(--l) * .2))}
+.ck-tint.r{left:18px;color:var(--good);box-shadow:inset 0 0 0 2.5px var(--good);opacity:var(--r);transform:rotate(-12deg) scale(calc(.8 + var(--r) * .2))}
+.ck-card.fly-l,.ck-card.fly-r{opacity:0;transition:transform .2s ease-in,opacity .2s ease-in;pointer-events:none}
+/* Not yet / Know it, with the deck's pips between them. */
+.ck-btns{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;padding:0 6px calc(6px + env(safe-area-inset-bottom))}
+.ck-btn{display:flex;flex-direction:column;align-items:center;gap:5px;min-width:72px;background:none;color:inherit;font:inherit}
+.ck-btn small{font-size:12px;font-weight:650;color:var(--mute)}
+.ck-o{position:relative;width:62px;height:62px;border-radius:50%;display:grid;place-items:center;background:var(--card);transition:transform .15s ease}
+.ck-o::before{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none}
+.ck-o svg.ic{position:relative;width:26px;height:26px;stroke-width:2.6}
+.ck-btn.no .ck-o{color:var(--bad);box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--bad) 45%,transparent),var(--shadow);transform:scale(calc(1 + var(--l) * .1))}
+.ck-btn.no .ck-o::before{background:color-mix(in srgb,var(--bad) 22%,transparent);opacity:var(--l)}
+.ck-btn.yes .ck-o{color:var(--good);box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--good) 45%,transparent),var(--shadow);transform:scale(calc(1 + var(--r) * .1))}
+.ck-btn.yes .ck-o::before{background:color-mix(in srgb,var(--good) 22%,transparent);opacity:var(--r)}
+.ck-btn:disabled{opacity:.3}
+.ck-btn:not(:disabled):active .ck-o{transform:scale(.92)}
+.ck-pips{display:flex;flex-wrap:wrap;justify-content:center;align-content:center;gap:6px;min-width:0}
+.ck-pips i{width:7px;height:7px;border-radius:50%;background:var(--line)}
+.ck-pips i.y{background:var(--good)}
+.ck-pips i.n{background:var(--bad)}
+.ck-pips i.now{background:var(--ink);box-shadow:0 0 0 2.5px color-mix(in srgb,var(--ink) 22%,transparent)}
 .ck-done h2 small{font-size:.5em;color:var(--mute)}
 .ck-tiles{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:8px}
 .ck-tile{width:52px;height:52px;border-radius:12px;display:grid;place-items:center;font-size:28px;background:var(--paper);box-shadow:inset 0 0 0 1.5px var(--line)}
 .ck-tile.left{box-shadow:inset 0 0 0 1.5px var(--bad-soft)}
 .ck-tile.gold{color:var(--gold);box-shadow:inset 0 0 0 2px var(--gold)}
-.ck-done .caps{color:var(--gold);margin-top:6px}
-.ck-done.gold{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--gold) 26%,transparent),var(--shadow)}
+.ck-tile{color:var(--ink);font-family:inherit;cursor:pointer;border-bottom:2px solid var(--line);transition:transform .1s ease}
+.ck-tile:active{transform:translateY(2px);border-bottom-width:0}
+.ck-tile.left{border-bottom-color:color-mix(in srgb,var(--bad) 45%,transparent)}
+.ck-tile.gold{color:var(--gold);border-bottom-color:color-mix(in srgb,var(--gold) 55%,transparent)}
+.ck-tiles+.ck-tap{margin:10px 0 0;text-align:center}
+.hero.done-hero.ck-done .caps{color:var(--gold);margin-top:6px}
+.ck-done .ck-pips{margin:2px 0 4px}
+.hero.done-hero.ck-done.gold{background:radial-gradient(110% 80% at 50% 0%,color-mix(in srgb,var(--gold) 14%,transparent),transparent 65%),linear-gradient(180deg,var(--raised),var(--card));
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--gold) 26%,transparent),inset 0 1px 0 rgba(255,255,255,.06),var(--shadow)}
 @media (prefers-reduced-motion:no-preference){.ck-tile.gold{animation:pop-in .45s calc(.25s + var(--d)) ease-out both}}

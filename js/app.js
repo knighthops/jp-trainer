@@ -1638,6 +1638,7 @@ function renderSummary() {
 let checkList = null;
 function openCheck(list = null) {
   checkList = list;
+  checkBack = null;
   location.hash = '#/kanji/check';
 }
 
@@ -1651,8 +1652,17 @@ function defaultDeck() {
   return checkDeck({ struggling: strugglingKanji(), due, started, recs });
 }
 
+// Set while a kanji from the check's finish screen is open: closing it shows that screen again.
+let checkBack = null;
+
 const headCache = new Map();
 function screenCheck() {
+  if (checkBack) {
+    const back = checkBack;
+    checkBack = null;
+    back();
+    return;
+  }
   const deck = checkList?.length ? checkList : defaultDeck();
   checkList = null;
   if (!deck.length) { location.replace('#/kanji'); return; }
@@ -1661,6 +1671,11 @@ function screenCheck() {
     readingOf: (k) => headCache.get(k) ?? headCache.set(k, headReading(k)).get(k),
     wordsOf: (k) => readingWords(k),
     stage: (k) => stageOf(state.items[kanjiId(k)]),
+    // The full kanji card, stepping through the tapped set; Done or Exit returns to the finish screen.
+    study: (list, start, back) => {
+      checkBack = back;
+      startRun(list.map((k) => ({ type: 'learn', kind: 'kanji', id: kanjiId(k), ref: k })), 'To work on', { browse: true, start });
+    },
     // Each swipe is a review; the record before it is the undo.
     swipe: (k, known) => {
       const id = kanjiId(k);
