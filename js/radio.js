@@ -129,9 +129,21 @@ export function startRadio(ctx, channel) {
   };
   bindSession(true);
 
+  // Locked part-way through a spoken line: move on to the next recorded one.
+  const onHide = () => {
+    if (on && hidden() && !hasClips(order[i]) && canSkip()) { clearTimeout(timer); cancel(); next(); }
+  };
+  document.addEventListener('visibilitychange', onHide);
+
+  // Device speech and timers stop while the phone is locked, so a line without recorded
+  // audio would end playback there. While the page is hidden, those lines are skipped.
+  const hidden = () => typeof document !== 'undefined' && document.hidden;
+  const canSkip = () => audio && order.some(hasClips);
+
   function play() {
     clearTimeout(timer);
     const item = order[i];
+    if (hidden() && !hasClips(item) && canSkip()) { next(); return; }
     header();
     show(item, false);
     lockScreen(item);
@@ -191,6 +203,7 @@ export function startRadio(ctx, channel) {
     cancel();
     if (audio) { audio.onended = null; audio.onerror = null; audio.pause(); }
     bindSession(false);
+    document.removeEventListener('visibilitychange', onHide);
     if (session) { session.metadata = null; session.playbackState = 'none'; }
     letScreenSleep();
   }
