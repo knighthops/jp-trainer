@@ -657,12 +657,24 @@ export function lessonStars(asked, missed) {
   return asked > 0 && (asked - missed) / asked >= 0.8 ? 2 : 1;
 }
 
-// ★ passed the test, ★★ 80% of its items strong, ★★★ 80% mastered.
+// The days a unit test was aced. A 100% best from before days were kept counts as one.
+export function perfectDays(state, unit) {
+  const days = state.course.perfect?.[unit.id];
+  if (days?.length) return days;
+  return (state.course.best?.[unit.id] || 0) >= 1 ? ['earlier'] : [];
+}
+
+// Each test run draws new questions, so stars are earned by retaking it:
+// ★ pass the test, ★★ score 100%, ★★★ score 100% again on a later day.
 export function unitStars(state, unit) {
   if (!state.course.passed[unit.id]) return 0;
-  const s = unitStrength(state, unit);
-  if (!s.total) return 1;
-  if (s.mastered / s.total >= PASS_SHARE) return 3;
-  if (s.strong / s.total >= PASS_SHARE) return 2;
-  return 1;
+  return 1 + Math.min(2, perfectDays(state, unit).length);
+}
+
+// Notes a test run. Only the first perfect score of a day counts, so ★★★ needs a second day.
+export function recordTest(state, unit, share, day) {
+  if (share < 1) return;
+  const days = perfectDays(state, unit);
+  if (days.includes(day)) return;
+  (state.course.perfect ||= {})[unit.id] = [...days, day].slice(0, 2);
 }

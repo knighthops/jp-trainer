@@ -421,7 +421,8 @@ export function startExam(ctx, exam, { mode = 'exam', resume = null } = {}) {
       return /[一-龯々]/.test(ro) || !/[a-z]/.test(ro) ? '' : `<p class="romaji">${ro}</p>`;
     };
     const tappable = help && !q.ao && !lone && tokens.some((w) => !secret(w) && glossary[w]);
-    const stem = lone ? `<div class="stem lone jp">${display(q.q)}</div>` : q.q ? (tappable
+    // Shrinks to keep a long word (ありがとうございます) on one line, so the options never shift down.
+    const stem = lone ? `<div class="stem lone jp"><span style="--n:${Math.max(4, q.q.replace(/[[\]]/g, '').length)}">${display(q.q)}</span></div>` : q.q ? (tappable
       ? `<div class="stem jp">${tokens.map((w) => (secret(w) ? display(w)
         : glossary[w] ? `<button class="word" data-word="${w}">${w}</button>` : `<span>${w}</span>`)).join('')}</div>`
       : `<div class="stem flow jp">${display(q.q)}</div>`) : '';
@@ -582,12 +583,15 @@ export function startExam(ctx, exam, { mode = 'exam', resume = null } = {}) {
           ${q.w && !q.build ? `<p class="small">${q.w}</p>` : ''}
           ${q.en ? `<p class="small muted">${q.en}</p>` : ''}
         </section>`;
+    // A unit test can also lead with its stars (top) and name the result (title); an empty note leaves the line out.
+    const sub = exam.scoring === 'jlpt'
+      ? `${r.pass ? 'Above' : 'Below'} the N5 pass mark of 80. This is an estimate: real scores are scaled, and this isn't an official result.`
+      : extra.note ?? (r.pass ? 'Unit cleared.' : `You need ${Math.round(PASS_SHARE * 100)}%. Go over the answers below, then try again.`);
     view.innerHTML = `<section class="card hero done-hero">
+        ${extra.top || ''}
         <div class="score">${headline}</div>
-        <h2>${r.pass ? 'Passed' : 'Not yet'}</h2>
-        <p class="sub">${exam.scoring === 'jlpt'
-          ? `${r.pass ? 'Above' : 'Below'} the N5 pass mark of 80. This is an estimate: real scores are scaled, and this isn't an official result.`
-          : extra.note || (r.pass ? 'Unit cleared.' : `You need ${Math.round(PASS_SHARE * 100)}%. Go over the answers below, then try again.`)}</p>
+        <h2>${extra.title || (r.pass ? 'Passed' : 'Not yet')}</h2>
+        ${sub ? `<p class="sub">${sub}</p>` : ''}
         ${extra.badge || ''}
       </section>
       ${rows || r.sections.length > 1 ? `<section class="card list">${rows}${r.sections.map((s) => `<div class="row"><span class="grow small">${s.title}</span><span class="num small">${s.right} / ${s.total}</span></div>`).join('')}</section>` : ''}

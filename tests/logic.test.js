@@ -11,7 +11,7 @@ import { matchReading } from '../js/readings.js';
 import { reviewSteps, kanjiId, talkId, buildAsCheck } from '../js/session.js';
 import {
   UNIT_FILES, mergeCourse, nextUp, isUnlocked, examUnlocked, lessonSteps, LEVELS, levelUnlocked, toBlocks, autoAlts, words, particleItem,
-  courseSteps, rankOf, LESSON_NEW, wordsNeededEarly, unitStars, unitItems, grammarId, passUnit, lessonStars, isTaught, choiceShown, lessonParts, tokenWords, textTaught, strayTaught,
+  courseSteps, rankOf, LESSON_NEW, wordsNeededEarly, unitStars, recordTest, unitItems, grammarId, passUnit, lessonStars, isTaught, choiceShown, lessonParts, tokenWords, textTaught, strayTaught,
 } from '../js/course.js';
 import { unitTest, mockExam, grade, wordKind, quickReplies, answerText } from '../js/exam.js';
 import { wordQuestion, kanaTiles, spellPuzzle, sameMeaning, partsPuzzle, compoundPuzzle, buildable, compoundable } from '../js/exercises.js';
@@ -767,18 +767,28 @@ test('grammar points are reviewed through one of their lesson drills', () => {
   assert.equal(step.ref.lesson, lesson.id);
 });
 
-test('unit stars: passed, then 80% strong, then 80% mastered', () => {
+test('unit stars: passed, then 100%, then 100% again on another day', () => {
   const merged = course();
   const state = blank();
   const [unit] = merged.units;
   assert.equal(unitStars(state, unit), 0);
   state.course.passed[unit.id] = 1;
   assert.equal(unitStars(state, unit), 1);
-  const ids = unitItems(unit);
-  for (const id of ids) state.items[id] = { ...newRecord(), interval: 5 };
+  recordTest(state, unit, 0.9, '2026-11-01');
+  assert.equal(unitStars(state, unit), 1);
+  recordTest(state, unit, 1, '2026-11-01');
   assert.equal(unitStars(state, unit), 2);
-  for (const id of ids) state.items[id] = { ...newRecord(), interval: 30 };
+  recordTest(state, unit, 1, '2026-11-01');
+  assert.equal(unitStars(state, unit), 2, 'a second perfect run the same day does not count');
+  recordTest(state, unit, 1, '2026-11-02');
   assert.equal(unitStars(state, unit), 3);
+  // A 100% best from before days were kept counts as the first perfect day.
+  const old = blank();
+  old.course.passed[unit.id] = 1;
+  old.course.best = { [unit.id]: 1 };
+  assert.equal(unitStars(old, unit), 2);
+  recordTest(old, unit, 1, '2026-11-02');
+  assert.equal(unitStars(old, unit), 3);
 });
 
 test('speech uses kana for words with kanji, so the device voice cannot misread them', () => {

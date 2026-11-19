@@ -18,7 +18,7 @@ import {
 import { makeWriteIndex, recognize } from './handwrite.js';
 import {
   UNIT_FILES, EXAM_FILES, JLPT_LEVELS, levelOfFile, mergeCourse, isUnlocked, unitProgress, nextUp, examUnlocked, lessonSteps, words as splitWords, isTaught, choiceShown, lessonParts, drillWords,
-  LEVELS, levelSentences, levelProgress, levelUnlocked, particleItem, courseSteps, rankOf, RANKS, unitStars, grammarId, passUnit, isWords, lessonStars,
+  LEVELS, levelSentences, levelProgress, levelUnlocked, particleItem, courseSteps, rankOf, RANKS, unitStars, grammarId, passUnit, isWords, lessonStars, recordTest, perfectDays,
 } from './course.js';
 import { mockExam, unitTest, startExam, RETAKE_MIN, quickReplies } from './exam.js';
 import { wordQuestion, spellPuzzle, renderWordQ, renderSpell, renderMatch, kanaOption, partsPuzzle, compoundPuzzle, renderPartsBuild, renderCompound } from './exercises.js';
@@ -452,12 +452,10 @@ const kanjiKnown = () => Object.keys(state.items).filter((id) => id.startsWith('
 // `lesson` ({ unit, lesson }) marks a course lesson: its place is saved, and it ends on a lesson-complete screen.
 // `then` ({ label, go }) is what follows, offered on the end screen: reviews lead into their lesson.
 // `redo` marks a run of mistakes gone over again.
-const starMap = () => Object.fromEntries((data.units || []).map((u) => [u.id, unitStars(state, u)]));
-
 function startRun(steps, title, { useSrs = false, browse = false, start = 0, more = null, onDrill = null, lesson = null, then = null, drill = null, redo = false, sound = false, restore = null } = {}) {
   run = {
     steps: [...steps], i: start, title, useSrs, browse, more, onDrill, lesson, then, drill, redo, sound,
-    kanjiBefore: kanjiKnown(), ups: [0, 0, 0, 0], starsBefore: starMap(), clean: 0, drills: 0, cards: 0,
+    kanjiBefore: kanjiKnown(), ups: [0, 0, 0, 0], clean: 0, drills: 0, cards: 0,
     // Each run starts its own combo; the end screen shows the longest.
     combo: 0, bestCombo: 0,
     // First answers only: what was asked, and what was missed (by id, in order).
@@ -1484,14 +1482,12 @@ function fillRings() {
 /* ---------- End screens ---------- */
 // No XP and no sound here: the score, the stars and what to go over are the reward.
 
-// What got stronger in this run: items that reached Strong or Mastered, and units that earned a star.
+// What got stronger in this run: items that reached Strong or Mastered.
 function memoryHtml() {
   const strong = run.ups[STRONG];
   const mastered = run.ups[STRONG + 1];
-  const stars = (data.units || []).map((u) => ({ u, n: unitStars(state, u) })).filter(({ u, n }) => n > (run.starsBefore[u.id] || 0) && n > 1);
-  if (!strong && !mastered && !stars.length) return '';
-  return `${stars.map(({ u, n }) => `<div class="starup"><span class="stars">${starHtml(n)}</span><span><small>Unit ${u.n} mastery</small><b>${u.title}</b></span></div>`).join('')}
-    ${strong || mastered ? `<div class="row"><span class="grow">Moved up</span><span class="num">${[
+  if (!strong && !mastered) return '';
+  return `${strong || mastered ? `<div class="row"><span class="grow">Moved up</span><span class="num">${[
     strong ? `${stageChip({ interval: 3 })} +${strong}` : '', mastered ? `${stageChip({ interval: 21 })} +${mastered}` : ''].filter(Boolean).join(' ')}</span></div>` : ''}`;
 }
 
@@ -2149,6 +2145,21 @@ function startReviews() {
 // Three mastery stars, filled up to n.
 const starHtml = (n) => [1, 2, 3].map((i) => `<i class="${i <= n ? 'on' : ''}">★</i>`).join('');
 
+// What the next unit star needs, in a few words. Empty once all three are earned.
+function starGoal(unit) {
+  const n = unitStars(state, unit);
+  if (n >= 3) return '';
+  if (n < 2) return 'Next star: score 100%';
+  return perfectDays(state, unit).includes(dayKey()) ? 'Next star: 100% again tomorrow' : 'Next star: 100% again';
+}
+
+// The unit page's one line about stars: the next goal (with your best while it's under 100%), or mastered.
+function unitGoalLine(unit) {
+  const goal = starGoal(unit);
+  const best = unitStars(state, unit) === 1 ? Math.round((state.course.best?.[unit.id] || 0) * 100) : 0;
+  return `<p class="stargoal"><i>★</i><span class="grow">${goal || 'Unit mastered'}</span>${best ? `<span class="num">Best ${best}%</span>` : ''}</p>`;
+}
+
 
 // Lesson dots and a test diamond for one unit.
 // `partway` maps a lesson id to the share of its parts done, drawn as a pie.
@@ -2205,6 +2216,9 @@ function runUnitTest(unit) {
     persist: () => {},
     onResult: (result, exam, answers) => {
       const missed = exam.sections[0].questions.filter((q) => answers[q.id] !== q.a);
+      // Stars first: an old 100% best counts as a perfect day, so it's read before this run raises it.
+      const starsBefore = unitStars(state, unit);
+      if (result.pass) recordTest(state, unit, result.share, dayKey());
       state.course.best ||= {};
       state.course.best[unit.id] = Math.max(state.course.best[unit.id] || 0, result.share);
       let cleared = [];
@@ -2256,10 +2270,19 @@ function runUnitTest(unit) {
       const story = stories[0];
       const skipped = cleared.filter((u) => u !== unit);
       const toGo = rank.next ? rank.next.at - passed : 0;
+      const stars = unitStars(state, unit);
+      const gained = stars > starsBefore;
+      // Stars lead the card. Ones held before show at once; a new one pops in.
+      const top = `<div class="starhero" role="img" aria-label="${stars} of 3 stars">${[1, 2, 3].map((i) =>
+        `<i class="${i <= starsBefore ? 'on' : i <= stars ? 'on new' : ''}" style="--d:${i - starsBefore - 1}">★</i>`).join('')}</div>`;
+      const goal = starGoal(unit);
       return {
-        note: `${skipped.length ? `Units ${skipped[0].n}–${unit.n} cleared: testing out passes the units before it too.` : `Unit ${unit.n} cleared.`} ${passed} of ${data.units.length} units passed.`,
-        badge: `<div class="rankup ${rose ? '' : 'quiet'}"><span class="jp">${rank.jp}</span><span><small>${rose ? 'New rank' : 'Rank'}</small><b>${rank.en}</b>${rank.next
-          ? `<small>${toGo} more ${toGo === 1 ? 'unit' : 'units'} to ${rank.next.en}</small>` : ''}</span></div>
+        top,
+        title: gained && stars === 3 ? 'Unit mastered' : gained && stars === 2 ? 'Two stars' : 'Passed',
+        // Only what changed: the units a test-out cleared, then the next star.
+        note: [skipped.length ? `Units ${skipped[0].n}–${unit.n} passed` : '', goal].filter(Boolean).join(' · '),
+        badge: `${rose ? `<div class="rankup"><span class="jp">${rank.jp}</span><span><small>New rank</small><b>${rank.en}</b>${rank.next
+          ? `<small>${toGo} more ${toGo === 1 ? 'unit' : 'units'} to ${rank.next.en}</small>` : ''}</span></div>` : ''}
           ${stories.length ? `<p class="unlock">${icons.story}<span><small>${stories.length > 1 ? `${stories.length} stories unlocked` : 'Story unlocked'}</small><b>${stories.map((s) => s.title).join(' · ')}</b></span></p>` : ''}`,
         actions: [
           ...(go ? [{ label: next.type === 'lesson' ? `Start Unit ${next.unit.n}` : go.label, run: go.go }] : []),
@@ -2320,6 +2343,7 @@ function screenUnit(id) {
       <div class="kod-head"><span class="caps">Unit ${unit.n}</span>${p.passed ? `<span class="stars">${starHtml(unitStars(state, unit))}</span>` : pips(unit)}</div>
       <h3>${unit.title}</h3>
       <p class="small">By the end, you can: ${unit.goal.toLowerCase()}.</p>
+      ${p.passed ? unitGoalLine(unit) : ''}
       ${open ? '' : '<p class="small muted">This unit is locked. If you already know the material, pass this unit\'s test to skip ahead to it.</p>'}
     </section>
     ${unitContents(unit)}
@@ -2328,7 +2352,6 @@ function screenUnit(id) {
         <span class="grow"><span class="caps">${lessonKind(unit, l)}</span><span class="label">${l.title.replace(/^Words: (.)/, (_, c) => c.toUpperCase())}</span></span><span class="chev">${icons.chevron}</span></button>`).join('')}
     </section>
     ${heardUnits().includes(unit) ? `<a class="btn ghost" href="#/listen/hear/${unit.id}">${icons.speaker}<span>Practise this conversation by ear</span></a>` : ''}
-    ${p.passed ? `<p class="small muted center">You passed this unit${state.course.best?.[unit.id] ? ` with a best of ${Math.round(state.course.best[unit.id] * 100)}%` : ''}. You can retake the test any time.</p>` : ''}
     ${p.passed && nextAfter ? `<button class="btn" id="onward">Go to Unit ${nextAfter.n}</button>` : ''}
     <button class="btn ${(ready || !open) && !p.passed ? '' : 'ghost'}" id="test">${p.passed ? 'Retake the unit test' : open && !ready ? 'Take the test early' : 'Take the unit test'}</button>`;
   view.querySelector('#onward')?.addEventListener('click', () => { location.hash = `#/course/${nextAfter.id}`; });

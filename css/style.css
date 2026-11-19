@@ -491,10 +491,6 @@ a.action{color:inherit;text-decoration:none}
 .stars{display:inline-flex;gap:1px;margin-left:6px;font-size:13px;vertical-align:1px;letter-spacing:0}
 .stars i{font-style:normal;color:var(--line)}
 .stars i.on{color:var(--gold)}
-.starup{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line2)}
-.starup .stars{font-size:22px;margin:0}
-.starup span:last-child{display:flex;flex-direction:column;line-height:1.25}
-.starup small{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--mute);font-weight:700}
 .gtag{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 12px;margin-bottom:10px;border-radius:12px;background:var(--card);box-shadow:inset 0 0 0 1px var(--line)}
 .gtag .grow{flex:1;min-width:0}
 .type-in{display:flex;flex-direction:column;gap:4px;margin-top:4px}
@@ -711,14 +707,14 @@ details.more summary::after{content:"＋";margin-left:6px;color:var(--mute)}
 details.more[open] summary::after{content:"−"}
 .path>.node:last-child::before{bottom:50%}
 .course-strip{display:flex;flex-direction:column;gap:8px;padding:4px 4px 0}
-.rankup.quiet .jp{background:var(--sel);color:var(--ink)}
 .rankup small+b+small{text-transform:none;letter-spacing:0;font-size:12px;margin-top:2px}
 .unlock{display:flex;align-items:center;gap:12px;margin:8px 0 0;padding:10px 16px 10px 14px;border-radius:16px;background:rgba(127,127,127,.18);text-align:left}
 .unlock svg{width:24px;height:24px;flex:none}
 .unlock span{display:flex;flex-direction:column;line-height:1.2}
 .unlock small{font-size:11px;text-transform:uppercase;letter-spacing:.08em;opacity:.7}
 .unlock b{font-size:16px}
-.stem.lone{justify-content:center;font-size:64px;font-weight:500;line-height:1.15;text-align:center;padding:12px 0 4px}
+.stem.lone{justify-content:center;font-size:64px;font-weight:500;line-height:1.15;text-align:center;padding:12px 0 4px;container-type:inline-size;min-height:90px;align-items:center}
+.stem.lone>span{font-size:min(64px,calc(92cqi / var(--n)));white-space:nowrap}
 /* Reading passages: Japanese only until the reader asks for help. */
 .rdline{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--line2);align-items:flex-start}
 .rdline:last-child{border-bottom:0}
@@ -1509,3 +1505,21 @@ a.btn{text-decoration:none}
 .themes{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
 .themes button{display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 2px;font-size:12.5px}
 .themes .dot{width:20px;height:20px;border-radius:50%;background:var(--sw-a);box-shadow:0 0 0 3px var(--sw-p),0 0 0 4px var(--line)}
+/* Unit stars: the result card leads with them, the unit page names the next one. */
+.starhero{display:flex;justify-content:center;gap:6px;font-size:44px;line-height:1;margin-bottom:2px}
+.starhero i{font-style:normal;color:color-mix(in srgb,var(--mute) 40%,transparent);position:relative}
+.starhero i.on{color:var(--gold)}
+.starhero i:nth-child(2){transform:translateY(-8px)}
+@media (prefers-reduced-motion:no-preference){
+  .starhero i.new{animation:star-in .6s calc(.3s + var(--d) * .3s) both cubic-bezier(.3,1.6,.5,1)}
+  .starhero i:nth-child(2).new{animation-name:star-in-mid}
+  .starhero i.new::after{content:"";position:absolute;inset:-6px;border-radius:50%;box-shadow:0 0 0 3px var(--gold);opacity:0;animation:star-ring .7s calc(.45s + var(--d) * .3s) ease-out both}
+}
+@keyframes star-in{from{transform:scale(0) rotate(-40deg);color:var(--line)}to{transform:scale(1)}}
+@keyframes star-in-mid{from{transform:translateY(-8px) scale(0) rotate(-40deg);color:var(--line)}to{transform:translateY(-8px) scale(1)}}
+@keyframes star-ring{0%{opacity:.7;transform:scale(.6)}100%{opacity:0;transform:scale(1.5)}}
+.stargoal{display:flex;align-items:center;gap:8px;margin:12px 0 0;padding:10px 12px;border-radius:12px;background:var(--paper);font-size:14px;font-weight:600}
+.stargoal>i{font-style:normal;color:var(--gold)}
+.stargoal .num{font-size:13px;font-weight:500;color:var(--mute)}
+.hero.done-hero:has(.starhero .new){background:radial-gradient(110% 80% at 50% 0%,color-mix(in srgb,var(--gold) 16%,transparent),transparent 65%),linear-gradient(180deg,var(--raised),var(--card));
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--gold) 26%,transparent),inset 0 1px 0 rgba(255,255,255,.06),var(--shadow)}
