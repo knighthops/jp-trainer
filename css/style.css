@@ -565,20 +565,6 @@ a.action{color:inherit;text-decoration:none}
 .r-opts .seg button{min-height:38px;font-size:13px}
 @media (prefers-reduced-motion:reduce){.radio.playing .r-ear{animation:none}}
 
-/* Kanji Rush */
-.rush-tile{text-align:left;min-height:150px;width:100%;color:var(--ink)}
-.rush-tile .sub{display:block}
-.rush-bar{height:8px;border-radius:4px;background:var(--line2);overflow:hidden}
-.rush-bar i{display:block;height:100%;background:var(--act);border-radius:4px;transition:width .1s linear}
-.rush-stats{display:flex;justify-content:space-between;align-items:baseline;font-size:14px;font-weight:600}
-.rush-stats #rtime{font-size:22px;font-weight:750}
-.rush-card{align-items:center;justify-content:center;min-height:170px}
-.rush-k{font-size:96px;line-height:1;font-weight:600}
-.rush-card.hit{animation:pop .22s ease both;box-shadow:inset 0 0 0 2px var(--accent)}
-.rush-card.miss{animation:shake .3s;box-shadow:inset 0 0 0 2px var(--bad)}
-.rush-opts .opt{font-family:inherit}
-.rush-score{font-size:64px;font-weight:800;line-height:1}
-.rush-mk{font-size:26px;width:40px;text-align:center}
 
 /* Stories */
 .story-head h2{font-size:24px;letter-spacing:-.01em}
@@ -622,10 +608,6 @@ a.action{color:inherit;text-decoration:none}
 .hint-k{margin:6px 0 0;font-size:20px;font-weight:600}
 .kod.trouble .kod-glyph{font-size:26px;letter-spacing:-.02em;color:var(--bad)}
 .explain p{margin:4px 0}
-/* Kanji Rush settings, and reading answers in kana with romaji under them. */
-.rush-set{gap:8px}
-.rush-set strong{font-size:14px;margin-top:4px}
-.rush-opts.reading{grid-template-columns:1fr 1fr}
 .opt.kana{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;min-height:68px}
 .opt.kana .jp{font-size:24px;line-height:1.2}
 .opt.kana small{font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue","Segoe UI",Roboto,Arial,sans-serif;font-size:12px;font-weight:500;color:var(--mute)}
@@ -893,17 +875,8 @@ details.more[open] summary::after{content:"−"}
 .askword{text-align:center;font-size:30px;line-height:1.3;margin-top:-4px}
 .askword b{font-weight:700;box-shadow:inset 0 -6px 0 var(--act-soft)}
 
-/* The 2-minute drill */
+/* Kanji quiz steps */
 .qz{display:flex;flex-direction:column;align-items:center;gap:8px}
-.qz-top{display:flex;align-items:center;gap:12px;width:100%;min-height:44px}
-.qz-dots{flex:1;display:flex;gap:4px}
-.qz-dots i{flex:1;height:8px;border-radius:4px;background:var(--line)}
-.qz-dots i.ok{background:var(--good)}.qz-dots i.miss{background:var(--bad)}.qz-dots i.cur{background:var(--act)}
-.qz-clock{position:relative;width:44px;height:44px;flex:none}
-.qz-clock svg{width:100%;height:100%;display:block}
-.qz-clock circle{fill:none;stroke-width:4}
-.qz-clock .tr{stroke:var(--line)}.qz-clock .fg{stroke:var(--act);stroke-linecap:round;transition:stroke-dasharray 1s linear}
-.qz-clock b{position:absolute;inset:0;display:grid;place-items:center;font-size:11px;font-weight:800;font-variant-numeric:tabular-nums}
 .qz-tag{margin-top:6px;font-size:12px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:4px 10px;border-radius:10px;background:var(--card);box-shadow:inset 0 0 0 1px var(--line);color:var(--ink2)}
 .qz-tag.on{color:var(--act);box-shadow:inset 0 0 0 1.5px var(--act-line)}
 .qz-q{font-size:17px;font-weight:650;text-align:center;margin-top:4px}
@@ -1176,8 +1149,6 @@ nav.seg{margin-bottom:12px}
 .opt.right,.choice.right{background:var(--good);color:var(--on-acc);box-shadow:0 3px 0 color-mix(in srgb,var(--good) 45%,#000)}
 .opt.wrong,.choice.wrong{color:var(--bad);background:var(--bad-soft);box-shadow:inset 0 0 0 1.5px var(--bad),0 3px 0 var(--ledge);opacity:.8}
 /* Rush meanings are short: grid them like the quiz. */
-.opts.long.rush-opts{grid-template-columns:1fr 1fr}
-.opts.long.rush-opts .opt{justify-content:center;text-align:center;padding:8px 10px;min-height:64px}
 
 /* ---------- Kanji quiz: prompt centred in the space above the answers ---------- */
 .qz{flex:1;padding-bottom:8px}
@@ -1233,8 +1204,6 @@ body.no-roles .legend{display:none}
 .sh-badge{box-shadow:0 0 0 5px color-mix(in srgb,var(--c) 18%,transparent)}
 .sh-body strong{font-size:17px}
 /* Rush: the kanji card floats in the middle of the free space, answers stay in thumb reach. */
-.rush-card{margin-top:auto}
-.rush-opts .opt:not(.kana){font-size:18px;font-weight:650}
 
 /* ---------- Word exercises (js/exercises.js) ---------- */
 .qz:not(:has(.qz-top))>.qz-tag{margin-top:auto}
@@ -1392,8 +1361,6 @@ a.btn{text-decoration:none}
 .got-right[open] summary span::after{content:' ▾'}
 .got-right[open]{display:flex;flex-direction:column;gap:12px}
 /* Rush: the kanji is centred by its own box too, so a shake on the card can't leave it off to one side. */
-.rush-k{width:100%;text-align:center}
-.rush-pass{display:block;margin:10px auto 0;min-height:40px}
 /* Build the kanji / Build the word: tiles carry their part's name or the kanji's meaning. */
 .block.ptile,.block.ctile{--c:var(--line);min-width:64px;min-height:64px;padding:6px 10px 8px;gap:2px}
 .block.ptile b,.block.ctile b{font-size:28px;font-weight:500;line-height:1.1}
@@ -1433,13 +1400,6 @@ a.btn{text-decoration:none}
 .choice.wrong,.opt.wrong{opacity:1}
 .choice.dim{opacity:.4}
 /* Rush: the kanji just answered, under the next one. A miss shows its answer. */
-.rush-card{position:relative}
-.rush-last{position:absolute;left:12px;right:12px;bottom:10px;margin:0;text-align:center;font-size:15px;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.rush-last i{font-style:normal;font-weight:900;margin-right:6px}
-.rush-last .ok i{color:var(--good)}
-.rush-last .no i{color:var(--bad)}
-.rush-last .no b:last-child,.rush-last .no b:last-child .jp{color:var(--good)}
-.rush-last b.jp{font-size:16px;margin-right:2px}
 /* Unit test results: a right answer with its tick. */
 .got-line{display:flex;align-items:center;gap:9px;margin:0;font-size:16px;font-weight:600;color:var(--good)}
 .got-mark{flex:none;width:22px;height:22px;border-radius:50%;background:var(--good);color:var(--on-acc);display:grid;place-items:center}
@@ -1457,7 +1417,6 @@ a.btn{text-decoration:none}
   .opt.right,.choice.right{animation:juicy .32s cubic-bezier(.3,1.6,.5,1) both,good-ring .7s .08s ease-out}
   .opt.wrong,.choice.wrong{animation:soft-shake .42s ease}
   .opt.right::after,.choice.right::after,.opt.wrong::after,.choice.wrong::after{animation:juicy .32s .12s cubic-bezier(.3,1.6,.5,1) both}
-  .rush-last span{display:inline-block;animation:rise .2s ease both}
 }
 @keyframes mark-draw{from{stroke-dashoffset:24}to{stroke-dashoffset:0}}
 @keyframes good-halo{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--c) 50%,transparent)}70%{box-shadow:0 0 0 14px transparent}100%{box-shadow:0 0 0 5px color-mix(in srgb,var(--c) 18%,transparent)}}
@@ -1523,3 +1482,41 @@ a.btn{text-decoration:none}
 .stargoal .num{font-size:13px;font-weight:500;color:var(--mute)}
 .hero.done-hero:has(.starhero .new){background:radial-gradient(110% 80% at 50% 0%,color-mix(in srgb,var(--gold) 16%,transparent),transparent 65%),linear-gradient(180deg,var(--raised),var(--card));
   box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--gold) 26%,transparent),inset 0 1px 0 rgba(255,255,255,.06),var(--shadow)}
+
+/* Kanji check: one card, tap to reveal, swipe right if known by heart, left if not. */
+.ck{display:flex;flex-direction:column;gap:14px;flex:1;min-height:0}
+.ck-stack{flex:1;display:flex;align-items:stretch;min-height:360px}
+.ck-card{--l:0;--r:0;position:relative;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;
+  width:100%;padding:24px 18px;color:var(--ink);font:inherit;text-align:center;touch-action:pan-y;user-select:none;-webkit-user-select:none;
+  transition:transform .18s ease,opacity .18s ease;cursor:pointer;overflow:hidden}
+.ck-k{font-size:112px;line-height:1;font-weight:500}
+.ck-ans{min-height:150px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:6px;width:100%}
+.ck-hint{color:var(--mute);font-size:15px;line-height:1.5;margin-top:24px}
+.ck-hint small{font-size:13px;opacity:.8}
+.ck-card.open .ck-ans>*{animation:rise .2s ease both}
+.ck-mean{margin:0;font-size:20px;font-weight:650}
+.ck-read{margin:0;display:flex;align-items:baseline;gap:8px}
+.ck-read .jp{font-size:26px;font-weight:600}
+.ck-read small{color:var(--mute);font-size:14px}
+.ck-other{margin:0;color:var(--ink2);font-size:15px}
+.ck-words{display:flex;flex-direction:column;gap:2px;margin-top:6px;font-size:14px;color:var(--ink2)}
+.ck-words b{color:var(--ink);font-weight:600}
+.ck-tint{position:absolute;top:16px;padding:4px 10px;border-radius:999px;font-size:13px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;pointer-events:none}
+.ck-tint.l{left:16px;color:var(--bad);box-shadow:inset 0 0 0 2px var(--bad);opacity:var(--l)}
+.ck-tint.r{right:16px;color:var(--good);box-shadow:inset 0 0 0 2px var(--good);opacity:var(--r)}
+.ck-card.fly-l{transform:translateX(-120%) rotate(-12deg);opacity:0}
+.ck-card.fly-r{transform:translateX(120%) rotate(12deg);opacity:0}
+.ck-btns{display:flex;align-items:center;justify-content:space-between;padding:0 12px calc(8px + env(safe-area-inset-bottom))}
+.ck-btn{width:68px;height:68px;border-radius:50%;font-size:26px;font-weight:900;background:var(--card);box-shadow:var(--shadow)}
+.ck-btn.no{color:var(--bad);box-shadow:inset 0 0 0 2px var(--bad-soft),var(--shadow)}
+.ck-btn.yes{color:var(--good);box-shadow:inset 0 0 0 2px var(--good-soft),var(--shadow)}
+.ck-btn:disabled{opacity:.35}
+.ck-btn:not(:disabled):active{transform:scale(.94)}
+.ck-done h2 small{font-size:.5em;color:var(--mute)}
+.ck-tiles{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:8px}
+.ck-tile{width:52px;height:52px;border-radius:12px;display:grid;place-items:center;font-size:28px;background:var(--paper);box-shadow:inset 0 0 0 1.5px var(--line)}
+.ck-tile.left{box-shadow:inset 0 0 0 1.5px var(--bad-soft)}
+.ck-tile.gold{color:var(--gold);box-shadow:inset 0 0 0 2px var(--gold)}
+.ck-done .caps{color:var(--gold);margin-top:6px}
+.ck-done.gold{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--gold) 26%,transparent),var(--shadow)}
+@media (prefers-reduced-motion:no-preference){.ck-tile.gold{animation:pop-in .45s calc(.25s + var(--d)) ease-out both}}

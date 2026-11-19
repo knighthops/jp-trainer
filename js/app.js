@@ -4,12 +4,12 @@ import { renderListen } from './listen.js';
 import { speak, speakLines, speakStep, cancel, sayBtn, setReadings, unlockSpeech, setMuted, NORMAL, SLOW } from './tts.js';
 import { setRecorded, unlockAudio, hasClips } from './clips.js';
 import { radioChannels, startRadio } from './radio.js';
-import { startRush, bestKey as rushKey } from './rush.js';
+import { startCheck, checkDeck, swipeRecord, CHECK_SIZE } from './check.js';
 import {
   GRADES, GRADE_NAMES, GRADE_HELP, CLEARS, isStruggling, struggleOrder, newRecord, rate, label, STAGES, stageOf, STRONG, MASTERED, isDue,
 } from './srs.js';
 import { reviewSteps, kanjiId, buildAsCheck } from './session.js';
-import { quizQuestion, drillKanji, kindFor, DRILL_SECONDS } from './quiz.js';
+import { quizQuestion, drillKanji } from './quiz.js';
 import { loadStrokes, mountStrokes } from './strokes.js';
 import {
   renderSentence, renderParticle, renderCheck, particleCardHtml, feedbackSheet, compareHtml, showSheet, setStreak, bindGloss, glossHtml, glossText, romajiLine, shuffled, glued, setKanji, partsHtml, wordKanjiHtml, kanjiOf, kanjiIn,
@@ -46,7 +46,7 @@ let settingsNotice = '';
 const TABS = [['today', 'Home'], ['course', 'Course'], ['kanji', 'Kanji'], ['trip', 'Trip'], ['dojo', 'Dojo']];
 // Trip and Listen share one tab: scenes to practise, and radio to listen to hands-free.
 const tripSeg = (on) => `<nav class="seg" aria-label="Trip"><a href="#/trip" class="${on === 'trip' ? 'on' : ''}">Scenes</a><a href="#/listen" class="${on === 'listen' ? 'on' : ''}">Listen</a></nav>`;
-// Leaving a screen stops whatever it was doing (Radio playback, the Rush timer).
+// Leaving a screen stops whatever it was doing (Radio playback, a kanji check).
 let screenCleanup = null;
 
 function animate() {
@@ -58,7 +58,7 @@ function animate() {
 // The edge-swipe target for the current screen: Previous in a run, Back on a sub-screen.
 let swipeBack = null;
 
-// Sessions (lessons, reviews, drills, Rush, Radio, exams) put Exit, Previous and the count
+// Sessions (lessons, reviews, drills, kanji check, Radio, exams) put Exit, Previous and the count
 // in a bar at the bottom, in thumb reach. Sub-screens (`back`) keep the tab bar and a back
 // arrow at the top. `jump` turns the count into "Back to N" after Previous.
 // `confirm` asks for a second tap on Exit, so a stray thumb doesn't end a session.
@@ -276,13 +276,13 @@ function kanjiStages() {
   return n;
 }
 
-// The N5 kanji at a glance, and a one-tap 2-minute drill on the weakest ones.
+// The N5 kanji at a glance, and a one-tap kanji check, weakest first.
 function kanjiHomeCard() {
   const [none, learn, strong, mastered] = kanjiStages();
   const total = data.kanji.length;
   const weak = strugglingKanji();
-  const due = data.kanji.filter((k) => isDue(state.items[kanjiId(k)])).length;
-  const drill = drillKanji(weak, data.kanji.filter((k) => isDue(state.items[kanjiId(k)])));
+  const due = startedKanji().filter((k) => isDue(state.items[kanjiId(k)])).length;
+  const drill = defaultDeck();
   const seg = (n, cls) => (n ? `<i class="${cls}" style="flex:${n}"></i>` : '');
   return `<section class="card kanjihome">
     <a class="kod-head kh-link" href="#/kanji"><span class="caps">N5 kanji · ${total - none} of ${total} started</span><span class="chev">${icons.chevron}</span></a>
@@ -293,8 +293,8 @@ function kanjiHomeCard() {
       <span><i class="l"></i><span class="jp">習</span> Learning <b>${learn}</b></span></div>
     ${drill.length ? `<button class="weakrow" id="weak">
       <span class="wk-glyphs jp" aria-hidden="true">${drill.slice(0, 3).map((k) => k.k).join('')}</span>
-      <span class="grow"><strong>2-minute kanji drill</strong>
-        <span class="small muted">${weak.length ? `${weak.length} struggling` : ''}${weak.length && due ? ' · ' : ''}${due ? `${due} due` : ''}</span></span>
+      <span class="grow"><strong>Kanji check</strong>
+        <span class="small muted">${weak.length || due ? `${weak.length ? `${weak.length} struggling` : ''}${weak.length && due ? ' · ' : ''}${due ? `${due} due` : ''}` : 'Swipe what you know by heart'}</span></span>
       <span class="chev">${icons.chevron}</span></button>` : ''}
   </section>`;
 }
@@ -339,7 +339,7 @@ function screenToday() {
     if (go) startPart(go.scene, go.part);
     else location.hash = '#/trip';
   });
-  view.querySelector('#weak')?.addEventListener('click', () => startWeakDrill());
+  view.querySelector('#weak')?.addEventListener('click', () => openCheck());
   drawReadCard(view.querySelector('#readcard'));
   fillRings();
 }
@@ -511,8 +511,6 @@ function endRun() {
 
 function advance() {
   run.i++;
-  // The 2-minute drill's clock is a target, not a fail state: when it runs out, the run ends after the item you were on.
-  if (run.drill && Date.now() > run.drill.deadline) run.i = Math.max(run.i, run.steps.length);
   renderStep();
 }
 
@@ -1133,7 +1131,7 @@ function renderCard(step) {
   view.querySelector('#dunno').onclick = () => settle('wrong');
 }
 
-/* ---------- The 2-minute weak-kanji drill ---------- */
+/* ---------- Kanji quiz steps ---------- */
 
 // A word with the part this kanji reads marked, and whether that reading is On or Kun.
 function markedWord(k, w) {
@@ -1173,13 +1171,6 @@ function renderQuiz(step) {
   }
   const q = step.q;
   const hit = q.word ? matchReading(q.k, q.word, q.word.y) : null;
-  const left = () => Math.max(0, Math.ceil((run.drill.deadline - Date.now()) / 1000));
-  const clock = () => {
-    const s = left();
-    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-  };
-  const share = () => left() / DRILL_SECONDS;
-  const dots = run.steps.map((s, n) => `<i class="${s.result || (n === run.i ? 'cur' : '')}"></i>`).join('');
   const prompt = q.kind === 'pick' ? `<p class="qz-q">Which kanji means</p><p class="qz-mean">${q.k.mean[0]}</p>`
     : q.kind === 'read' ? `<p class="qz-q">How is this word read?</p><p class="qz-big jp">${q.word.w.replace(q.k.k, `<u>${q.k.k}</u>`)}</p>
       <p class="small muted center">${q.word.m}</p>`
@@ -1190,24 +1181,12 @@ function renderQuiz(step) {
   const optHtml = (o) => (q.kind === 'read' ? `<span class="jp">${o}</span><small>${romaji(o)}</small>`
     : meanOf(o) ? kanaOption(headReading(meanOf(o)), o) : o);
   view.innerHTML = `<div class="qz">
-      <div class="qz-top">${run.drill ? `<div class="qz-dots" aria-hidden="true">${dots}</div>
-        <div class="qz-clock" aria-label="Time left"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="tr" cx="22" cy="22" r="19"/>
-          <circle class="fg" id="clockfg" cx="22" cy="22" r="19" pathLength="100" stroke-dasharray="${share() * 100} 100" transform="rotate(-90 22 22)"/></svg>
-          <b id="clock">${clock()}</b></div>` : ''}</div>
+      <div class="qz-top"></div>
       <span class="qz-tag ${q.kind === 'read' ? 'on' : ''}">${QUIZ_TAG[q.kind]}${hit ? ` · ${hit.type === 'on' ? 'On' : 'Kun'}` : ''}</span>
       ${prompt}
       ${q.k.parts.some((p) => p.c !== q.k.k) && !step.done ? '<button class="hintbtn" id="hintbtn" type="button">◇ Show its parts <small>counts as Shaky</small></button>' : ''}
     </div>
     <div class="reach"><div class="opts qz-opts" id="opts">${q.options.map((o, n) => `<button class="${optClass}" data-n="${n}">${optHtml(o)}</button>`).join('')}</div></div>`;
-  if (run.drill) {
-    const tick = setInterval(() => {
-      const c = view.querySelector('#clock');
-      if (!c) return;
-      c.textContent = clock();
-      view.querySelector('#clockfg').setAttribute('stroke-dasharray', `${share() * 100} 100`);
-    }, 1000);
-    stepCleanup = () => clearInterval(tick);
-  }
   view.querySelector('#hintbtn')?.addEventListener('click', (e) => {
     step.hinted = true;
     e.currentTarget.outerHTML = `<div class="hintbd" id="hint"><span class="caps">Its parts</span>${partsHtml(q.k, { edit: false })}</div>`;
@@ -1253,27 +1232,6 @@ function renderQuiz(step) {
     if (b && !b.disabled) settle(Number(b.dataset.n));
   };
   if (step.done) settle(q.answer);
-}
-
-// Struggling kanji first, hardest first, then any that are due, about two minutes' worth.
-function startWeakDrill(list = null, title = '2-minute drill') {
-  const now = Date.now();
-  const due = data.kanji.filter((k) => isDue(state.items[kanjiId(k)], now))
-    .sort((a, b) => state.items[kanjiId(a)].due - state.items[kanjiId(b)].due);
-  let pick = list?.length ? list : drillKanji(strugglingKanji(), due);
-  // Nothing weak or due: a mixed set of kanji you've started, so the button never does nothing.
-  // Too few weak ones for two minutes: topped up to at least 8 with other kanji you've started.
-  if (!list?.length && pick.length < 8) {
-    const more = shuffled(data.kanji.filter((k) => state.items[kanjiId(k)] && !pick.includes(k)));
-    pick = [...pick, ...more.slice(0, 10 - pick.length)];
-  }
-  if (!pick.length) return;
-  const offset = Math.floor(Math.random() * 3);
-  const steps = shuffled(pick).map((k, i) => ({ type: 'quiz', kind: kindFor(i, offset), id: kanjiId(k), ref: k }));
-  startRun(steps, title, {
-    useSrs: true,
-    drill: { deadline: now + DRILL_SECONDS * 1000, struggling: pick.filter((k) => isStruggling(state.items[kanjiId(k)])) },
-  });
 }
 
 // One kanji from every side: meaning, reading in a word, recognition. Practice only, so it
@@ -1647,7 +1605,6 @@ function renderSummary() {
   // A streak toast from the last answer would sit on top of the finish.
   document.querySelector('.toast')?.remove();
   if (run.lesson) return renderLessonDone();
-  if (run.drill) return renderDrillDone();
   setTop(run.title, { close: true, progress: 100 });
   const misses = [...run.misses.values()];
   const asked = run.seen.size;
@@ -1674,59 +1631,54 @@ function renderSummary() {
   animate();
 }
 
-// The drill's payoff: which kanji left your struggling list, and which come back tomorrow.
-function renderDrillDone() {
-  setTop(run.title, { close: true, progress: 100 });
-  const was = run.drill.struggling;
-  const cleared = was.filter((k) => !isStruggling(state.items[kanjiId(k)]));
-  const shaky = run.steps.filter((s) => s.result === 'miss').map((s) => s.ref);
-  const tile = (k, cls) => `<span class="kt ${cls} jp">${k.k}<small>${k.mean[0]}</small></span>`;
-  const more = drillKanji(strugglingKanji(), data.kanji.filter((k) => isDue(state.items[kanjiId(k)]))).length;
-  view.innerHTML = `<section class="card hero done-hero lesson-done">
-      <div class="burst" aria-hidden="true">${icons.check}</div>
-      <span class="caps">2-minute drill</span>
-      <h2>${run.clean} <small>/ ${run.drills}</small> right first time</h2>
-      <p class="sub">${cleared.length ? `${cleared.length} kanji off your struggling list.` : 'Every right answer brings a kanji closer to leaving the list.'}</p>
-    </section>
-    ${cleared.length ? `<section class="card"><span class="caps">Cleared from struggling</span>
-      <div class="kts">${cleared.map((k) => tile(k, 'clear')).join('')}</div></section>` : ''}
-    ${shaky.length ? `<section class="card"><span class="caps">Still shaky · back soon</span>
-      <div class="kts">${shaky.map((k) => tile(k, 'left')).join('')}</div></section>` : ''}
-    ${comboRow() || memoryHtml() ? `<section class="card list">${comboRow()}${memoryHtml()}</section>` : ''}
-    <div class="dock stack">
-      ${more ? '<button class="btn" id="again">Another 2 minutes</button>' : ''}
-      <button class="btn ${more ? 'ghost' : ''}" id="fin">Done</button>
-    </div>`;
-  view.querySelector('#again')?.addEventListener('click', () => { endRun(); startWeakDrill(); });
-  view.querySelector('#fin').onclick = endRun;
-  animate();
-}
-
 /* ---------- Other tabs ---------- */
 
-// Kanji Rush plays the kanji you have met: N5 kanji you've studied or that finished lessons
-// taught, and the other kanji in those lessons' words. Topped up so there's always a field.
-// A kanji you passed on stays out until a lesson teaching it is finished after the pass.
-function rushPool() {
-  const done = (data.units || []).flatMap((u) => u.lessons).filter((l) => state.course.done[l.id]);
-  const seen = data.kanji.filter((k) => state.items[kanjiId(k)]);
-  const taught = kanjiIn(done.flatMap((l) => l.kanji || []).join(''));
-  const fromWords = kanjiIn(done.flatMap((l) => l.words || []).join('')).filter((k) => !data.kanji.includes(k));
-  const passed = state.practice.rushPassed || {};
-  const back = (k) => !passed[k.k] || done.some((l) => state.course.done[l.id] > passed[k.k]
-    && [...(l.kanji || []), ...(l.words || [])].some((w) => w.includes(k.k)));
-  const pool = [...new Set([...seen, ...taught, ...fromWords])].filter(back);
-  return pool.length >= 8 ? pool : [...new Set([...pool, ...data.kanji.filter(back)])].slice(0, 8);
+// Kanji check: the kanji you've started, swiped one at a time. A list (from the Kanji tab)
+// is checked as given; otherwise struggling, then due, then the rest soonest due first.
+let checkList = null;
+function openCheck(list = null) {
+  checkList = list;
+  location.hash = '#/kanji/check';
 }
 
-// Passing on a kanji in Rush says you haven't met it: it leaves the Rush pool, and nothing is scored.
-function rushPass(k) {
-  (state.practice.rushPassed ||= {})[k.k] = Date.now();
-  save(state);
+const startedKanji = () => Object.keys(state.items).filter((id) => id.startsWith('k:'))
+  .map((id) => kanjiOf(id.slice(2))).filter(Boolean);
+
+function defaultDeck() {
+  const started = startedKanji();
+  const recs = Object.fromEntries(started.map((k) => [k.k, state.items[kanjiId(k)]]));
+  const due = started.filter((k) => isDue(recs[k.k])).sort((a, b) => recs[a.k].due - recs[b.k].due);
+  return checkDeck({ struggling: strugglingKanji(), due, started, recs });
 }
 
-// Best scores are kept per mode and clock. The old single best was for meanings at 60 seconds.
-const rushBest = (key) => state.practice.rushBests?.[key] ?? (key === 'meaning-60' ? state.practice.rushBest || 0 : 0);
+const headCache = new Map();
+function screenCheck() {
+  const deck = checkList?.length ? checkList : defaultDeck();
+  checkList = null;
+  if (!deck.length) { location.replace('#/kanji'); return; }
+  screenCleanup = startCheck({
+    view, setTop, deck: shuffled(deck), mastered: MASTERED,
+    readingOf: (k) => headCache.get(k) ?? headCache.set(k, headReading(k)).get(k),
+    wordsOf: (k) => readingWords(k),
+    stage: (k) => stageOf(state.items[kanjiId(k)]),
+    // Each swipe is a review; the record before it is the undo.
+    swipe: (k, known) => {
+      const id = kanjiId(k);
+      const prev = state.items[id];
+      if (!prev) return null;
+      state.items[id] = swipeRecord(prev, known);
+      save(state);
+      return { id, prev };
+    },
+    undo: (token) => {
+      if (!token) return;
+      state.items[token.id] = token.prev;
+      save(state);
+    },
+    onExit: () => { location.hash = '#/kanji'; },
+  });
+}
+
 
 // True when a sentence tile's kanji are all Strong or better, so its reading can stay hidden.
 function knownKanji(text) {
@@ -1738,36 +1690,6 @@ function knownKanji(text) {
   });
 }
 
-// Kanji you're studying that you keep missing, worst first.
-const struggleKanji = () => data.kanji.filter((k) => isStruggling(state.items[kanjiId(k)]))
-  .sort((a, b) => struggleOrder(state.items[kanjiId(a)], state.items[kanjiId(b)]));
-
-// A Rush miss counts as Shaky: the kanji is struggling again and due within a day.
-// It never pushes a review later, and kanji you haven't started are left alone.
-function rushMiss(k) {
-  const id = kanjiId(k);
-  const rec = state.items[id];
-  if (!rec) return;
-  const shaky = rate(rec, 'hard');
-  state.items[id] = { ...shaky, reps: rec.reps, interval: Math.min(rec.interval, shaky.interval), due: Math.min(rec.due, Date.now() + 864e5) };
-  save(state);
-}
-
-const headCache = new Map();
-function screenRush() {
-  screenCleanup = startRush({
-    view, setTop, pool: rushPool(), weak: struggleKanji(), onMiss: rushMiss, onPass: rushPass, all: [...data.kanji, ...(data.kanjiMore || [])], readOf: (k) => headCache.get(k) ?? headCache.set(k, headReading(k)).get(k),
-    settings: state.practice.rush || {},
-    saveSettings: (s) => { state.practice.rush = s; save(state); },
-    best: rushBest,
-    onBest: (key, n) => {
-      (state.practice.rushBests ||= {})[key] = n;
-      if (key === 'meaning-60') state.practice.rushBest = n;
-      save(state);
-    },
-    onExit: () => { location.hash = '#/dojo'; },
-  });
-}
 
 /* ---------- Trip ---------- */
 
@@ -1873,21 +1795,11 @@ function screenScene(id) {
 
 function screenDojo() {
   setTop('Dojo');
-  const rush = { mode: 'meaning', secs: 60, penalty: true, ...state.practice.rush };
-  const best = rushBest(rushKey(rush));
   const action = (id, icon, name, sub, off = false) => `<button class="action" id="${id}" ${off ? 'disabled' : ''}><span class="icbox">${icon}</span>
     <span class="grow"><strong>${name}</strong><span class="small">${sub}</span></span><span class="chev">${icons.chevron}</span></button>`;
   view.innerHTML = `
-    <button class="card hero rush-tile" id="rush">
-      <span class="water" aria-hidden="true">速</span>
-      <span class="caps">${rush.secs ? `${rush.secs} seconds` : 'No clock'} · ${rush.mode === 'reading' ? 'Readings' : 'Meanings'}${best ? ` · Best ${best}` : ''}</span>
-      <h2>Kanji Rush</h2>
-      <span class="sub">Match kanji to their meanings or readings, fast. Set the clock your way.</span>
-    </button>
     ${action('part', icons.practice, 'Particles', 'Guides and unlimited practice, focused on what you miss')}
-    ${action('exam', icons.exam, 'JLPT N5 mock exam', 'Only if you plan to sit the exam')}
-    <p class="small muted center">Only Kanji Rush misses touch your reviews: they come back sooner.</p>`;
-  view.querySelector('#rush').onclick = () => { location.hash = '#/dojo/rush'; };
+    ${action('exam', icons.exam, 'JLPT N5 mock exam', 'Only if you plan to sit the exam')}`;
   view.querySelector('#part').onclick = () => { location.hash = '#/dojo/particles'; };
   view.querySelector('#exam').onclick = () => { location.hash = '#/dojo/exam'; };
 }
@@ -2490,7 +2402,7 @@ function screenKanji() {
       <button class="fchip hide ${hide ? 'on' : ''}" id="khide" aria-pressed="${hide}">${hide ? 'Show meanings' : 'Hide meanings'}</button></div>
     ${list.length ? grid : `<p class="small muted center">${pick.empty}</p>`}
     <p class="small muted center">Tap a kanji to study it. Pips count its stage, and a red dot means it's struggling.</p>
-    ${quiz.length ? `<div class="dock"><button class="btn" id="kquiz">Quiz ${pick.id === 'all' ? 'the weakest' : `these ${Math.min(quiz.length, 10)}`} · about 2 min</button></div>` : ''}`;
+    ${quiz.length ? `<div class="dock"><button class="btn" id="kquiz">Check ${pick.id === 'all' ? 'the weakest' : `these ${Math.min(quiz.length, CHECK_SIZE)}`}</button></div>` : ''}`;
   const choose = (e) => {
     const b = e.target.closest('[data-v]');
     if (!b) return;
@@ -2507,8 +2419,7 @@ function screenKanji() {
     screenKanji();
   });
   view.querySelector('#kquiz')?.addEventListener('click', () => {
-    const pickList = pick.id === 'all' ? null : drillKanji(quiz.filter((k) => isStruggling(state.items[kanjiId(k)])), quiz);
-    startWeakDrill(pickList, pick.id === 'all' ? '2-minute drill' : `Quiz: ${pick.name}`);
+    openCheck(pick.id === 'all' ? null : drillKanji(quiz.filter((k) => isStruggling(state.items[kanjiId(k)])), quiz, CHECK_SIZE));
   });
   view.querySelector('#grid')?.addEventListener('click', (e) => {
     const b = e.target.closest('.tile');
@@ -3103,9 +3014,9 @@ const SCREENS = {
   listen: screenListen,
   dojo: screenDojo,
   'dojo/exam': screenExam,
-  'dojo/rush': screenRush,
   'dojo/particles': screenParticleChoice,
   kanji: screenKanji,
+  'kanji/check': screenCheck,
   'dojo/cards': screenCards,
   'course/syllabus': screenSyllabus,
   dict: screenDict,
@@ -3124,7 +3035,7 @@ const PARAM_SCREENS = [
 ];
 
 // Old addresses: from before the tabs were reshuffled, and screens folded into others.
-const MOVED = [[/^practice(\/|$)/, 'dojo$1'], [/^(listen\/)?talk(\/[\w-]+)?$/, 'listen'], [/^dojo\/kanji$/, 'kanji'],
+const MOVED = [[/^practice(\/|$)/, 'dojo$1'], [/^(listen\/)?talk(\/[\w-]+)?$/, 'listen'], [/^dojo\/kanji$/, 'kanji'], [/^dojo\/rush$/, 'kanji/check'],
   [/^course\/exam$/, 'dojo/exam'], [/^dojo\/sentences$/, 'dojo'], [/^listen\/radio\/(starred|talk-[\w-]+)$/, 'listen']];
 
 function route() {

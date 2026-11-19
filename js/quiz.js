@@ -8,7 +8,6 @@ import { toHiragana } from './romaji.js';
 
 export const KINDS = ['pick', 'read', 'mean'];
 export const DRILL_SIZE = 10;
-export const DRILL_SECONDS = 120;
 
 const shuffle = (list, rng) => {
   const a = [...list];

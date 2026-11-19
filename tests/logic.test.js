@@ -18,7 +18,7 @@ import { wordQuestion, kanaTiles, spellPuzzle, sameMeaning, partsPuzzle, compoun
 import { checkLogin, hashPassword, userId } from '../js/lock.js';
 import { radioChannels } from '../js/radio.js';
 import { clipId, clipSsml, englishSaid } from '../js/clips.js';
-import { rushQuestion, bestKey } from '../js/rush.js';
+import { checkDeck, swipeRecord } from '../js/check.js';
 import { judgeStroke, resample } from '../js/strokes.js';
 import { makeWriteIndex, recognize, decodeStrokes, encodeStrokes } from '../js/handwrite.js';
 import { makeIndex, search, posName } from '../js/dict.js';
@@ -840,36 +840,27 @@ test('radio plays trip scenes, then finished lessons and read stories', () => {
   }
 });
 
-test('kanji rush reading asks four different hiragana readings, one of them right', () => {
-  const all = json('kanji-n5');
-  const pool = all.slice(0, 8);
-  const readOf = (k) => toHiragana((k.kun[0] || k.on[0]).replace(/[-.]/g, ''));
-  let last = null;
-  for (let n = 0; n < 50; n++) {
-    const q = rushQuestion(pool, all, Math.random, last, 'reading', readOf);
-    assert.equal(q.options.length, 4);
-    assert.equal(new Set(q.options).size, 4);
-    assert.equal(q.right, readOf(q.k));
-    assert.ok(q.options.every((o) => !/[ァ-ヶ]/.test(o)), 'all hiragana');
-    const own = [...q.k.on, ...q.k.kun].map((r) => toHiragana(r.replace(/[-.]/g, '')));
-    assert.ok(q.options.filter((o) => own.includes(o)).length === 1, 'only one option fits the kanji');
-    last = q.k;
-  }
+test('kanji check deck: struggling, then due, then the rest soonest due, no repeats', () => {
+  const [a, b, c, d, e] = json('kanji-n5');
+  const recs = { [c.k]: { due: 300 }, [d.k]: { due: 100 }, [e.k]: { due: 200 } };
+  const deck = checkDeck({ struggling: [a], due: [b, a], started: [a, b, c, d, e], recs, size: 4 });
+  assert.deepEqual(deck, [a, b, d, e]);
 });
 
-test('kanji rush asks four different meanings, one of them right', () => {
-  const all = json('kanji-n5');
-  const pool = all.slice(0, 8);
-  let last = null;
-  for (let n = 0; n < 50; n++) {
-    const q = rushQuestion(pool, all, Math.random, last);
-    assert.equal(q.options.length, 4);
-    assert.equal(new Set(q.options).size, 4);
-    assert.ok(q.options.includes(q.right));
-    assert.equal(q.right, q.k.mean[0]);
-    assert.notEqual(q.k, last, 'never the same kanji twice in a row');
-    last = q.k;
-  }
+test('kanji check swipes: right on a due kanji is Instant, early right changes nothing, left is Shaky', () => {
+  const now = Date.UTC(2026, 10, 19, 12);
+  const due = { ...newRecord(), reps: 3, interval: 10, ease: 2.5, due: now - 1000, streak: 3 };
+  const right = swipeRecord(due, true, now);
+  assert.deepEqual(right, rate(due, 'easy', now));
+  assert.ok(right.interval > 10);
+  const early = { ...due, due: now + 5 * 864e5 };
+  assert.equal(swipeRecord(early, true, now), early, 'checking early never pushes a review out');
+  const left = swipeRecord(early, false, now);
+  assert.ok(isStruggling(left), 'a left swipe makes it struggling');
+  assert.equal(left.reps, early.reps, 'progress is kept');
+  assert.ok(left.interval <= early.interval);
+  assert.ok(left.due <= now + 864e5, 'back within a day');
+  assert.equal(swipeRecord(undefined, false, now), undefined, 'kanji not started are left alone');
 });
 
 // Every line the app speaks, with its kanji turned into kana before the voice sees it.
@@ -1347,12 +1338,6 @@ test('unit-test word options are the same kind of word as the answer', () => {
   assert.ok(byY.size > 0);
   // Early units teach too few verbs to fill a set, so a few mixed sets are allowed.
   assert.ok(off.length <= Math.max(2, asked * 0.15), `${off.length} of ${asked}: ${off.join(' | ')}`);
-});
-
-test('Rush keeps a separate best for the struggling-only game', () => {
-  assert.equal(bestKey({ mode: 'meaning', secs: 60, penalty: true }), 'meaning-60');
-  assert.equal(bestKey({ mode: 'meaning', secs: 60, penalty: true, only: 'all' }), 'meaning-60');
-  assert.equal(bestKey({ mode: 'reading', secs: 30, penalty: false, only: 'weak' }), 'reading-30-free-weak');
 });
 
 test('every N5 kanji has its strokes, as many as its stroke count', () => {
