@@ -70,3 +70,55 @@ export function unlockAudio() {
   p.src = clipUrl(silenceId('gap'));
   p.play().then(() => p.pause()).catch(() => { unlocked = false; });
 }
+
+/* ---------- Tapped lines, played from their recordings ---------- */
+
+// The clip for a line, if it has been recorded.
+export function recordedClip(lang, text) {
+  const id = clipId(lang, text);
+  return recorded.has(id) ? id : null;
+}
+
+// Plays Japanese lines ({ t }) one after another from their recordings, if every one has
+// been recorded; otherwise returns false and the caller uses the device voice. Recordings
+// play with iPhone's silent switch on; the device voice is silent then.
+// onLine(i) runs as each line starts, and onLine(-1) at the end.
+let playing = 0;
+export function playLines(lines, { rate = 1, onLine, onend } = {}) {
+  const p = clipPlayer();
+  const ids = lines.map((l) => recordedClip('ja', l.t));
+  if (!p || !ids.length || ids.some((id) => !id)) return false;
+  const run = ++playing;
+  let k = 0;
+  const finish = () => {
+    if (run !== playing) return;
+    playing = 0;
+    p.onended = null;
+    p.onerror = null;
+    onLine?.(-1);
+    onend?.();
+  };
+  const step = () => {
+    if (run !== playing) return;
+    if (k >= ids.length) { finish(); return; }
+    onLine?.(k);
+    p.src = clipUrl(ids[k++]);
+    // Radio may have left its own speed as the default; loading resets to the default.
+    p.defaultPlaybackRate = rate;
+    p.playbackRate = rate;
+    p.play().catch(finish);
+  };
+  p.onended = step;
+  p.onerror = step;
+  step();
+  return true;
+}
+
+// Stops tapped lines, and only those: Radio runs its own chain on the same player.
+export function stopLines() {
+  if (!playing || !player) return;
+  playing = 0;
+  player.onended = null;
+  player.onerror = null;
+  player.pause();
+}

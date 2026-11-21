@@ -6,8 +6,9 @@
 # The clips are published from a separate repo (see tools/publish-audio.ps1), so by
 # default they're written to a temporary folder outside the project.
 #
-#   powershell -ExecutionPolicy Bypass -File tools/make-audio.ps1 -OutDir <folder> [-Limit 5]
-param([Parameter(Mandatory)][string]$OutDir, [int]$Limit = 0)
+#   powershell -ExecutionPolicy Bypass -File tools/make-audio.ps1 -OutDir <folder> [-Limit 5] [-New]
+# -New records only the lines not yet published (not in data/audio.json).
+param([Parameter(Mandatory)][string]$OutDir, [int]$Limit = 0, [switch]$New)
 $ErrorActionPreference = 'Stop'
 $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $lines = Get-Content (Join-Path $root 'data/audio-lines.json') -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -53,6 +54,11 @@ function Spoken([string]$ssml) {
 }
 
 $todo = @($lines | Where-Object { -not (Test-Path (Join-Path $OutDir "$($_.id).m4a")) })
+if ($New) {
+  # Windows PowerShell hands back a JSON array as one item, so it's assigned, not wrapped in @().
+  $published = Get-Content (Join-Path $root 'data/audio.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+  $todo = @($todo | Where-Object { $published -notcontains $_.id })
+}
 if ($Limit -gt 0) { $todo = @($todo | Select-Object -First $Limit) }
 Write-Host "$($lines.Count) clips listed, $($todo.Count) to record."
 $n = 0

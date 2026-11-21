@@ -1,8 +1,8 @@
 // Routing and screens.
 import { load, save, dayStats, daysStudied, dayKey, backupJson, parseBackup, xpToday, DAILY_GOAL, streakWithRest } from './store.js';
 import { renderListen } from './listen.js';
-import { speak, speakLines, speakStep, cancel, sayBtn, setReadings, unlockSpeech, setMuted, NORMAL, SLOW } from './tts.js';
-import { setRecorded, unlockAudio, hasClips } from './clips.js';
+import { speak, speakLines, speakStep, cancel, sayBtn, setReadings, unlockSpeech, setMuted, setClips, NORMAL, SLOW } from './tts.js';
+import { setRecorded, unlockAudio, hasClips, playLines, stopLines } from './clips.js';
 import { radioChannels, startRadio } from './radio.js';
 import { startCheck, checkDeck, swipeRecord, CHECK_SIZE } from './check.js';
 import {
@@ -735,6 +735,7 @@ function renderStep() {
   } else if (step.type === 'talk') {
     renderListen(view, talkSentence(step.ref), {
       glossary: data.glossary,
+      said: step.ref.t,
       others: data.talkPhrases.map((p) => p.en),
       review,
       onDone: (right) => {
@@ -1353,7 +1354,6 @@ function renderReading(step) {
 
 // Each unit's chapter opens once its test is passed, and uses only words taught so far.
 const storyOf = (unitId) => (data.stories || []).find((s) => s.unit === unitId);
-const PITCH = { A: 1.15, B: 0.8 };
 
 function screenStory(unitId) {
   const story = storyOf(unitId);
@@ -1361,7 +1361,6 @@ function screenStory(unitId) {
   if (!story || !unit || !state.course.passed[unitId]) { location.replace('#/course'); return; }
   setTop(`Story ${unit.n}`, backTo('#/course'));
   let rate = NORMAL;
-  let playing = -1;
   const read = state.course.stories?.[unitId];
   view.innerHTML = `
     <section class="card story-head">
@@ -1386,17 +1385,11 @@ function screenStory(unitId) {
   const lines = view.querySelectorAll('.sline');
   bindGloss(view.querySelector('#lines'), data.glossary);
   const mark = (i) => lines.forEach((el, n) => el.classList.toggle('now', n === i));
+  // From line i to the end (chain), or that line alone. Recorded lines play from their
+  // files, which work in silent mode; the device voice tells the two speakers apart by pitch.
   const say = (i, chain) => {
-    playing = i;
-    mark(i);
-    const l = story.lines[i];
-    speakStep(l.t, {
-      rate, pitch: PITCH[story.cast[l.s]] || 1,
-      onend: () => {
-        if (chain && i + 1 < story.lines.length) setTimeout(() => { if (playing === i) say(i + 1, true); }, 350);
-        else { playing = -1; mark(-1); }
-      },
-    });
+    const from = story.lines.slice(i, chain ? undefined : i + 1).map((l) => ({ s: story.cast[l.s], t: l.t }));
+    speakLines(from, { rate, tap: true, onLine: (n) => mark(n < 0 ? -1 : i + n) });
   };
   view.querySelector('#play').onclick = () => say(0, true);
   view.querySelector('#speed').onclick = (e) => {
@@ -1424,7 +1417,7 @@ function screenStory(unitId) {
     }
     location.hash = '#/course';
   };
-  screenCleanup = () => { playing = -1; cancel(); };
+  screenCleanup = cancel;
 }
 
 // Rings start empty and fill once on screen, so the gain is something you watch happen.
@@ -3195,6 +3188,8 @@ async function init() {
     data.stories = stories;
     data.emoji = emoji;
     setRecorded(audio);
+    // Tapped lines play from their recordings when they have them, so they work in silent mode.
+    setClips(playLines, stopLines);
     // Every kanji with a breakdown, so word cards and word glosses can show each one.
     data.kanjiMore = kanjiMore;
     setKanji([...kanji, ...kanjiMore]);

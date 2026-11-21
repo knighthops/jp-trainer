@@ -3,7 +3,9 @@ import { speak, NORMAL, SLOW, hasJapaneseVoice } from './tts.js';
 import { bindGloss, glossHtml, romajiLine, shuffled } from './drills.js';
 import { icons } from './icons.js';
 
-export function renderListen(root, sentence, { glossary, others = [], review = false, onDone }) {
+// Nothing plays on its own: only a tap on Play or a speed. So it works in reviews too,
+// which never make a sound unasked. said: the line as recorded, if it differs from the words.
+export function renderListen(root, sentence, { glossary, others = [], review = false, said = null, onDone }) {
   const words = sentence.blocks.map((b) => b.t);
   const text = words.join(' ');
   let rate = NORMAL;
@@ -35,7 +37,8 @@ export function renderListen(root, sentence, { glossary, others = [], review = f
     }
   });
 
-  const play = () => speak(text, { rate });
+  // speak plays the line's recording when there is one, which works in silent mode.
+  const play = () => speak(said || text, { rate, tap: true });
   root.querySelector('#play').onclick = play;
   root.querySelector('#speed').onclick = (e) => {
     const b = e.target.closest('[data-r]');

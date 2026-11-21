@@ -5,7 +5,7 @@
 <style>body{font:15px system-ui,sans-serif;max-width:720px;margin:24px auto;padding:0 16px;line-height:1.5}code{font-size:13px}</style>
 <h1>Audio lines</h1>
 <p>Lists every line Radio can play, as a learner who has finished the whole course would hear it,
-plus the silent pauses between lines. Saves <code>data/audio-lines.json</code>; then run
+plus the silent pauses between lines and the Japanese of every Listen phrase. Saves <code>data/audio-lines.json</code>; then run
 <code>tools/make-audio.ps1</code> to record whatever is missing into <code>audio/</code>.</p>
 <div id="out">Working…</div>
 <script type="module">
@@ -43,6 +43,12 @@ try {
       const en = clipId('en', said);
       if (!lines.has(en)) lines.set(en, { id: en, voice: VOICES.en, ssml: clipSsml('en', said), text: said });
     }
+  }
+  // Phrases you star in Listen come back in reviews as listening questions, heard on a tap.
+  // Only the Japanese is played there.
+  for (const p of talk.categories?.flatMap((c) => c.items) || []) {
+    const ja = clipId('ja', p.t);
+    if (!lines.has(ja)) lines.set(ja, { id: ja, voice: VOICES.ja, ssml: clipSsml('ja', p.t, glossary), text: p.t });
   }
   for (const key of Object.keys(SILENCE)) {
     lines.set(silenceId(key), { id: silenceId(key), voice: VOICES.en, ssml: `<break time="${SILENCE[key]}ms"/>`, text: '' });

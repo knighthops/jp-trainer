@@ -260,11 +260,13 @@ export function explainWrong(sentence, placed, tapped) {
 
 // One or two spare particles join the tiles, so the last few can't be placed by elimination.
 // Only particles already taught are used as spares (taught says which).
-// は and が stand in for each other too easily to be fair as spares for one another.
+// は and が stand in for each other too easily to be fair as spares for one another, and
+// に and へ both mark where you're going (日本 へ 行きます, 日本 に 行きます).
 const SPARE = ['を', 'に', 'で', 'へ', 'と', 'も', 'が', 'は'];
+const STANDS_IN = { が: 'は', は: 'が', に: 'へ', へ: 'に' };
 export function decoysFor(sentence, rng = Math.random, taught = () => true) {
   const used = new Set(sentence.blocks.map((b) => b.t));
-  const options = SPARE.filter((p) => taught(p) && !used.has(p) && !(p === 'が' && used.has('は')) && !(p === 'は' && used.has('が')));
+  const options = SPARE.filter((p) => taught(p) && !used.has(p) && !used.has(STANDS_IN[p]));
   const n = sentence.blocks.length >= 5 ? 2 : 1;
   return shuffled(options, rng).slice(0, n).map((t, k) => ({ t, r: 'particle', i: sentence.blocks.length + k, decoy: true }));
 }

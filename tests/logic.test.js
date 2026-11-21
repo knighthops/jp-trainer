@@ -1581,6 +1581,16 @@ test('sentence builder spares are only particles already taught', async () => {
   assert.deepEqual(decoysFor(sentence, Math.random, () => false), []);
 });
 
+test('に and へ are never spares for each other: both mark where you go', async () => {
+  const { decoysFor } = await import('../js/drills.js');
+  const he = { blocks: ['来年', '日本', 'へ', '行きます'].map((t) => ({ t })) };
+  const ni = { blocks: ['来年', '日本', 'に', '行きます'].map((t) => ({ t })) };
+  for (let n = 0; n < 30; n++) {
+    assert.ok(!decoysFor(he).some((b) => b.t === 'に'));
+    assert.ok(!decoysFor(ni).some((b) => b.t === 'へ'));
+  }
+});
+
 test('longer passages reach the unit tests, with every word taught by then', () => {
   const merged = course();
   const withPassage = merged.units.filter((u) => u.passage);

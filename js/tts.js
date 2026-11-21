@@ -95,9 +95,25 @@ function utter(text, { onend, ...options } = {}) {
   window.speechSynthesis.speak(u);
 }
 
+// Recorded clips play instead of the device voice when every line has one: iPhone's
+// silent switch mutes the device voice but not audio files. app.js hands in the
+// player from clips.js (play returns false when a line isn't recorded).
+let clips = { play: () => false, stop: () => {} };
+export function setClips(play, stop) { clips = { play, stop }; }
+// The clips are recorded a touch slow already, so Slow is 0.7 and the rest is as recorded.
+const clipRate = (rate) => (rate <= SLOW ? 0.7 : 1);
+
+// options.tap: you tapped to hear it, so it plays even in a quiet run. Only a screen
+// speaking on its own is muted there.
 export function speak(text, options) {
-  if (muted || !supported()) return false;
+  if (muted && !options?.tap) return false;
   playback++;
+  if (!options?.english) {
+    if (supported()) hush();
+    if (clips.play([{ t: text }], { rate: clipRate(options?.rate ?? NORMAL), onend: options?.onend })) return true;
+  }
+  clips.stop();
+  if (!supported()) return false;
   utter(text, options);
   return true;
 }
@@ -108,10 +124,14 @@ export const linePitch = (s) => (['B', 'M'].includes(s) ? 0.8 : 1.15);
 // voice, so a lower pitch tells the second speaker apart. Every line is queued at once:
 // starting each line from the last one's end let iPhone drop lines.
 // onLine(i) runs as each line starts, so the text can follow along.
-export function speakLines(lines, { rate = NORMAL, onend, onLine } = {}) {
-  if (muted || !supported()) return false;
+// tap: you tapped to hear it, so it plays even in a quiet run.
+export function speakLines(lines, { rate = NORMAL, onend, onLine, tap = false } = {}) {
+  if (muted && !tap) return false;
   const id = ++playback;
-  hush();
+  if (supported()) hush();
+  if (clips.play(lines, { rate: clipRate(rate), onLine, onend })) return true;
+  clips.stop();
+  if (!supported()) return false;
   lines.forEach((line, i) => {
     // Spaces mark word edges in the data; speechText uses them and drops them.
     const u = utterance(line.t, { rate, pitch: linePitch(line.s) });
@@ -149,6 +169,7 @@ export function unlockSpeech() {
 // Only touches the voice when something is playing, so stopping never claims audio.
 export function cancel() {
   playback++;
+  clips.stop();
   if (supported()) hush();
 }
 
