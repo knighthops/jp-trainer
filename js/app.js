@@ -1387,11 +1387,30 @@ function screenStory(unitId) {
   const mark = (i) => lines.forEach((el, n) => el.classList.toggle('now', n === i));
   // From line i to the end (chain), or that line alone. Recorded lines play from their
   // files, which work in silent mode; the device voice tells the two speakers apart by pitch.
-  const say = (i, chain) => {
-    const from = story.lines.slice(i, chain ? undefined : i + 1).map((l) => ({ s: story.cast[l.s], t: l.t }));
-    speakLines(from, { rate, tap: true, onLine: (n) => mark(n < 0 ? -1 : i + n) });
+  // While the chapter plays, its button is Stop.
+  const playBtn = view.querySelector('#play');
+  const setChapter = (on) => {
+    playBtn.innerHTML = on ? `${icons.stop}<span>Stop</span>` : `${icons.play}<span>Play chapter</span>`;
+    playBtn.dataset.on = on ? '1' : '';
   };
-  view.querySelector('#play').onclick = () => say(0, true);
+  const say = (i, chain) => {
+    setChapter(chain);
+    const from = story.lines.slice(i, chain ? undefined : i + 1).map((l) => ({ s: story.cast[l.s], t: l.t }));
+    const started = speakLines(from, {
+      rate, tap: true,
+      onLine: (n) => {
+        mark(n < 0 ? -1 : i + n);
+        if (n < 0 && chain) setChapter(false);
+      },
+    });
+    if (!started) setChapter(false);
+  };
+  playBtn.onclick = () => {
+    if (!playBtn.dataset.on) { say(0, true); return; }
+    cancel();
+    mark(-1);
+    setChapter(false);
+  };
   view.querySelector('#speed').onclick = (e) => {
     const b = e.target.closest('[data-r]');
     if (!b) return;

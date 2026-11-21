@@ -28,6 +28,7 @@ export const icons = {
   gear: svg('<circle cx="12" cy="12" r="3"/><path d="M10.3 3.5h3.4l.5 2.4 1.6.9 2.3-.8 1.7 2.9-1.8 1.6v1.9l1.8 1.6-1.7 2.9-2.3-.8-1.6.9-.5 2.4h-3.4l-.5-2.4-1.6-.9-2.3.8-1.7-2.9 1.8-1.6v-1.9L4.2 8.9l1.7-2.9 2.3.8 1.6-.9Z"/>'),
   play: svg('<path d="M8 5.5v13l10.5-6.5Z" fill="currentColor"/>'),
   pause: svg('<path d="M8 5v14M16 5v14" stroke-width="3"/>'),
+  stop: svg('<rect x="6.5" y="6.5" width="11" height="11" rx="2" fill="currentColor"/>'),
   prev: svg('<path d="M6 5v14M19 5.5v13L9 12Z"/>'),
   next: svg('<path d="M18 5v14M5 5.5v13L15 12Z"/>'),
   erase: svg('<path d="M9 5h10a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H9l-6-7Z"/><path d="m12 9 5 6M17 9l-5 6"/>'),
