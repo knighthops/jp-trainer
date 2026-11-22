@@ -144,12 +144,14 @@ const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 // Kana over the kanji in a sign that the course hasn't taught yet. Taught kanji stay bare, so you
 // read those yourself. tier(c) is 'taught', 'n5' (N5 but not taught yet) or 'beyond' (past N5).
+// heard(c, kana), when given, says whether a taught kanji was taught with this reading: one read
+// a new way here (難 as なん, known only from 難しい) gets its kana shown too, class 'new'.
 // Returns the sign's inner HTML and the untaught kanji by tier, for the legend under the sign.
-export function signRuby(t, kana, { tier, kanjiOf }) {
+export function signRuby(t, kana, { tier, heard, kanjiOf }) {
   const untaught = { n5: [], beyond: [] };
   const parts = t.match(/[一-龯々]+|[^一-龯々]+/g) || [];
   for (const c of t) if (KANJI_RUN.test(c) && tier(c) !== 'taught' && !untaught[tier(c)].includes(c)) untaught[tier(c)].push(c);
-  if (!untaught.n5.length && !untaught.beyond.length) return { html: t, untaught };
+  if (!untaught.n5.length && !untaught.beyond.length && !heard) return { html: t, untaught };
   // Each kanji run takes whatever kana sits between the kana around it.
   // A reading that still has kanji in it (none was found) would only repeat the sign.
   const y = kana && !KANJI_RUN.test(kana) ? toHiragana(kana.replace(/\s+/g, '')) : '';
@@ -159,13 +161,17 @@ export function signRuby(t, kana, { tier, kanjiOf }) {
     if (!KANJI_RUN.test(p)) return p;
     const r = fit ? fit[++run] : null;
     const cs = [...p];
-    if (cs.every((c) => tier(c) === 'taught')) return p;
-    if (!r) return cs.map((c) => (tier(c) === 'taught' ? c : `<span class="rb ${tier(c)}">${c}</span>`)).join('');
-    const split = splitRun(p, r, kanjiOf);
-    if (split) return cs.map((c, n) => (tier(c) === 'taught' ? c : `<ruby class="rb ${tier(c)}">${c}<rt>${split[n]}</rt></ruby>`)).join('');
+    const split = r ? splitRun(p, r, kanjiOf) : null;
+    const tiers = cs.map((c, n) => {
+      const at = tier(c);
+      return at === 'taught' && split && heard && !heard(c, split[n]) ? 'new' : at;
+    });
+    if (tiers.every((x) => x === 'taught')) return p;
+    if (!r) return cs.map((c, n) => (tiers[n] === 'taught' ? c : `<span class="rb ${tiers[n]}">${c}</span>`)).join('');
+    if (split) return cs.map((c, n) => (tiers[n] === 'taught' ? c : `<ruby class="rb ${tiers[n]}">${c}<rt>${split[n]}</rt></ruby>`)).join('');
     // Readings that don't split kanji by kanji: kana over the whole run. If any of it is N5 still
     // to come, the whole run's kana wait for the answer, or they'd give that kanji's reading away.
-    const when = cs.some((c) => tier(c) === 'n5') ? 'n5' : 'beyond';
+    const when = tiers.includes('n5') ? 'n5' : 'beyond';
     return `<ruby class="rb ${when}">${p}<rt>${r}</rt></ruby>`;
   }).join('');
   return { html, untaught };

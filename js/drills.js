@@ -2,7 +2,7 @@
 // render functions build UI inside the element they are given.
 import { icons } from './icons.js';
 import { sayBtn, speakLines } from './tts.js';
-import { romaji as kanaToRomaji } from './romaji.js';
+import { romaji as kanaToRomaji, toHiragana } from './romaji.js';
 import { matchReading } from './readings.js';
 
 /* ---------- Kanji breakdowns, wherever a word shows up ---------- */
@@ -17,6 +17,9 @@ export const kanjiIn = (word) => [...new Set([...String(word)])].map((c) => kanj
 /* Your own notes, by kanji. They sit above the breakdown and never replace it. */
 let notes = {};
 export const setNotes = (n) => { notes = n; };
+// The reading the course teaches for a kanji, so a tapped card leads with it, not a rare one.
+let headOf = () => null;
+export const setHeadReading = (fn) => { headOf = fn; };
 export const noteOf = (c) => notes[c] || '';
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 export const NOTE_MAX = 300;
@@ -64,7 +67,11 @@ export const linkKanji = (text, self) => String(text).replace(/[一-龯々]/g, (
 // The small card a tapped kanji opens: meaning, readings and its story; for a part, its name and picture.
 export function peekHtml(c) {
   const k = kanjiIndex.get(c);
-  const reads = k ? [...k.on.slice(0, 2), ...k.kun.slice(0, 2).map((r) => r.replace(/-/g, ''))] : [];
+  // The course's reading first, then one on reading. Rare kun (語 かたる, 英 はなぶさ) stay off
+  // the small card; the full kanji card lists them all.
+  const head = k ? headOf(k) : null;
+  const all = !k ? [] : head ? [head, ...k.on] : [...k.on.slice(0, 2), ...k.kun.slice(0, 2).map((r) => r.replace(/[-.]/g, ''))];
+  const reads = all.filter((r, n) => all.findIndex((x) => toHiragana(x) === toHiragana(r)) === n).slice(0, head ? 2 : 4);
   if (k) {
     return `<div class="kpeek" data-peek="${c}"><span class="kp-g jp">${c}</span><div>
       <strong>${k.mean.join(', ')}</strong>${reads.length ? ` <span class="jp kp-r">${reads.join('・')}</span>` : ''}

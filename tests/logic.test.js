@@ -1810,6 +1810,10 @@ test('trip signs: kana go over untaught kanji only, split kanji by kanji where t
   assert.deepEqual(s.untaught.n5, ['本']);
   // No reading to go on: the untaught kanji are marked, never guessed.
   assert.match(signRuby('改札', '', { tier, kanjiOf }).html, /<span class="rb beyond">改<\/span>/);
+  // A taught kanji read a way you weren't taught gets its kana: 日 known as ひ, here じつ.
+  const heard = (c, y) => c !== '日' || y === 'ひ';
+  assert.match(signRuby('本日', 'ほんじつ', { tier, heard, kanjiOf }).html, /<ruby class="rb new">日<rt>じつ<\/rt><\/ruby>/);
+  assert.equal(signRuby('東口', 'ひがしぐち', { tier, heard, kanjiOf }).html, '東口', 'known readings stay bare');
 });
 
 test('kanji check: a wrong answer brings it back by tomorrow, and swipes need a clear direction', () => {

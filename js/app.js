@@ -13,11 +13,11 @@ import { quizQuestion, drillKanji, readWords } from './quiz.js';
 import { loadStrokes, mountStrokes } from './strokes.js';
 import {
   renderSentence, renderParticle, renderCheck, particleCardHtml, feedbackSheet, compareHtml, showSheet, setStreak, bindGloss, glossHtml, glossText, romajiLine, shuffled, glued, setKanji, partsHtml, wordKanjiHtml, kanjiOf, kanjiIn,
-  setNotes, noteOf, noteSlotInner, noteEditorHtml, togglePeek, peekHtml, linkKanji,
+  setNotes, noteOf, noteSlotInner, noteEditorHtml, togglePeek, peekHtml, linkKanji, setHeadReading,
 } from './drills.js';
 import { makeWriteIndex, recognize } from './handwrite.js';
 import {
-  UNIT_FILES, EXAM_FILES, JLPT_LEVELS, levelOfFile, mergeCourse, isUnlocked, unitProgress, nextUp, examUnlocked, lessonSteps, words as splitWords, isTaught, choiceShown, lessonParts, drillWords,
+  UNIT_FILES, EXAM_FILES, JLPT_LEVELS, levelOfFile, mergeCourse, isUnlocked, unitProgress, nextUp, examUnlocked, lessonSteps, words as splitWords, isTaught, firstLessonIndex,choiceShown, lessonParts, drillWords,
   LEVELS, levelSentences, levelProgress, levelUnlocked, particleItem, courseSteps, rankOf, RANKS, unitStars, grammarId, passUnit, isWords, lessonStars, recordTest, perfectDays,
 } from './course.js';
 import { mockExam, unitTest, startExam, RETAKE_MIN, quickReplies } from './exam.js';
@@ -752,7 +752,7 @@ function renderStep() {
     // have it or the course is past the lesson that teaches it, not whether it's in a word list.
     const knows = knowsNow();
     const tier = (c) => (knows(`?${c}`) ? 'taught' : data.kanji.some((k) => k.k === c) ? 'n5' : 'beyond');
-    renderSign(view, step, { signs: data.trip.flatMap((s) => s.signs), glossary: data.glossary, cue: { tier, kanjiOf, readingOf: (t) => wordEntry(t)?.y }, review, onDone: tripDone });
+    renderSign(view, step, { signs: data.trip.flatMap((s) => s.signs), glossary: data.glossary, cue: { tier, heard: heardAs(knows), kanjiOf, readingOf: (t) => wordEntry(t)?.y }, review, onDone: tripDone });
   } else if (step.type === 'tripLearn') {
     renderSayLearn(view, step, { glossary: data.glossary, onDone: advance });
   } else if (step.type === 'tripSay') {
@@ -823,6 +823,32 @@ const wordEntry = (w) => data.vocab.find((v) => v.w === w) || (data.glossary[w] 
 
 // Hard rule: a question never shows Japanese the course hasn't taught you. Taught means you
 // have it as an item, the course is past the lesson that teaches it, or this lesson just did.
+// heard(c, kana): whether you've been taught kanji c read this way, in a lesson word or as the
+// kanji itself. 難 you know from 難しい (むずか) is new again in 避難 (なん). A kanji with no
+// readings to go on counts as heard, so nothing changes for it.
+function heardAs(knows) {
+  const words = [...firstLessonIndex(data).keys()];
+  const cache = new Map();
+  return (c, kana) => {
+    if (!cache.has(c)) {
+      const k = kanjiOf(c);
+      const seen = new Set();
+      if (k) {
+        for (const w of words) {
+          if (!w.includes(c) || !knows(w)) continue;
+          const e = wordEntry(w);
+          const hit = e && matchReading(k, e, e.y);
+          if (hit) seen.add(toHiragana(hit.reading));
+        }
+        if (state.items[kanjiId(k)]) seen.add(headOf(k));
+      }
+      cache.set(c, seen);
+    }
+    const seen = cache.get(c);
+    return !seen.size || seen.has(toHiragana(kana));
+  };
+}
+
 function knowsNow() {
   const order = (data.units || []).flatMap((u) => u.lessons);
   const next = nextUp(state, data.units || []);
@@ -1673,6 +1699,7 @@ let checkBack = null;
 
 const headCache = new Map();
 const headOf = (k) => headCache.get(k) ?? headCache.set(k, headReading(k)).get(k);
+setHeadReading(headOf);
 function screenCheck() {
   if (checkBack) {
     const back = checkBack;
