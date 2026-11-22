@@ -867,6 +867,9 @@ test('kanji check grades: knew, slow and forgot, and only a graded question earn
   assert.equal(stageOf(rate(strong, 'easy', now)), MASTERED);
   assert.equal(stageOf(checkRecord(strong, { grade: 'knew', fast: true }, now)), STRONG, 'a swipe alone never makes it Mastered');
   assert.equal(stageOf(checkRecord(strong, { grade: 'knew', proven: true }, now)), MASTERED, 'a graded answer does');
+  // Still struggling (no good streak yet): one right answer can't make it Mastered.
+  const shaky = { ...strong, streak: 0, lapses: 1 };
+  assert.equal(stageOf(checkRecord(shaky, { grade: 'knew', proven: true }, now)), STRONG, 'struggling stops short');
 
   // A Mastered kanji you're slow on, or forget, is no longer Mastered, due or not.
   const mastered = { ...newRecord(), reps: 6, interval: 25, ease: 2.5, due: now - 1000, streak: 6 };

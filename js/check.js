@@ -2,7 +2,7 @@
 // tap to reveal, then grade yourself three ways. Right: knew it. Down: slow, got there with effort
 // or only half. Left: forgot. Some cards are questions the app grades instead (the reading in a
 // word, or the kanji among look-alikes), and only those can make a kanji Mastered.
-import { rate, isDue, dueAfter, stageOf, STAGES, STRONG } from './srs.js';
+import { rate, isDue, isStruggling, dueAfter, stageOf, STAGES, STRONG } from './srs.js';
 import { romaji } from './romaji.js';
 import { icons } from './icons.js';
 
@@ -38,7 +38,8 @@ export function cardKind(rec, i = 0, now = Date.now()) {
 //     whatever its gap was, but without wiping its progress the way Forgot does.
 //   grade 'knew': on a due kanji the normal step, or Instant when fast. Early, it changes nothing,
 //     so checking ahead never pushes a review out. Only a question the app graded (proven) can
-//     carry a kanji into Mastered; a self-graded one stops just short of it.
+//     carry a kanji into Mastered, and only once it is no longer struggling; otherwise it stops just
+//     short of it.
 export function checkRecord(rec, { grade, fast = false, proven = false }, now = Date.now()) {
   if (!rec) return rec;
   if (grade === 'forgot') return rate(rec, 'again', now);
@@ -54,7 +55,7 @@ export function checkRecord(rec, { grade, fast = false, proven = false }, now = 
   }
   if (!due) return rec;
   const next = rate(rec, fast ? 'easy' : 'good', now);
-  if (!proven && rec.interval < MASTERED_DAYS && next.interval >= MASTERED_DAYS) return { ...next, interval: CAP, due: dueAfter(CAP, now) };
+  if ((!proven || isStruggling(next)) && rec.interval < MASTERED_DAYS && next.interval >= MASTERED_DAYS) return { ...next, interval: CAP, due: dueAfter(CAP, now) };
   return next;
 }
 
@@ -100,6 +101,8 @@ export function startCheck(ctx) {
 
   function round(cards, first) {
     let i = 0;
+    // The card on screen: a graded card stays counted as current until the next one shows.
+    let at = 0;
     let revealed = false;
     let shownAt = 0;
     let fast = false;
@@ -150,7 +153,7 @@ export function startCheck(ctx) {
       // Previous in the bottom bar is Undo: it brings back the last card and its review.
       setTop('Kanji check', {
         close: true, onClose: ctx.onExit, onPrev: history.length ? undo : null,
-        count: `${Math.min(i + 1, cards.length)} / ${cards.length}`, progress: (i / cards.length) * 100,
+        count: `${Math.min(at + 1, cards.length)} / ${cards.length}`, progress: (history.length / cards.length) * 100,
       });
     }
 
@@ -168,6 +171,7 @@ export function startCheck(ctx) {
       revealed = false;
       fast = false;
       shownAt = performance.now();
+      at = i;
       header();
       const k = cards[i];
       const { q } = questionOf(k, i) || {};
@@ -222,14 +226,13 @@ export function startCheck(ctx) {
         // Saved the moment you answer, so leaving straight after still counts it.
         record(k, right ? 'knew' : 'missed', right);
         if (right) { later(show, 450); return; }
-        // Redrawn so Previous can take this miss back, even on the first card.
-        header();
         // A miss shows the full answer, then waits, so you see what it should have been.
         view.querySelector('#cktop').innerHTML = badge(k);
         view.querySelector('#ckans').innerHTML = `<span class="ck-qk jp">${k.k}</span>${answer(k)}`;
         view.querySelector('#ckcard').classList.add('missed');
         opts.insertAdjacentHTML('afterend', '<button class="btn ck-next" id="cknext">Next</button>');
         view.querySelector('#cknext').onclick = show;
+        view.querySelector('#cknext').focus({ preventScroll: true });
       };
     }
 
@@ -250,6 +253,8 @@ export function startCheck(ctx) {
       const token = first ? ctx.grade(k, { grade, fast: grade === 'knew' && fast && !proven, proven: proven || Boolean(stand) }) : null;
       history.push({ k, grade, token });
       i++;
+      // Previous can take it back at once, even on the first card and while the next one loads.
+      header();
     }
 
     function decide(k, grade) {
@@ -338,6 +343,7 @@ export function startCheck(ctx) {
 
     function finish() {
       cleanup();
+      comeBack = () => { stopped = false; finish(); return stop; };
       const known = history.filter((h) => h.grade === 'knew').map((h) => h.k);
       const left = history.filter((h) => h.grade !== 'knew').map((h) => h.k);
       const newly = first ? cards.filter((k) => stageBefore.get(k) < ctx.mastered && ctx.stage(k) >= ctx.mastered) : [];
@@ -362,7 +368,7 @@ export function startCheck(ctx) {
         </div>`;
       view.querySelectorAll('.ck-tiles').forEach((set) => set.addEventListener('click', (e) => {
         const b = e.target.closest('[data-i]');
-        if (b) ctx.study(set.dataset.set === 'gold' ? newly : left, Number(b.dataset.i), finish);
+        if (b) ctx.study(set.dataset.set === 'gold' ? newly : left, Number(b.dataset.i), comeBack);
       }));
       // The practice round comes in a fresh order each time.
       view.querySelector('#ckagain')?.addEventListener('click', () => round(shuffle(left), false));
@@ -372,10 +378,14 @@ export function startCheck(ctx) {
     show();
   }
 
-  round(ctx.deck, true);
-  return () => {
+  const stop = () => {
     stopped = true;
     clearTimeout(pending);
     cleanup();
   };
+  // Back from studying a kanji: the finish screen again, live, so Again still runs. Returns the
+  // cleanup for the screen to hold, as at the start.
+  let comeBack = null;
+  round(ctx.deck, true);
+  return stop;
 }

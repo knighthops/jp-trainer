@@ -1677,7 +1677,8 @@ function screenCheck() {
   if (checkBack) {
     const back = checkBack;
     checkBack = null;
-    back();
+    // The same check, picked up again: it hands back its cleanup for when this screen is left.
+    screenCleanup = back();
     return;
   }
   const deck = checkList?.length ? checkList : defaultDeck();

@@ -136,7 +136,8 @@ const jpLine = (t, glossary) => `<div class="pline">${glued(t.split(' '), (w) =>
   ? `<button class="word" data-word="${w}">${w}</button>` : `<span>${w}</span>`))}</div>`;
 const roLine = (t, glossary) => `<p class="romaji center">${romajiLine(t.split(' '), glossary)} ${sayBtn(t)}</p>`;
 const head = (kind, step) => `<span class="caps">${kind} · ${step.scene.title}</span>`;
-export const signHtml = (sign, big = false, inner = sign.t) => `<span class="sign ${sign.style || 'notice'} ${big ? 'big' : ''} jp">${inner}</span>`;
+// A big sign shrinks to fit its stage: --n is how many characters wide it is.
+export const signHtml = (sign, big = false, inner = sign.t) => `<span class="sign ${sign.style || 'notice'} ${big ? 'big' : ''} jp"${big ? ` style="--n:${[...sign.t].length}"` : ''}>${inner}</span>`;
 
 const KANJI_RUN = /[一-龯々]+/;
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
