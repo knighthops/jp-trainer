@@ -29,7 +29,7 @@ export const isStruggling = (rec) => {
 // Most-forgotten first, then the fewest good reviews since.
 export const struggleOrder = (a, b) => b.lapses - a.lapses || streakOf(a) - streakOf(b) || a.ease - b.ease;
 
-function dueAfter(days, now) {
+export function dueAfter(days, now) {
   const d = new Date(now);
   d.setHours(0, 0, 0, 0);
   d.setDate(d.getDate() + days);

@@ -4,16 +4,16 @@ import { renderListen } from './listen.js';
 import { speak, speakLines, speakStep, cancel, sayBtn, setReadings, unlockSpeech, setMuted, setClips, NORMAL, SLOW } from './tts.js';
 import { setRecorded, unlockAudio, hasClips, playLines, stopLines } from './clips.js';
 import { radioChannels, startRadio } from './radio.js';
-import { startCheck, checkDeck, swipeRecord, CHECK_SIZE } from './check.js';
+import { startCheck, checkDeck, checkRecord, cardKind, CHECK_SIZE } from './check.js';
 import {
   GRADES, GRADE_NAMES, GRADE_HELP, CLEARS, isStruggling, struggleOrder, newRecord, rate, label, STAGES, stageOf, STRONG, MASTERED, isDue,
 } from './srs.js';
 import { reviewSteps, kanjiId, buildAsCheck } from './session.js';
-import { quizQuestion, drillKanji } from './quiz.js';
+import { quizQuestion, drillKanji, readWords } from './quiz.js';
 import { loadStrokes, mountStrokes } from './strokes.js';
 import {
   renderSentence, renderParticle, renderCheck, particleCardHtml, feedbackSheet, compareHtml, showSheet, setStreak, bindGloss, glossHtml, glossText, romajiLine, shuffled, glued, setKanji, partsHtml, wordKanjiHtml, kanjiOf, kanjiIn,
-  setNotes, noteOf, noteSlotInner, noteEditorHtml, togglePeek, peekHtml,
+  setNotes, noteOf, noteSlotInner, noteEditorHtml, togglePeek, peekHtml, linkKanji,
 } from './drills.js';
 import { makeWriteIndex, recognize } from './handwrite.js';
 import {
@@ -748,7 +748,11 @@ function renderStep() {
       },
     });
   } else if (step.type === 'tripSign') {
-    renderSign(view, step, { signs: data.trip.flatMap((s) => s.signs), glossary: data.glossary, review, onDone: tripDone });
+    // Kana go over kanji the course hasn't taught. '?' asks about the kanji itself: whether you
+    // have it or the course is past the lesson that teaches it, not whether it's in a word list.
+    const knows = knowsNow();
+    const tier = (c) => (knows(`?${c}`) ? 'taught' : data.kanji.some((k) => k.k === c) ? 'n5' : 'beyond');
+    renderSign(view, step, { signs: data.trip.flatMap((s) => s.signs), glossary: data.glossary, cue: { tier, kanjiOf, readingOf: (t) => wordEntry(t)?.y }, review, onDone: tripDone });
   } else if (step.type === 'tripLearn') {
     renderSayLearn(view, step, { glossary: data.glossary, onDone: advance });
   } else if (step.type === 'tripSay') {
@@ -1166,13 +1170,13 @@ function renderQuiz(step) {
     const taught = data.kanji.filter((k) => k === step.ref || knows(k.k) && (state.items[`k:${k.k}`] || run.steps.slice(0, run.i + 1).some((s) => s.id === `k:${k.k}`)));
     const kind = step.kind === 'pick' && taught.length < 4 ? 'mean' : step.kind;
     // Wrong options come only from taught kanji, even if that leaves fewer than four.
-    step.q = quizQuestion(step.ref, kind, { pool: taught, wordOf: (w) => (knows(w) ? wordEntry(w) : null), n: state.items[step.id]?.reps || 0 });
+    step.q = quizQuestion(step.ref, kind, { pool: taught, wordOf: (w) => (knows(w) ? wordEntry(w) : null), say: headOf(step.ref), n: state.items[step.id]?.reps || 0 });
     // Nothing else taught to choose between yet: no question to ask.
     if (step.q.options.length < 2) return skipStep();
   }
   const q = step.q;
   const hit = q.word ? matchReading(q.k, q.word, q.word.y) : null;
-  const prompt = q.kind === 'pick' ? `<p class="qz-q">Which kanji means</p><p class="qz-mean">${q.k.mean[0]}</p>`
+  const prompt = q.kind === 'pick' ? `<p class="qz-q">Which kanji is read</p><p class="qz-say jp">${q.say}</p><p class="small muted center">${q.k.mean[0]}</p>`
     : q.kind === 'read' ? `<p class="qz-q">How is this word read?</p><p class="qz-big jp">${q.word.w.replace(q.k.k, `<u>${q.k.k}</u>`)}</p>
       <p class="small muted center">${q.word.m}</p>`
       : `<p class="qz-q">Which is this kanji?</p><p class="qz-big jp">${q.k.k}</p>`;
@@ -1253,7 +1257,7 @@ function renderLesson(step) {
       <span class="caps">Unit ${step.unit.n} · ${step.unit.title}</span>
       <h3>${l.title}</h3>
       ${l.pattern ? `<div class="pattern jp">${l.pattern}</div>` : ''}
-      ${l.note.map((p) => `<p>${p}</p>`).join('')}
+      ${l.note.map((p) => `<p class="kpeek-host">${linkKanji(p)}</p>`).join('')}
       <div class="block-sec"><span class="caps">Examples</span>${l.examples.map((e) => `<div class="example">
         <div class="stem jp">${wordLine(e.t)}</div>
         <p class="romaji">${lineRomaji(e.t)} ${sayBtn(e.t)}</p>
@@ -1668,6 +1672,7 @@ function defaultDeck() {
 let checkBack = null;
 
 const headCache = new Map();
+const headOf = (k) => headCache.get(k) ?? headCache.set(k, headReading(k)).get(k);
 function screenCheck() {
   if (checkBack) {
     const back = checkBack;
@@ -1680,7 +1685,7 @@ function screenCheck() {
   if (!deck.length) { location.replace('#/kanji'); return; }
   screenCleanup = startCheck({
     view, setTop, deck: shuffled(deck), mastered: MASTERED,
-    readingOf: (k) => headCache.get(k) ?? headCache.set(k, headReading(k)).get(k),
+    readingOf: headOf,
     wordsOf: (k) => readingWords(k),
     stage: (k) => stageOf(state.items[kanjiId(k)]),
     // The full kanji card, stepping through the tapped set; Done or Exit returns to the finish screen.
@@ -1688,12 +1693,28 @@ function screenCheck() {
       checkBack = back;
       startRun(list.map((k) => ({ type: 'learn', kind: 'kanji', id: kanjiId(k), ref: k })), 'To work on', { browse: true, start });
     },
-    // Each swipe is a review; the record before it is the undo.
-    swipe: (k, known) => {
+    kind: (k, n) => cardKind(state.items[kanjiId(k)], n),
+    // A question the app grades. Hard rule: the word and every wrong option are already taught.
+    // Nothing suitable to ask: null, and the card is a self-check instead.
+    question: (k, kind, avoid = new Set()) => {
+      const knows = knowsNow();
+      const wordOf = (w) => (knows(w) && !avoid.has(w) ? wordEntry(w) : null);
+      const pool = data.kanji.filter((x) => x === k || (knows(x.k) && state.items[kanjiId(x)]));
+      const kinds = kind === 'read' ? ['read', 'pick'] : ['pick', 'read'];
+      for (const kd of kinds) {
+        if (kd === 'read' && !readWords(k, wordOf).length) continue;
+        if (kd === 'pick' && pool.length < 4) continue;
+        const q = quizQuestion(k, kd, { pool, wordOf, say: headOf(k), n: state.items[kanjiId(k)]?.reps || 0 });
+        if (q.kind === kd && q.options.length >= 3) return q;
+      }
+      return null;
+    },
+    // Each card's result is a review; the record before it is the undo.
+    grade: (k, result) => {
       const id = kanjiId(k);
       const prev = state.items[id];
       if (!prev) return null;
-      state.items[id] = swipeRecord(prev, known);
+      state.items[id] = checkRecord(prev, result);
       save(state);
       return { id, prev };
     },

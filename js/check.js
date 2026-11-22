@@ -1,13 +1,21 @@
-// Kanji check: one kanji at a time, nothing to pick from. Recall its meaning and reading,
-// tap to reveal, then swipe. Right: known by heart, no hesitation. Left: anything less.
-// The swipes are kanji reviews, so the Mastered stage is earned here like anywhere else.
-import { rate, isDue, STAGES } from './srs.js';
+// Kanji check: one kanji at a time. Most cards are self-checks: recall its meaning and reading,
+// tap to reveal, then grade yourself three ways. Right: knew it. Down: slow, got there with effort
+// or only half. Left: forgot. Some cards are questions the app grades instead (the reading in a
+// word, or the kanji among look-alikes), and only those can make a kanji Mastered.
+import { rate, isDue, dueAfter, stageOf, STAGES, STRONG } from './srs.js';
 import { romaji } from './romaji.js';
 import { icons } from './icons.js';
 
 export const CHECK_SIZE = 12;
 // How far a card must travel before letting go counts as a swipe.
 const SWIPE_PX = 80;
+// Revealed within this long counts as instant recall, worth the bigger jump.
+export const FAST_MS = 4000;
+// A kanji is Mastered from this many days between reviews (stageOf in srs.js).
+const MASTERED_DAYS = 21;
+const CAP = MASTERED_DAYS - 1;
+// Taps this soon after a card appears are ignored: a double tap meant for the last card.
+const SETTLE_MS = 300;
 
 // Struggling kanji first, then due ones, then the rest you've started, soonest due first.
 export function checkDeck({ struggling = [], due = [], started = [], size = CHECK_SIZE, recs = {} }) {
@@ -15,30 +23,104 @@ export function checkDeck({ struggling = [], due = [], started = [], size = CHEC
   return [...new Set([...struggling, ...due, ...rest])].slice(0, size);
 }
 
-// What a swipe does to a kanji's review record.
-// Right on a due kanji counts as Instant. Right on one not due yet leaves its schedule alone,
-// so checking early never pushes a review out. Left is Shaky: back within a day and
-// struggling again, but its progress isn't wiped and its review is never pushed later.
-export function swipeRecord(rec, known, now = Date.now()) {
+// Which card a kanji gets. A Strong kanji that's due is one review from Mastered, so it gets a
+// question the app grades. Otherwise cards rotate with each review, so every side gets asked.
+export const ROTATION = ['self', 'read', 'self', 'pick'];
+export function cardKind(rec, i = 0, now = Date.now()) {
+  if (rec && isDue(rec, now) && stageOf(rec) === STRONG) return 'read';
+  return ROTATION[((rec?.reps ?? 0) + i) % ROTATION.length];
+}
+
+// What a card's result does to a kanji's review record.
+//   grade 'forgot': relearn it, like Forgot anywhere else.
+//   grade 'slow': Shaky. Back soon and struggling again, never Mastered, never pushed later.
+//   grade 'missed': a question the app graded, answered wrong. Shaky, and back by tomorrow
+//     whatever its gap was, but without wiping its progress the way Forgot does.
+//   grade 'knew': on a due kanji the normal step, or Instant when fast. Early, it changes nothing,
+//     so checking ahead never pushes a review out. Only a question the app graded (proven) can
+//     carry a kanji into Mastered; a self-graded one stops just short of it.
+export function checkRecord(rec, { grade, fast = false, proven = false }, now = Date.now()) {
   if (!rec) return rec;
-  if (known) return isDue(rec, now) ? rate(rec, 'easy', now) : rec;
-  const shaky = rate(rec, 'hard', now);
-  return { ...shaky, reps: rec.reps, interval: Math.min(rec.interval, shaky.interval), due: Math.min(rec.due, now + 864e5) };
+  if (grade === 'forgot') return rate(rec, 'again', now);
+  const due = isDue(rec, now);
+  if (grade === 'missed') {
+    const shaky = rate(rec, 'hard', now);
+    return { ...shaky, reps: rec.reps, interval: 1, due: Math.min(rec.due, dueAfter(1, now)) };
+  }
+  if (grade === 'slow') {
+    const shaky = rate(rec, 'hard', now);
+    if (!due) return { ...shaky, reps: rec.reps, interval: Math.min(rec.interval, shaky.interval, CAP), due: Math.min(rec.due, dueAfter(1, now)) };
+    return shaky.interval <= CAP ? shaky : { ...shaky, interval: CAP, due: dueAfter(CAP, now) };
+  }
+  if (!due) return rec;
+  const next = rate(rec, fast ? 'easy' : 'good', now);
+  if (!proven && rec.interval < MASTERED_DAYS && next.interval >= MASTERED_DAYS) return { ...next, interval: CAP, due: dueAfter(CAP, now) };
+  return next;
+}
+
+// A drag counts as Slow only when it goes clearly down, so a thumb's arc toward Knew it or
+// Forgot stays sideways. Null: not far enough to count, the card springs back.
+export function swipeGrade(dx, dy) {
+  if (dy >= SWIPE_PX * 1.25 && dy > Math.abs(dx) * 1.5) return 'slow';
+  if (Math.abs(dx) >= SWIPE_PX && dy <= Math.abs(dx) * 1.5) return dx > 0 ? 'knew' : 'forgot';
+  return null;
+}
+
+const GRADE = {
+  forgot: { label: 'Forgot', pip: 'n', fly: 'translateX(-130%) rotate(-14deg)' },
+  slow: { label: 'Slow', pip: 's', fly: 'translateY(110%) rotate(3deg)' },
+  missed: { label: 'Missed', pip: 'n' },
+  knew: { label: 'Knew it', pip: 'y', fly: 'translateX(130%) rotate(14deg)' },
+};
+
+function shuffle(list) {
+  const a = [...list];
+  for (let n = a.length - 1; n > 0; n--) {
+    const j = Math.floor(Math.random() * (n + 1));
+    [a[n], a[j]] = [a[j], a[n]];
+  }
+  return a;
 }
 
 // ctx: { view, setTop, deck, readingOf(k), wordsOf(k) → [{ w, y, m }], stage(k) → 0..3,
-//        mastered (the stage number), swipe(k, known) → undo token, undo(token), onExit }
+//        mastered (the stage number), kind(k, i) → 'self' | 'read' | 'pick',
+//        question(k, kind, avoid) → { kind, k, word?, options, answer } or null for a self-check;
+//          avoid holds the words already asked this round, so none is asked twice,
+//        grade(k, result) → undo token, undo(token), study(list, start, back), onExit }
 export function startCheck(ctx) {
   const { view, setTop } = ctx;
   let cleanup = () => {};
+  // Set once the check is left, so nothing still on a timer draws over the next screen.
+  let stopped = false;
+  let pending = null;
+  const later = (fn, ms) => {
+    clearTimeout(pending);
+    pending = setTimeout(() => { pending = null; if (!stopped) fn(); }, ms);
+  };
 
   function round(cards, first) {
     let i = 0;
     let revealed = false;
-    const known = [];
-    const left = [];
+    let shownAt = 0;
+    let fast = false;
     const history = [];
     const stageBefore = new Map(cards.map((k) => [k, ctx.stage(k)]));
+    // The "Again" round is practice: plain self-checks, nothing recorded.
+    const questions = new Map();
+    const asked = new Set();
+    const questionOf = (k, n) => {
+      if (!first) return null;
+      if (!questions.has(k)) {
+        const kind = ctx.kind(k, n);
+        const q = kind === 'self' ? null : ctx.question(k, kind, asked);
+        if (q?.word) asked.add(q.word.w);
+        // A kanji due a graded question that has none to ask (too little taught yet) can still
+        // reach Mastered on its self-check, or it would be stuck short of it for good. Only when
+        // nothing at all could be asked: not when this round's earlier questions used its word.
+        questions.set(k, { q, stand: kind !== 'self' && !q && !ctx.question(k, kind) });
+      }
+      return questions.get(k);
+    };
 
     const answer = (k) => {
       const head = ctx.readingOf(k);
@@ -53,11 +135,15 @@ export function startCheck(ctx) {
         ${on.length || kun.length ? `<p class="ck-other">${on.length ? `<span><i class="jp">音</i><span class="jp">${on.join('・')}</span></span>` : ''}${kun.length ? `<span><i class="jp">訓</i><span class="jp">${kun.join('・')}</span></span>` : ''}</p>` : ''}
         ${words.length ? `<div class="ck-words">${words.map((w) => `<span><b class="jp">${w.w}</b><span class="jp">${w.y}</span><em>${w.m}</em></span>`).join('')}</div>` : ''}`;
     };
+    const badge = (k) => {
+      const st = STAGES[ctx.stage(k)];
+      return `<span class="stage s-${st.id}"><span class="jp">${st.jp}</span>${st.en}</span>`;
+    };
 
-    // One pip per card: green known, coral not yet, the current one ringed.
+    // One pip per card: green knew, amber slow, coral forgot or missed, the current one ringed.
     const pips = () => cards.map((_, n) => {
       const h = history[n];
-      return `<i class="${h ? (h.isKnown ? 'y' : 'n') : n === i ? 'now' : ''}"></i>`;
+      return `<i class="${h ? GRADE[h.grade].pip : n === i ? 'now' : ''}"></i>`;
     }).join('');
 
     function header() {
@@ -68,66 +154,124 @@ export function startCheck(ctx) {
       });
     }
 
+    const stack = (inner) => {
+      const behind = Math.min(2, cards.length - i - 1);
+      return `<div class="ck-stack">
+        ${behind > 1 ? '<span class="ck-under u2" aria-hidden="true"></span>' : ''}${behind ? '<span class="ck-under u1" aria-hidden="true"></span>' : ''}
+        ${inner}</div>`;
+    };
+    const settled = () => performance.now() - shownAt >= SETTLE_MS;
+
     function show() {
+      clearTimeout(pending);
       if (i >= cards.length) { finish(); return; }
       revealed = false;
+      fast = false;
+      shownAt = performance.now();
       header();
       const k = cards[i];
-      const st = STAGES[ctx.stage(k)];
-      const behind = Math.min(2, cards.length - i - 1);
+      const { q } = questionOf(k, i) || {};
+      if (q) { showQuestion(k, q); return; }
+      // The stage stays hidden until the reveal, so it can't hint at the answer.
       view.innerHTML = `
         <div class="ck">
-          <div class="ck-stack">
-            ${behind > 1 ? '<span class="ck-under u2" aria-hidden="true"></span>' : ''}${behind ? '<span class="ck-under u1" aria-hidden="true"></span>' : ''}
-            <button class="card ck-card" id="ckcard" aria-label="Reveal the answer">
+          ${stack(`<button class="card ck-card" id="ckcard" aria-label="Reveal the answer">
               <span class="ck-wash" aria-hidden="true"></span>
-              <span class="ck-tint l" aria-hidden="true">Not yet</span><span class="ck-tint r" aria-hidden="true">Know it</span>
-              <span class="ck-top"><span class="stage s-${st.id}"><span class="jp">${st.jp}</span>${st.en}</span></span>
+              <span class="ck-tint l" aria-hidden="true">Forgot</span><span class="ck-tint r" aria-hidden="true">Knew it</span><span class="ck-tint d" aria-hidden="true">Slow</span>
+              <span class="ck-top" id="cktop"></span>
               <span class="ck-k jp">${k.k}</span>
               <span class="ck-ans" id="ckans"><span class="ck-hint">Meaning and reading?<small>Tap to reveal</small></span></span>
-            </button>
-          </div>
+            </button>`)}
+          <span class="ck-pips" aria-hidden="true">${pips()}</span>
           <div class="ck-btns">
-            <button class="ck-btn no" id="ckno" disabled aria-label="Not yet"><span class="ck-o">${icons.close}</span><small>Not yet</small></button>
-            <span class="ck-pips" aria-hidden="true">${pips()}</span>
-            <button class="ck-btn yes" id="ckyes" disabled aria-label="Know it"><span class="ck-o">${icons.check}</span><small>Know it</small></button>
+            <button class="ck-btn no" id="ckno" disabled aria-label="Forgot"><span class="ck-o">${icons.close}</span><small>Forgot</small></button>
+            <button class="ck-btn slow" id="ckslow" disabled aria-label="Slow"><span class="ck-o">${icons.slow}</span><small>Slow</small></button>
+            <button class="ck-btn yes" id="ckyes" disabled aria-label="Knew it"><span class="ck-o">${icons.check}</span><small>Knew it</small></button>
           </div>
         </div>`;
       bind(k);
     }
 
+    // A question the app grades: the reading of a word, or the kanji among look-alikes.
+    function showQuestion(k, q) {
+      const prompt = q.kind === 'read'
+        ? `<span class="ck-qword jp">${q.word.w.replace(k.k, `<u>${k.k}</u>`)}</span><span class="ck-qsub">${q.word.m}</span><span class="ck-hint">How is it read?</span>`
+        : `<span class="ck-qsay jp">${q.say || ctx.readingOf(k)}</span><span class="ck-qsub">${k.mean[0]}</span><span class="ck-hint">Which kanji?</span>`;
+      const opt = (o) => (q.kind === 'read' ? `<span class="jp">${o}</span><small>${romaji(o)}</small>` : o);
+      view.innerHTML = `
+        <div class="ck">
+          ${stack(`<div class="card ck-card ck-quiz" id="ckcard">
+              <span class="ck-top" id="cktop"></span>
+              ${prompt}
+              <span class="ck-ans" id="ckans"></span>
+            </div>`)}
+          <span class="ck-pips" aria-hidden="true">${pips()}</span>
+          <div class="opts qz-opts ck-opts" id="ckopts">${q.options.map((o, n) => `<button class="opt ${q.kind === 'read' ? 'kana' : 'qk jp'}" data-n="${n}">${opt(o)}</button>`).join('')}</div>
+        </div>`;
+      const opts = view.querySelector('#ckopts');
+      opts.onclick = (e) => {
+        const b = e.target.closest('[data-n]');
+        if (!b || b.disabled || !settled()) return;
+        const right = Number(b.dataset.n) === q.answer;
+        opts.querySelectorAll('.opt').forEach((x, n) => {
+          x.disabled = true;
+          if (n === q.answer) x.classList.add('right');
+          else if (x === b) x.classList.add('wrong');
+          else x.classList.add('dim');
+        });
+        // Saved the moment you answer, so leaving straight after still counts it.
+        record(k, right ? 'knew' : 'missed', right);
+        if (right) { later(show, 450); return; }
+        // Redrawn so Previous can take this miss back, even on the first card.
+        header();
+        // A miss shows the full answer, then waits, so you see what it should have been.
+        view.querySelector('#cktop').innerHTML = badge(k);
+        view.querySelector('#ckans').innerHTML = `<span class="ck-qk jp">${k.k}</span>${answer(k)}`;
+        view.querySelector('#ckcard').classList.add('missed');
+        opts.insertAdjacentHTML('afterend', '<button class="btn ck-next" id="cknext">Next</button>');
+        view.querySelector('#cknext').onclick = show;
+      };
+    }
+
     function reveal(k) {
       if (revealed) return;
       revealed = true;
+      fast = performance.now() - shownAt <= FAST_MS;
       view.querySelector('#ckans').innerHTML = answer(k);
+      view.querySelector('#cktop').innerHTML = badge(k);
       view.querySelector('#ckcard').classList.add('open');
-      view.querySelector('#ckcard').setAttribute('aria-label', 'Swipe right if you knew it by heart, left if not');
-      view.querySelector('#ckno').disabled = false;
-      view.querySelector('#ckyes').disabled = false;
+      view.querySelector('#ckcard').setAttribute('aria-label', 'Swipe right if you knew it, down if it was slow, left if you forgot');
+      view.querySelectorAll('.ck-btn').forEach((b) => { b.disabled = false; });
     }
 
-    function decide(k, isKnown) {
+    // Saves one card's result and steps past it; the caller decides when the next card shows.
+    function record(k, grade, proven) {
+      const stand = questions.get(k)?.stand;
+      const token = first ? ctx.grade(k, { grade, fast: grade === 'knew' && fast && !proven, proven: proven || Boolean(stand) }) : null;
+      history.push({ k, grade, token });
+      i++;
+    }
+
+    function decide(k, grade) {
       const card = view.querySelector('#ckcard');
+      if (!card || card.classList.contains('flying')) return;
       // Fly on from wherever the drag left it.
       card.style.transition = '';
-      card.style.transform = `translateX(${isKnown ? 130 : -130}%) rotate(${isKnown ? 14 : -14}deg)`;
-      view.querySelector('.ck').style.setProperty(isKnown ? '--r' : '--l', 1);
-      card.classList.add(isKnown ? 'fly-r' : 'fly-l');
+      card.style.transform = GRADE[grade].fly;
+      card.classList.add('flying');
+      view.querySelector('.ck').style.setProperty({ forgot: '--l', slow: '--d', knew: '--r' }[grade], 1);
       view.querySelectorAll('.ck-btn').forEach((b) => { b.disabled = true; });
-      const token = first ? ctx.swipe(k, isKnown) : null;
-      history.push({ k, isKnown, token });
-      (isKnown ? known : left).push(k);
-      i++;
-      setTimeout(show, 180);
+      record(k, grade, false);
+      later(show, 180);
     }
 
+    // Takes back the last result, even one still on its way to the next card.
     function undo() {
+      clearTimeout(pending);
       const last = history.pop();
       if (!last) return;
       if (first) ctx.undo(last.token);
-      const list = last.isKnown ? known : left;
-      list.splice(list.lastIndexOf(last.k), 1);
-      i--;
+      i = history.length;
       show();
     }
 
@@ -137,58 +281,77 @@ export function startCheck(ctx) {
       const box = view.querySelector('.ck');
       let start = null;
       let dx = 0;
+      let dy = 0;
+      const lean = (l, r, d) => {
+        box.style.setProperty('--l', l);
+        box.style.setProperty('--r', r);
+        box.style.setProperty('--d', d);
+      };
       card.addEventListener('pointerdown', (e) => {
         if (!revealed) return;
-        start = e.clientX;
+        start = [e.clientX, e.clientY];
         dx = 0;
+        dy = 0;
         card.setPointerCapture(e.pointerId);
         card.style.transition = 'none';
       });
       card.addEventListener('pointermove', (e) => {
         if (start === null) return;
-        dx = e.clientX - start;
-        card.style.transform = `translateX(${dx}px) rotate(${dx / 24}deg)`;
-        box.style.setProperty('--l', Math.max(0, Math.min(1, -dx / SWIPE_PX)));
-        box.style.setProperty('--r', Math.max(0, Math.min(1, dx / SWIPE_PX)));
+        dx = e.clientX - start[0];
+        dy = Math.max(0, e.clientY - start[1]);
+        const down = dy > Math.abs(dx) * 1.5;
+        card.style.transform = down ? `translateY(${dy}px)` : `translateX(${dx}px) translateY(${Math.min(dy, 24)}px) rotate(${dx / 24}deg)`;
+        const amt = (v, px = SWIPE_PX) => Math.max(0, Math.min(1, v / px));
+        lean(down ? 0 : amt(-dx), down ? 0 : amt(dx), down ? amt(dy, SWIPE_PX * 1.25) : 0);
       });
       const release = () => {
         if (start === null) return;
         start = null;
-        if (Math.abs(dx) >= SWIPE_PX) { decide(k, dx > 0); return; }
+        const grade = swipeGrade(dx, dy);
+        if (grade) { decide(k, grade); return; }
         card.style.transition = '';
         card.style.transform = '';
-        box.style.setProperty('--l', 0);
-        box.style.setProperty('--r', 0);
+        lean(0, 0, 0);
       };
       card.addEventListener('pointerup', release);
       card.addEventListener('pointercancel', release);
       // A tap reveals; a drag that came back to the middle isn't a tap.
-      card.addEventListener('click', () => { if (Math.abs(dx) < 6) reveal(k); });
-      view.querySelector('#ckno').onclick = () => decide(k, false);
-      view.querySelector('#ckyes').onclick = () => decide(k, true);
+      card.addEventListener('click', () => { if (Math.abs(dx) < 6 && dy < 6) reveal(k); });
+      const tap = (grade) => () => { if (settled()) decide(k, grade); };
+      view.querySelector('#ckno').onclick = tap('forgot');
+      view.querySelector('#ckslow').onclick = tap('slow');
+      view.querySelector('#ckyes').onclick = tap('knew');
       // A swipe on the card is never the screen-edge back gesture.
       card.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: true });
     }
 
     const onKey = (e) => {
-      if (i >= cards.length) return;
+      if (i >= cards.length || !view.querySelector('#ckslow')) return;
       const k = cards[i];
-      if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); reveal(k); } else if (revealed && e.key === 'ArrowLeft') decide(k, false);
-      else if (revealed && e.key === 'ArrowRight') decide(k, true);
+      if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); reveal(k); return; }
+      if (!revealed) return;
+      const grade = { ArrowLeft: 'forgot', ArrowDown: 'slow', ArrowRight: 'knew' }[e.key];
+      if (grade) { e.preventDefault(); decide(k, grade); }
     };
     document.addEventListener('keydown', onKey);
     cleanup = () => document.removeEventListener('keydown', onKey);
 
     function finish() {
       cleanup();
+      const known = history.filter((h) => h.grade === 'knew').map((h) => h.k);
+      const left = history.filter((h) => h.grade !== 'knew').map((h) => h.k);
       const newly = first ? cards.filter((k) => stageBefore.get(k) < ctx.mastered && ctx.stage(k) >= ctx.mastered) : [];
+      const count = (...grades) => history.filter((h) => grades.includes(h.grade)).length;
+      // The number above already says how many you knew; this says what happened to the rest.
+      const split = [count('slow') && `${count('slow')} slow`, count('forgot') && `${count('forgot')} forgot`, count('missed') && `${count('missed')} missed`]
+        .filter(Boolean).join(' · ');
       setTop('Kanji check', { close: true, onClose: ctx.onExit });
       // Each tile opens the kanji's full card; closing it comes back to this screen.
       const tiles = (list, cls) => `<div class="ck-tiles" data-set="${cls}">${list.map((k, n) => `<button class="ck-tile ${cls} jp" data-i="${n}" style="--d:${n * 90}ms" aria-label="Study ${k.k}">${k.k}</button>`).join('')}</div>`;
       view.innerHTML = `
         <section class="card hero done-hero ck-done ${newly.length ? 'gold' : ''}">
           <h2>${left.length ? `${known.length} <small>/ ${cards.length}</small>` : 'All known'}</h2>
-          <p class="sub">${left.length ? 'known by heart' : first ? 'Every one by heart' : 'The pile is clear'}</p>
+          <p class="sub">${left.length ? split : first ? 'Every one known' : 'The pile is clear'}</p>
           <span class="ck-pips" aria-hidden="true">${pips()}</span>
           ${newly.length ? `<span class="caps">Newly mastered</span>${tiles(newly, 'gold')}` : ''}
         </section>
@@ -201,7 +364,8 @@ export function startCheck(ctx) {
         const b = e.target.closest('[data-i]');
         if (b) ctx.study(set.dataset.set === 'gold' ? newly : left, Number(b.dataset.i), finish);
       }));
-      view.querySelector('#ckagain')?.addEventListener('click', () => round(left.slice(), false));
+      // The practice round comes in a fresh order each time.
+      view.querySelector('#ckagain')?.addEventListener('click', () => round(shuffle(left), false));
       view.querySelector('#ckdone').onclick = ctx.onExit;
     }
 
@@ -209,5 +373,9 @@ export function startCheck(ctx) {
   }
 
   round(ctx.deck, true);
-  return () => cleanup();
+  return () => {
+    stopped = true;
+    clearTimeout(pending);
+    cleanup();
+  };
 }

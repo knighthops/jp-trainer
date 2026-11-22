@@ -1,13 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { newRecord, rate, isDue, stageOf, isStruggling, CLEARS } from '../js/srs.js';
+import { newRecord, rate, isDue, stageOf, isStruggling, CLEARS, STRONG, MASTERED } from '../js/srs.js';
 import { validNext, explainWrong, decoysFor, orders, tokenize, romajiLine, spoken, setNotes, noteSlotInner, partsHtml, setKanji, linkKanji, peekHtml, soundLine } from '../js/drills.js';
 import { backupJson, parseBackup, xpOf, streakWithRest, dayKey } from '../js/store.js';
-import { quizQuestion, similarKanji, drillKanji, kindFor, readWords } from '../js/quiz.js';
+import { quizQuestion, similarKanji, drillKanji, kindFor, readWords, possibleKana } from '../js/quiz.js';
 import { romaji, toHiragana, toKana, judgeReading } from '../js/romaji.js';
 import { speechText } from '../js/tts.js';
-import { matchReading } from '../js/readings.js';
+import { matchReading, splitRun } from '../js/readings.js';
 import { reviewSteps, kanjiId, talkId, buildAsCheck } from '../js/session.js';
 import {
   UNIT_FILES, mergeCourse, nextUp, isUnlocked, examUnlocked, lessonSteps, LEVELS, levelUnlocked, toBlocks, autoAlts, words, particleItem,
@@ -18,13 +18,13 @@ import { wordQuestion, kanaTiles, spellPuzzle, sameMeaning, partsPuzzle, compoun
 import { checkLogin, hashPassword, userId } from '../js/lock.js';
 import { radioChannels } from '../js/radio.js';
 import { clipId, clipSsml, englishSaid } from '../js/clips.js';
-import { checkDeck, swipeRecord } from '../js/check.js';
+import { checkDeck, checkRecord, cardKind, ROTATION, swipeGrade } from '../js/check.js';
 import { judgeStroke, resample } from '../js/strokes.js';
 import { makeWriteIndex, recognize, decodeStrokes, encodeStrokes } from '../js/handwrite.js';
 import { makeIndex, search, posName } from '../js/dict.js';
 import { deckOf, emojiOf, homeCard } from '../js/cards.js';
 import {
-  PARTS, tripId, partSteps, nextPart, readiness, daysUntil, tripReviewSteps, sceneLines,
+  PARTS, tripId, partSteps, nextPart, readiness, daysUntil, tripReviewSteps, sceneLines, signRuby,
 } from '../js/trip.js';
 
 const json = (f) => JSON.parse(readFileSync(new URL(`../data/${f}.json`, import.meta.url)));
@@ -847,20 +847,41 @@ test('kanji check deck: struggling, then due, then the rest soonest due, no repe
   assert.deepEqual(deck, [a, b, d, e]);
 });
 
-test('kanji check swipes: right on a due kanji is Instant, early right changes nothing, left is Shaky', () => {
+test('kanji check grades: knew, slow and forgot, and only a graded question earns Mastered', () => {
   const now = Date.UTC(2026, 10, 19, 12);
-  const due = { ...newRecord(), reps: 3, interval: 10, ease: 2.5, due: now - 1000, streak: 3 };
-  const right = swipeRecord(due, true, now);
-  assert.deepEqual(right, rate(due, 'easy', now));
-  assert.ok(right.interval > 10);
+  const due = { ...newRecord(), reps: 3, interval: 4, ease: 2.5, due: now - 1000, streak: 3 };
+  assert.deepEqual(checkRecord(due, { grade: 'knew' }, now), rate(due, 'good', now), 'knew it is the normal step');
+  assert.ok(checkRecord(due, { grade: 'knew', fast: true }, now).interval > rate(due, 'good', now).interval, 'fast is the bigger jump');
   const early = { ...due, due: now + 5 * 864e5 };
-  assert.equal(swipeRecord(early, true, now), early, 'checking early never pushes a review out');
-  const left = swipeRecord(early, false, now);
-  assert.ok(isStruggling(left), 'a left swipe makes it struggling');
-  assert.equal(left.reps, early.reps, 'progress is kept');
-  assert.ok(left.interval <= early.interval);
-  assert.ok(left.due <= now + 864e5, 'back within a day');
-  assert.equal(swipeRecord(undefined, false, now), undefined, 'kanji not started are left alone');
+  assert.equal(checkRecord(early, { grade: 'knew' }, now), early, 'checking early never pushes a review out');
+  const slowEarly = checkRecord(early, { grade: 'slow' }, now);
+  assert.ok(isStruggling(slowEarly), 'slow makes it struggling');
+  assert.equal(slowEarly.reps, early.reps, 'progress is kept');
+  assert.ok(slowEarly.due <= now + 864e5, 'back within a day');
+  const forgot = checkRecord(due, { grade: 'forgot' }, now);
+  assert.equal(stageOf(forgot), 1, 'forgot sends it back to relearn');
+  assert.equal(checkRecord(undefined, { grade: 'slow' }, now), undefined, 'kanji not started are left alone');
+
+  // A Strong kanji one step from Mastered: a self-check stops short, a graded question gets there.
+  const strong = { ...newRecord(), reps: 4, interval: 10, ease: 2.5, due: now - 1000, streak: 4 };
+  assert.equal(stageOf(rate(strong, 'easy', now)), MASTERED);
+  assert.equal(stageOf(checkRecord(strong, { grade: 'knew', fast: true }, now)), STRONG, 'a swipe alone never makes it Mastered');
+  assert.equal(stageOf(checkRecord(strong, { grade: 'knew', proven: true }, now)), MASTERED, 'a graded answer does');
+
+  // A Mastered kanji you're slow on, or forget, is no longer Mastered, due or not.
+  const mastered = { ...newRecord(), reps: 6, interval: 25, ease: 2.5, due: now - 1000, streak: 6 };
+  assert.equal(stageOf(checkRecord(mastered, { grade: 'slow' }, now)), STRONG);
+  assert.equal(stageOf(checkRecord({ ...mastered, due: now + 9 * 864e5 }, { grade: 'slow' }, now)), STRONG);
+  assert.equal(stageOf(checkRecord(mastered, { grade: 'forgot' }, now)), 1);
+  assert.equal(stageOf(checkRecord(mastered, { grade: 'knew' }, now)), MASTERED, 'already Mastered stays so on a self-check');
+});
+
+test('kanji check cards: Strong and due gets a graded question, the rest rotate', () => {
+  const now = Date.UTC(2026, 10, 19, 12);
+  assert.equal(cardKind({ ...newRecord(), reps: 4, interval: 10, due: now - 1 }, 0, now), 'read');
+  const kinds = [0, 1, 2, 3].map((reps) => cardKind({ ...newRecord(), reps, interval: 1, due: now + 864e5 }, 0, now));
+  assert.deepEqual(kinds, ROTATION);
+  assert.ok(ROTATION.includes('self') && ROTATION.includes('read') && ROTATION.includes('pick'));
 });
 
 // Every line the app speaks, with its kanji turned into kana before the voice sees it.
@@ -1279,6 +1300,12 @@ test('weak-kanji quiz: one right answer, look-alike distractors, one exact readi
       if (q.kind === 'mean') assert.equal(q.options[q.answer], k.mean[0]);
       if (q.kind === 'read') assert.equal(q.options[q.answer], toHiragana(q.word.y), `${k.k}: the word's own reading`);
     }
+  }
+  // A pick led by kana never offers another kanji read the same way: ひと is 人, never 一 (ひと-つ).
+  for (let i = 0; i < 20; i++) {
+    const q = quizQuestion(by.get('人'), 'pick', { pool: d.kanji, wordOf, say: 'ひと', rng: Math.random });
+    assert.equal(q.say, 'ひと');
+    assert.ok(!q.options.includes('一'), `ひと is only 人: ${q.options}`);
   }
   // 休 shares 亻 with 体 and 何, so they come first as distractors.
   const near = similarKanji(by.get('休'), d.kanji, rng).slice(0, 3).map((k) => k.k);
@@ -1760,4 +1787,46 @@ test('a missed build question comes back as a check with one right order', () =>
   assert.ok(c.o.length >= 3 && c.o.every((o) => typeof o === 'string' && o.split(' ').length === 4));
   assert.equal(new Set(c.o).size, c.o.length);
   assert.deepEqual(buildAsCheck({ ...q, build: true, o: ['です', 'は', 'さん', '学生'] }).o[0], 'さん は 学生 です');
+});
+
+test('trip signs: kana go over untaught kanji only, split kanji by kanji where the readings allow', () => {
+  const all = [...json('kanji-n5'), ...json('kanji-more')];
+  const kanjiOf = (c) => all.find((k) => k.k === c);
+  const n5 = new Set(json('kanji-n5').map((k) => k.k));
+  const taught = new Set(['東', '口', '出', '日']);
+  const tier = (c) => (taught.has(c) ? 'taught' : n5.has(c) ? 'n5' : 'beyond');
+  assert.deepEqual(splitRun('改札', 'かいさつ', kanjiOf), ['かい', 'さつ']);
+  // Taught kanji stay bare.
+  assert.equal(signRuby('東口', 'ひがしぐち', { tier, kanjiOf }).html, '東口');
+  const r = signRuby('改札', 'かいさつ', { tier, kanjiOf });
+  assert.match(r.html, /<ruby class="rb beyond">改<rt>かい<\/rt><\/ruby><ruby class="rb beyond">札<rt>さつ<\/rt><\/ruby>/);
+  assert.deepEqual(r.untaught, { n5: [], beyond: ['改', '札'] });
+  // Kana in the sign pin down each run's reading; a taught kanji inside keeps no kana.
+  const s = signRuby('本日のおすすめ', 'ほんじつのおすすめ', { tier, kanjiOf });
+  assert.match(s.html, /<rt>ほん<\/rt><\/ruby>日のおすすめ$/);
+  assert.deepEqual(s.untaught.n5, ['本']);
+  // No reading to go on: the untaught kanji are marked, never guessed.
+  assert.match(signRuby('改札', '', { tier, kanjiOf }).html, /<span class="rb beyond">改<\/span>/);
+});
+
+test('kanji check: a wrong answer brings it back by tomorrow, and swipes need a clear direction', () => {
+  const now = Date.UTC(2026, 10, 19, 12);
+  for (const interval of [10, 30]) {
+    const rec = { ...newRecord(), reps: 5, interval, ease: 2.5, due: now - 1000, streak: 4 };
+    const missed = checkRecord(rec, { grade: 'missed' }, now);
+    assert.equal(missed.interval, 1, `a miss never lengthens the gap (was ${interval})`);
+    assert.ok(missed.due <= now + 864e5, 'back by tomorrow at the latest, never pushed later');
+    assert.equal(missed.reps, rec.reps, 'progress is kept');
+    assert.ok(isStruggling(missed));
+  }
+  assert.equal(swipeGrade(110, 0), 'knew');
+  assert.equal(swipeGrade(-110, 20), 'forgot');
+  assert.equal(swipeGrade(104, 108), 'knew', "a thumb's arc to the right is still Knew it");
+  assert.equal(swipeGrade(10, 120), 'slow');
+  assert.equal(swipeGrade(0, 70), null, 'too short to count');
+});
+
+test('quiz: wrong readings are always kana Japanese can produce', () => {
+  for (const bad of ['よんっか', 'さんっつ', 'っか', 'んか', 'がっあ']) assert.equal(possibleKana(bad), false, bad);
+  for (const ok of ['がっこう', 'いっぷん', 'まなせい', 'ほん']) assert.equal(possibleKana(ok), true, ok);
 });

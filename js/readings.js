@@ -49,3 +49,25 @@ export function matchReading(kanji, word, kana) {
   }
   return null;
 }
+
+// A run of kanji read as one stretch of kana, split kanji by kanji using each one's readings:
+// 精算機 + せいさんき → ['せい', 'さん', 'き']. Null when the readings don't account for it,
+// as in irregular words. kanjiOf(c) looks a kanji up, from any level.
+export function splitRun(run, kana, kanjiOf) {
+  const ks = [...run];
+  const y = toHiragana(kana);
+  const go = (i, pos) => {
+    if (i === ks.length) return pos === y.length ? [] : null;
+    const k = kanjiOf(ks[i]);
+    if (!k) return null;
+    const stems = [...k.on, ...k.kun].map((r) => toHiragana(r.split(/[-.]/)[0])).filter(Boolean);
+    const forms = [...new Set(stems.flatMap(variants))].sort((a, b) => b.length - a.length);
+    for (const f of forms) {
+      if (!y.startsWith(f, pos)) continue;
+      const rest = go(i + 1, pos + f.length);
+      if (rest) return [f, ...rest];
+    }
+    return null;
+  };
+  return go(0, 0);
+}

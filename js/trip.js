@@ -5,7 +5,8 @@
 import { speak, speakStep, sayBtn, NORMAL, SLOW } from './tts.js';
 import { bindGloss, glossHtml, romajiLine, shuffled, wordKanjiHtml, glued } from './drills.js';
 import { isDue, newRecord, stageOf, STRONG, GRADES, GRADE_NAMES, label } from './srs.js';
-import { romaji } from './romaji.js';
+import { romaji, toHiragana } from './romaji.js';
+import { splitRun } from './readings.js';
 import { icons } from './icons.js';
 
 export const PARTS = [
@@ -135,25 +136,64 @@ const jpLine = (t, glossary) => `<div class="pline">${glued(t.split(' '), (w) =>
   ? `<button class="word" data-word="${w}">${w}</button>` : `<span>${w}</span>`))}</div>`;
 const roLine = (t, glossary) => `<p class="romaji center">${romajiLine(t.split(' '), glossary)} ${sayBtn(t)}</p>`;
 const head = (kind, step) => `<span class="caps">${kind} · ${step.scene.title}</span>`;
-export const signHtml = (sign, big = false) => `<span class="sign ${sign.style || 'notice'} ${big ? 'big' : ''} jp">${sign.t}</span>`;
+export const signHtml = (sign, big = false, inner = sign.t) => `<span class="sign ${sign.style || 'notice'} ${big ? 'big' : ''} jp">${inner}</span>`;
+
+const KANJI_RUN = /[一-龯々]+/;
+const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// Kana over the kanji in a sign that the course hasn't taught yet. Taught kanji stay bare, so you
+// read those yourself. tier(c) is 'taught', 'n5' (N5 but not taught yet) or 'beyond' (past N5).
+// Returns the sign's inner HTML and the untaught kanji by tier, for the legend under the sign.
+export function signRuby(t, kana, { tier, kanjiOf }) {
+  const untaught = { n5: [], beyond: [] };
+  const parts = t.match(/[一-龯々]+|[^一-龯々]+/g) || [];
+  for (const c of t) if (KANJI_RUN.test(c) && tier(c) !== 'taught' && !untaught[tier(c)].includes(c)) untaught[tier(c)].push(c);
+  if (!untaught.n5.length && !untaught.beyond.length) return { html: t, untaught };
+  // Each kanji run takes whatever kana sits between the kana around it.
+  // A reading that still has kanji in it (none was found) would only repeat the sign.
+  const y = kana && !KANJI_RUN.test(kana) ? toHiragana(kana.replace(/\s+/g, '')) : '';
+  const fit = y && new RegExp(`^${parts.map((p) => (KANJI_RUN.test(p) ? '(.+?)' : esc(toHiragana(p)))).join('')}$`).exec(y);
+  let run = 0;
+  const html = parts.map((p) => {
+    if (!KANJI_RUN.test(p)) return p;
+    const r = fit ? fit[++run] : null;
+    const cs = [...p];
+    if (cs.every((c) => tier(c) === 'taught')) return p;
+    if (!r) return cs.map((c) => (tier(c) === 'taught' ? c : `<span class="rb ${tier(c)}">${c}</span>`)).join('');
+    const split = splitRun(p, r, kanjiOf);
+    if (split) return cs.map((c, n) => (tier(c) === 'taught' ? c : `<ruby class="rb ${tier(c)}">${c}<rt>${split[n]}</rt></ruby>`)).join('');
+    // Readings that don't split kanji by kanji: kana over the whole run. If any of it is N5 still
+    // to come, the whole run's kana wait for the answer, or they'd give that kanji's reading away.
+    const when = cs.some((c) => tier(c) === 'n5') ? 'n5' : 'beyond';
+    return `<ruby class="rb ${when}">${p}<rt>${r}</rt></ruby>`;
+  }).join('');
+  return { html, untaught };
+}
+
+// Untaught N5 kanji are still to come in the course: named in one quiet line. Beyond-N5 ones
+// just carry their kana.
+const legendHtml = ({ n5 }) => (n5.length
+  ? `<p class="sign-legend">Coming in the course: <b class="jp">${n5.join(' ')}</b></p>` : '');
 
 function choicesHtml(options) {
   return `<div class="choices" id="opts">${options.map((o, i) => `<button class="choice" data-i="${i}">${o}</button>`).join('')}</div>`;
 }
 
 // Signs: what does it mean? Four meanings, one try, then the reading and its kanji.
-export function renderSign(root, step, { signs, glossary, review = false, onDone }) {
+export function renderSign(root, step, { signs, glossary, cue, review = false, onDone }) {
   const sign = step.ref;
   // Wrong meanings from the same scene first: an express-train sign is no decoy in a shop.
   const pool = [...shuffled(step.scene.signs), ...shuffled(signs)].filter((s) => s.m !== sign.m);
   const others = pool.map((s) => s.m).filter((m, i, a) => a.indexOf(m) === i).slice(0, 3);
   const options = shuffled([sign.m, ...others]);
   // Spoken and shown from its kana, so the voice never guesses a lone kanji.
-  const y = sign.y || glossary[sign.t]?.y || sign.t;
+  const y = sign.y || glossary[sign.t]?.y || cue?.readingOf?.(sign.t) || sign.t;
+  const ruby = cue ? signRuby(sign.t, y, cue) : { html: sign.t, untaught: { n5: [], beyond: [] } };
   root.innerHTML = `
     <div class="card sign-card">
       ${head('Sign', step)}
-      <div class="sign-stage">${signHtml(sign, true)}</div>
+      <div class="sign-stage">${signHtml(sign, true, ruby.html)}</div>
+      ${legendHtml(ruby.untaught)}
       <p class="en center" id="ask">What does it mean?</p>
       <div id="reveal" hidden>
         <p class="sign-read"><span class="jp">${y}</span> <span class="ro">${romaji(y)}</span> ${sayBtn(y)}</p>
@@ -167,6 +207,8 @@ export function renderSign(root, step, { signs, glossary, review = false, onDone
   let clean = true;
   const finish = () => {
     root.querySelector('#reveal').hidden = false;
+    // Kana over untaught N5 kanji wait until now, so they never answer the question for you.
+    root.querySelector('.sign-card').classList.add('answered');
     root.querySelector('#ask').hidden = true;
     settle(root, options.indexOf(sign.m), clean ? `Right: ${sign.m}.` : `It means ${sign.m}.`, clean);
     root.querySelector('#after').innerHTML = '<button class="btn" id="cont">Continue</button>';

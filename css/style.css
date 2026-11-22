@@ -881,6 +881,7 @@ details.more[open] summary::after{content:"−"}
 .qz-tag.on{color:var(--act);box-shadow:inset 0 0 0 1.5px var(--act-line)}
 .qz-q{font-size:17px;font-weight:650;text-align:center;margin-top:4px}
 .qz-mean{font-size:40px;font-weight:800;letter-spacing:-.02em;text-align:center;line-height:1.15;padding:18px 0 6px}
+.qz-say{font-size:48px;font-weight:600;text-align:center;line-height:1.2;padding:16px 0 2px}
 .qz-big{font-size:64px;font-weight:600;line-height:1.2;text-align:center;padding:10px 0 2px}
 .qz-big u{text-decoration:none;box-shadow:inset 0 -.14em 0 var(--act-soft)}
 .qz-opts{grid-template-columns:1fr 1fr}
@@ -1484,7 +1485,7 @@ a.btn{text-decoration:none}
   box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--gold) 26%,transparent),inset 0 1px 0 rgba(255,255,255,.06),var(--shadow)}
 
 /* Kanji check: one card, tap to reveal, swipe right if known by heart, left if not. */
-.ck{--l:0;--r:0;display:flex;flex-direction:column;gap:12px;flex:1;min-height:0}
+.ck{--l:0;--r:0;--d:0;display:flex;flex-direction:column;gap:12px;flex:1;min-height:0}
 /* A card dragged or flying off the side never widens the page. */
 html:has(.ck),body:has(.ck){overflow-x:clip}
 /* The deck: the top card with up to two more peeking out below it. */
@@ -1537,9 +1538,9 @@ html:has(.ck),body:has(.ck){overflow-x:clip}
   background:color-mix(in srgb,var(--card) 80%,transparent)}
 .ck-tint.l{right:18px;color:var(--bad);box-shadow:inset 0 0 0 2.5px var(--bad);opacity:var(--l);transform:rotate(12deg) scale(calc(.8 + var(--l) * .2))}
 .ck-tint.r{left:18px;color:var(--good);box-shadow:inset 0 0 0 2.5px var(--good);opacity:var(--r);transform:rotate(-12deg) scale(calc(.8 + var(--r) * .2))}
-.ck-card.fly-l,.ck-card.fly-r{opacity:0;transition:transform .2s ease-in,opacity .2s ease-in;pointer-events:none}
-/* Not yet / Know it, with the deck's pips between them. */
-.ck-btns{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;padding:0 6px calc(6px + env(safe-area-inset-bottom))}
+.ck-card.flying{opacity:0;transition:transform .2s ease-in,opacity .2s ease-in;pointer-events:none}
+/* Forgot / Slow / Knew it, under the deck's pips. */
+.ck-btns{display:grid;grid-template-columns:repeat(3,1fr);justify-items:center;align-items:center;gap:10px;padding:0 6px calc(6px + env(safe-area-inset-bottom))}
 .ck-btn{display:flex;flex-direction:column;align-items:center;gap:5px;min-width:72px;background:none;color:inherit;font:inherit}
 .ck-btn small{font-size:12px;font-weight:650;color:var(--mute)}
 .ck-o{position:relative;width:62px;height:62px;border-radius:50%;display:grid;place-items:center;background:var(--card);transition:transform .15s ease}
@@ -1549,12 +1550,16 @@ html:has(.ck),body:has(.ck){overflow-x:clip}
 .ck-btn.no .ck-o::before{background:color-mix(in srgb,var(--bad) 22%,transparent);opacity:var(--l)}
 .ck-btn.yes .ck-o{color:var(--good);box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--good) 45%,transparent),var(--shadow);transform:scale(calc(1 + var(--r) * .1))}
 .ck-btn.yes .ck-o::before{background:color-mix(in srgb,var(--good) 22%,transparent);opacity:var(--r)}
+.ck-btn.slow .ck-o{color:var(--r-object);box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--r-object) 45%,transparent),var(--shadow);transform:scale(calc(1 + var(--d) * .1))}
+.ck-btn.slow .ck-o::before{background:color-mix(in srgb,var(--r-object) 22%,transparent);opacity:var(--d)}
 .ck-btn:disabled{opacity:.3}
 .ck-btn:not(:disabled):active .ck-o{transform:scale(.92)}
 .ck-pips{display:flex;flex-wrap:wrap;justify-content:center;align-content:center;gap:6px;min-width:0}
 .ck-pips i{width:7px;height:7px;border-radius:50%;background:var(--line)}
 .ck-pips i.y{background:var(--good)}
 .ck-pips i.n{background:var(--bad)}
+.ck-pips i.s{background:var(--r-object)}
+.ck>.ck-pips{margin:-4px 0 2px}
 .ck-pips i.now{background:var(--ink);box-shadow:0 0 0 2.5px color-mix(in srgb,var(--ink) 22%,transparent)}
 .ck-done h2 small{font-size:.5em;color:var(--mute)}
 .ck-tiles{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:8px}
@@ -1571,3 +1576,51 @@ html:has(.ck),body:has(.ck){overflow-x:clip}
 .hero.done-hero.ck-done.gold{background:radial-gradient(110% 80% at 50% 0%,color-mix(in srgb,var(--gold) 14%,transparent),transparent 65%),linear-gradient(180deg,var(--raised),var(--card));
   box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--gold) 26%,transparent),inset 0 1px 0 rgba(255,255,255,.06),var(--shadow)}
 @media (prefers-reduced-motion:no-preference){.ck-tile.gold{animation:pop-in .45s calc(.25s + var(--d)) ease-out both}}
+/* Kanji check: Slow is a swipe down. Its stamp grows in at the foot of the card. */
+.ck-card.open{touch-action:none}
+.ck-tint.d{top:auto;bottom:18px;left:50%;color:var(--r-object);box-shadow:inset 0 0 0 2.5px var(--r-object);opacity:var(--d);transform:translateX(-50%) scale(calc(.8 + var(--d) * .2))}
+.ck-card .ck-wash{box-shadow:inset 0 0 0 calc(var(--d) * 2px) var(--r-object)}
+/* Question cards the app grades: the reading of a word, or the kanji among look-alikes. */
+.ck-quiz{cursor:default;gap:6px}
+.ck-qword{font-size:64px;font-weight:600;line-height:1.15}
+.ck-qword u{text-decoration-color:var(--act);text-decoration-thickness:3px;text-underline-offset:10px}
+.ck-qsub{font-size:14px;color:var(--mute)}
+.ck-qsay{font-size:52px;font-weight:600;line-height:1.2}
+.ck-qmean{font-size:34px;font-weight:800;letter-spacing:-.02em;line-height:1.15;padding:0 8px;text-wrap:balance}
+.ck-quiz .ck-hint{margin-top:12px}
+.ck-quiz .ck-ans{min-height:0;margin-top:0}
+.ck-quiz.missed{justify-content:flex-start;padding-top:48px}
+.ck-quiz.missed .ck-hint,.ck-quiz.missed .ck-qsub{display:none}
+.ck-quiz.missed .ck-qword{font-size:40px}
+.ck-quiz.missed .ck-qsay{font-size:32px}
+.ck-quiz.missed .ck-qmean{display:none}
+.ck-qk{font-size:44px;line-height:1.1;margin-top:6px}
+.ck-opts{grid-template-columns:1fr 1fr;padding:0 2px calc(6px + env(safe-area-inset-bottom))}
+.ck-next{margin-bottom:calc(6px + env(safe-area-inset-bottom))}
+/* Trip signs: kana over kanji the course hasn't taught. Taught kanji stay bare, so you read them yourself. */
+.sign ruby{ruby-position:over}
+.sign rt{font-size:.36em;font-weight:600;letter-spacing:0;line-height:1;padding-bottom:2px;opacity:.85}
+.sign-card:not(.answered) .rb.n5 rt{visibility:hidden}
+.sign span.rb{text-decoration:underline dotted;text-underline-offset:6px}
+.sign-legend{margin:2px 0 0;text-align:center;font-size:12.5px;color:var(--mute)}
+.sign-legend b{font-size:14px;font-weight:600;color:var(--ink2);letter-spacing:.08em}
+/* Short phones (iPhone SE, Safari with its bars showing): the check fits without scrolling. */
+@media (max-height:720px){
+  .ck{gap:8px}
+  .ck-stack{min-height:0;margin-bottom:12px}
+  .ck-card{padding:38px 14px 14px}
+  .ck-k{width:104px;font-size:74px;border-radius:18px}
+  .ck-ans{min-height:0;margin-top:10px;gap:4px}
+  .ck-mean{font-size:19px}
+  .ck-read .jp{font-size:23px}
+  .ck-words{margin-top:4px}
+  .ck-words>span{padding:6px 0}
+  .ck-o{width:54px;height:54px}
+  .ck-qword{font-size:48px}
+  .ck-qsay{font-size:42px}
+  .ck-opts .opt{min-height:56px}
+  .ck-opts .opt.qk{min-height:64px;font-size:30px}
+  .ck-quiz.missed .ck-words>span+span,.ck-quiz.missed .ck-other{display:none}
+  .ck-quiz.missed{padding-top:36px}
+  .ck-quiz.missed .ck-qk{font-size:36px;margin-top:2px}
+}

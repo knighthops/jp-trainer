@@ -39,12 +39,17 @@ function misreadings(k, word) {
   const before = y.slice(0, hit.start);
   const after = y.slice(hit.start + hit.length);
   const stems = [...k.on, ...k.kun].map((r) => toHiragana(r.split(/[-.]/)[0])).filter(Boolean);
-  return [...new Set(stems.map((s) => before + s + after))].filter((r) => r !== y);
+  return [...new Set(stems.map((s) => before + s + after))].filter((r) => r !== y && possibleKana(r));
 }
+
+// Kana Japanese can't produce: っ before a vowel, n, m, y, r or w sound, or after ん, or a word
+// starting with ん or っ. よんっか and さんっつ are never right, so they make giveaway options.
+export const possibleKana = (r) => !/^[んっ]|んっ|っ(?:$|[あいうえおなにぬねのまみむめもやゆよらりるれろわをんっー])/.test(r);
 
 // One question. `pool` is every kanji that can serve as a distractor; `wordOf` looks up a word.
 // `n` picks which of the kanji's words to ask, so repeat reviews rotate through its readings.
-export function quizQuestion(k, kind, { pool, wordOf, rng = Math.random, n = 0 }) {
+// `say` is the kana the pick prompt leads with: no wrong option may be read that way too.
+export function quizQuestion(k, kind, { pool, wordOf, rng = Math.random, n = 0, say = null }) {
   const words = readWords(k, wordOf);
   if (kind === 'read' && !words.length) kind = 'mean';
   const near = similarKanji(k, pool, rng);
@@ -54,13 +59,14 @@ export function quizQuestion(k, kind, { pool, wordOf, rng = Math.random, n = 0 }
     const wrong = misreadings(k, word);
     // Not enough misreadings: other words' readings of a similar length.
     const fill = shuffle(pool.flatMap((x) => readWords(x, wordOf)).map((w) => toHiragana(w.y))
-      .filter((r) => r !== right && Math.abs(r.length - right.length) <= 1), rng);
+      .filter((r) => r !== right && possibleKana(r) && Math.abs(r.length - right.length) <= 1), rng);
     const options = [...new Set([...shuffle(wrong, rng), ...fill])].filter((r) => r !== right).slice(0, 3);
     return finish({ kind, k, word, options: [right, ...options] }, rng);
   }
   if (kind === 'pick') {
-    const options = [k.k, ...near.filter((x) => x.mean[0] !== k.mean[0]).slice(0, 3).map((x) => x.k)];
-    return finish({ kind, k, options }, rng);
+    const sounds = (x) => [...x.on, ...x.kun].flatMap((r) => [r.replace(/[-.]/g, ''), r.split(/[-.]/)[0]]).map(toHiragana);
+    const options = [k.k, ...near.filter((x) => x.mean[0] !== k.mean[0] && !(say && sounds(x).includes(say))).slice(0, 3).map((x) => x.k)];
+    return finish({ kind, k, say, options }, rng);
   }
   const seen = new Set([k.mean[0]]);
   const options = [k.mean[0]];
