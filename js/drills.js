@@ -180,6 +180,16 @@ export function orders(sentence) {
   return [texts, ...(sentence.alts || []).map((alt) => alt.map((i) => texts[i]))];
 }
 
+// Every accepted answer. A Casual sentence also takes each order without を, as friends say it.
+export function answers(sentence) {
+  const list = orders(sentence);
+  if (!sentence.casual) return list;
+  return [...list, ...list.filter((o) => o.includes('を')).map((o) => o.filter((t) => t !== 'を'))];
+}
+
+// True once the tiles placed make a whole accepted answer.
+export const isComplete = (sentence, placed) => answers(sentence).some((o) => o.length === placed.length && o.every((t, i) => t === placed[i]));
+
 // The sheet that slides up after every answer, whatever the exercise: right or wrong, a
 // headline, then what was asked with its reading and meaning, and one Continue.
 // A drawn tick or cross for the sheet's badge and the answer marks.
@@ -248,7 +258,7 @@ const doneHeadline = (clean) => (clean ? 'Correct' : 'Got there');
 
 export function validNext(sentence, placed) {
   const next = new Set();
-  for (const order of orders(sentence)) {
+  for (const order of answers(sentence)) {
     if (placed.every((t, i) => order[i] === t) && order[placed.length]) next.add(order[placed.length]);
   }
   return next;
@@ -273,12 +283,14 @@ const SPARE = ['を', 'に', 'で', 'へ', 'と', 'も', 'が', 'は'];
 const STANDS_IN = { が: 'は', は: 'が', に: 'へ', へ: 'に' };
 export function decoysFor(sentence, rng = Math.random, taught = () => true) {
   const used = new Set(sentence.blocks.map((b) => b.t));
-  const options = SPARE.filter((p) => taught(p) && !used.has(p) && !used.has(STANDS_IN[p]));
+  const options = SPARE.filter((p) => taught(p) && !used.has(p) && !used.has(STANDS_IN[p])
+    // In Casual, を is optional, so it is never a wrong tile.
+    && !(sentence.casual && p === 'を'));
   const n = sentence.blocks.length >= 5 ? 2 : 1;
   return shuffled(options, rng).slice(0, n).map((t, k) => ({ t, r: 'particle', i: sentence.blocks.length + k, decoy: true }));
 }
 
-export function renderSentence(root, sentence, { hints, glossary = {}, review = false, taught, onDone }) {
+export function renderSentence(root, sentence, { hints, glossary = {}, review = false, taught, ruby = null, onDone }) {
   // Keep shuffling until the pool is not already a correct answer.
   const accepted = orders(sentence).map((o) => o.join('|'));
   let pool = shuffled([...sentence.blocks.map((b, i) => ({ ...b, i })), ...decoysFor(sentence, Math.random, taught)]);
@@ -292,8 +304,12 @@ export function renderSentence(root, sentence, { hints, glossary = {}, review = 
 
   root.innerHTML = `
     <div class="card">
-      <span class="caps">Build the sentence</span>
-      <p class="en">${sentence.en}</p>
+      ${sentence.from
+    ? `<span class="caps">Say it casually</span>
+      <p class="from jp">${sentence.from.split(/\s+/).map((w) => ruby?.(w) || w).join('')}</p>
+      <p class="small muted">${sentence.en}</p>`
+    : `<span class="caps">Build the sentence</span>
+      <p class="en">${sentence.en}</p>`}
       <div class="answer" id="ans" aria-live="polite">${'<i class="slot"></i>'.repeat(sentence.blocks.length)}</div>
     </div>
     <div class="reach">
@@ -339,9 +355,11 @@ export function renderSentence(root, sentence, { hints, glossary = {}, review = 
     slot.remove();
     fb.textContent = '';
     fb.className = 'fb';
-    if (placed.length === sentence.blocks.length) {
+    if (isComplete(sentence, placed)) {
       ans.classList.add('done');
-      const said = sentence.blocks.map((b) => b.t).join(' ');
+      // A shorter answer (を left out) leaves empty slots behind.
+      ans.querySelectorAll('.slot').forEach((s) => s.remove());
+      const said = placed.join(' ');
       ans.insertAdjacentHTML('beforeend', sayBtn(said));
       fb.textContent = '';
       fb.className = 'fb';
@@ -351,7 +369,7 @@ export function renderSentence(root, sentence, { hints, glossary = {}, review = 
         headline: doneHeadline(clean),
         title: sentence.en,
         picked: tries,
-        lines: [`<span class="romaji shown">${romajiLine(sentence.blocks.map((b) => b.t), glossary, '.')}</span>`, sentence.note ? `<span class="small muted">${sentence.note}</span>` : ''],
+        lines: [`<span class="romaji shown">${romajiLine(placed, glossary, /[?？]\s*$/.test(sentence.en || '') ? '?' : '.')}</span>`, sentence.note ? `<span class="small muted">${sentence.note}</span>` : ''],
       }, () => onDone(clean));
     }
   };
@@ -473,12 +491,13 @@ export function bindGloss(zone, glossary) {
   });
 }
 
-export function renderParticle(root, item, set, cards, { glossary, review = false, onDone }) {
+export function renderParticle(root, item, set, cards, { glossary, review = false, mark = null, onDone }) {
   let clean = true;
   const tries = [];
   const before = tokenize(item.before ?? set.noun, glossary);
   const after = tokenize(item.after, glossary);
-  const wordBtn = (w) => `<button class="word" data-word="${w}">${w}</button>`;
+  // mark: Casual's marked button for a word with a kanji N5 hasn't taught yet.
+  const wordBtn = (w) => mark?.(w) || `<button class="word" data-word="${w}">${w}</button>`;
   const line = (fill) => `${before.map(wordBtn).join('')}${
     fill ? `<button class="word blank" data-word="${fill}">${fill}</button>` : '<span class="blank">&nbsp;</span>'
   }${after.map(wordBtn).join('')}`;

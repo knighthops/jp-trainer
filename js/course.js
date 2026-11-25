@@ -19,6 +19,67 @@ export const JLPT_LEVELS = [
   },
 ];
 export const UNIT_FILES = JLPT_LEVELS.flatMap((l) => l.units);
+
+// The Casual course (docs/casual-n4-plan.md): everyday spoken grammar, studied alongside N5.
+// Its units (ids c01…) have their own unlock chain and next step; what you've been taught is
+// shared with N5. It opens once N5 unit CASUAL_GATE is passed.
+export const CASUAL_FILES = ['casual-01-04'];
+export const CASUAL_GATE = 8;
+export const CASUAL_CHAPTERS = [
+  { n: 1, title: 'て form, casual', sub: 'てる, まだ〜てない, てもいい？' },
+  { n: 2, title: 'た form', sub: 'たことがある, たほうがいい, たら' },
+  { n: 3, title: 'ない form', sub: 'ないといけない, なくてもいい, すぎる' },
+  { n: 4, title: 'Dictionary form', sub: 'くなる, てから, たり, やすい' },
+  { n: 5, title: 'Potential', sub: 'できる, ようになる' },
+  { n: 6, title: 'Plain form', sub: 'と思う, って言ってた, かも, そう' },
+  { n: 7, title: 'Volitional', sub: 'ようと思ってる, てみる' },
+  { n: 8, title: 'Slips and feelings', sub: 'ちゃった, ても, のに' },
+  { n: 9, title: 'Favors and asking', sub: 'てくれる, てもらう, かどうか' },
+  { n: 10, title: 'Thinking out loud', sub: 'かな, みたい, ておく' },
+  { n: 11, title: 'If and because', sub: 'ので, なら, と, ば' },
+  { n: 12, title: 'Real talk', sub: 'んだけど, the passive' },
+];
+// Open once N5 unit CASUAL_GATE (or any later one, by testing out) is passed.
+export const casualOpen = (state, data) => ((data.track === 'casual' ? data._otherUnits : data.units) || []).some((u) => u.n >= CASUAL_GATE && state.course?.passed?.[u.id]);
+export const trackOf = (unit) => (unit?.track === 'casual' ? 'casual' : 'n5');
+// How a unit is numbered on screen: N5's are 1–24, Casual's C1, C2…, so the two never mix up.
+export const unitNo = (unit) => (trackOf(unit) === 'casual' ? `C${unit.n}` : `${unit.n}`);
+
+// The course data as one track sees it. N5 is `data` itself. Casual shares everything but its
+// lesson order: Casual lessons first, then N5's. A word or particle whose lesson is in the other
+// track counts as taught once that lesson is done (see doneElsewhere), so studying either course
+// first works, and a Casual lesson teaches an N5 word it needs early, like N5 already does.
+export function trackData(data, track) {
+  if (track !== 'casual') return data;
+  if (data._casualView) return data._casualView;
+  const v = Object.create(data);
+  v.units = data.casualUnits || [];
+  v.track = 'casual';
+  v._otherUnits = data.units || [];
+  v._ownCount = v.units.reduce((n, u) => n + u.lessons.length, 0);
+  v._earlyMax = 3;
+  // Caches are per view, so Casual never reads N5's.
+  for (const k of ['_firstLesson', '_taughtAt', '_particles', '_kanjiFirst', '_pairs']) v[k] = null;
+  data._casualView = v;
+  return v;
+}
+
+// Every lesson in the order this view teaches them, each with its unit.
+function lessonPairs(data) {
+  if (data._pairs) return data._pairs;
+  const own = (data.units || []).flatMap((u) => u.lessons.map((l) => ({ u, l })));
+  const other = (data._otherUnits || []).flatMap((u) => u.lessons.map((l) => ({ u, l })));
+  data._pairs = [...own, ...other];
+  return data._pairs;
+}
+const lessonOrder = (data) => lessonPairs(data).map((p) => p.l);
+const ownCount = (data) => data._ownCount ?? lessonPairs(data).length;
+// A lesson index in the other track counts once you've done that lesson or passed its unit.
+function doneElsewhere(data, state, i) {
+  if (i === undefined || i < ownCount(data)) return false;
+  const { u, l } = lessonPairs(data)[i];
+  return Boolean(state.course?.done?.[l.id] || state.course?.passed?.[u.id]);
+}
 export const EXAM_FILES = JLPT_LEVELS.flatMap((l) => l.exams);
 // The level a course or exam file belongs to.
 export const levelOfFile = (f) => JLPT_LEVELS.find((l) => l.units.includes(f) || l.exams.includes(f))?.id;
@@ -108,7 +169,10 @@ export function autoAlts(blocks) {
 
 export function toSentence(d, glossary) {
   const blocks = toBlocks(d.b, glossary);
-  return { id: d.id, en: d.en, note: d.note, lesson: d.lesson, alts: d.alts || autoAlts(blocks), blocks, raw: { b: d.b } };
+  // `from` (Casual's "Say it casually"): the polite sentence you turn into the casual one.
+  // Casual speech drops を (映画 見た), so a Casual sentence takes it either way.
+  const casual = /^c\d/.test(d.lesson || d.id || '');
+  return { id: d.id, en: d.en, note: d.note, lesson: d.lesson, ...(casual ? { casual: true } : {}), alts: d.alts || autoAlts(blocks), blocks, ...(d.from ? { from: d.from } : {}), raw: { b: d.b, ...(d.from ? { from: d.from } : {}) } };
 }
 
 export function toChoice(d) {
@@ -120,18 +184,20 @@ export function toChoice(d) {
 }
 
 // Adds the course's words to the glossary and vocabulary, and its drills to the review pool.
-export function mergeCourse(data, files) {
+export function mergeCourse(data, files, casualFiles = []) {
   // Files come in UNIT_FILES order, so each unit can be tagged with its level.
   const tagged = files.map((list, i) => (list || []).map((u) => ({ level: levelOfFile(UNIT_FILES[i]) ?? JLPT_LEVELS[0].id, ...u })));
   const units = joinUnits(tagged).sort((a, b) => a.n - b.n);
+  const casual = joinUnits(casualFiles.map((list) => (list || []).map((u) => ({ ...u, track: 'casual' })))).sort((a, b) => a.n - b.n);
   const add = (lex) => {
     for (const [w, [y, m, ro]] of Object.entries(lex || {})) {
       if (!data.glossary[w]) data.glossary[w] = { y, m, ro: ro ?? romaji(y) };
     }
   };
-  units.forEach((u) => add(u.lex));
+  // N5 first, so a word in both keeps N5's entry.
+  [...units, ...casual].forEach((u) => add(u.lex));
   const known = new Set(data.vocab.map((v) => v.w));
-  for (const u of units) {
+  for (const u of [...units, ...casual]) {
     for (const l of u.lessons) {
       for (const w of l.words || []) {
         if (!known.has(w)) {
@@ -143,8 +209,9 @@ export function mergeCourse(data, files) {
     }
   }
   data.units = units;
+  data.casualUnits = casual;
   data.courseChoices = [];
-  for (const d of units.flatMap(drillsOf)) {
+  for (const d of [...units, ...casual].flatMap(drillsOf)) {
     if (d.b) data.sentences.push(toSentence(d, data.glossary));
     else data.courseChoices.push(toChoice(d));
   }
@@ -217,7 +284,7 @@ const GROUP = 2;
 const NOT_TAUGHT_EARLY = new Set(['では', 'じゃ', 'ここ', 'そこ', 'あそこ', 'どこ']);
 const EARLY_MAX = 4;
 export function wordsNeededEarly(unit, lesson, data) {
-  const order = (data.units || []).flatMap((u) => u.lessons);
+  const order = lessonOrder(data);
   const at = order.indexOf(lesson);
   if (at < 0) return [];
   const first = new Map();
@@ -225,7 +292,9 @@ export function wordsNeededEarly(unit, lesson, data) {
   const vocab = new Set((data.vocab || []).map((v) => v.w));
   // Conjugated verbs count as their dictionary form, and a blank's answer counts too.
   const used = (lesson.drills || []).flatMap((d) => drillWords(d, data));
-  return [...new Set(used)].filter((w) => vocab.has(w) && first.get(w) > at && !NOT_TAUGHT_EARLY.has(w)).slice(0, EARLY_MAX);
+  // In Casual, N5's first units are known already (Casual opens after them): nothing to borrow.
+  const gateKnown = (i) => data.track === 'casual' && i >= ownCount(data) && lessonPairs(data)[i].u.n <= CASUAL_GATE;
+  return [...new Set(used)].filter((w) => vocab.has(w) && first.get(w) > at && !gateKnown(first.get(w)) && !NOT_TAUGHT_EARLY.has(w)).slice(0, data._earlyMax ?? EARLY_MAX);
 }
 
 // Verb stems, so a conjugated verb in a drill counts as its dictionary form:
@@ -286,7 +355,7 @@ export function tokenWords(token, data) {
 // The course words a drill can't do without: its sentence and its answer. Wrong options are
 // checked one by one (wrongWords), since an untaught one can simply be left off.
 export function drillWords(d, data) {
-  const shown = [...words(String(d.b || d.c || '').replace('___', ' ')), d.a].filter(Boolean);
+  const shown = [...words(String(d.b || d.c || '').replace('___', ' ')), ...(d.from ? words(d.from) : []), d.a].filter(Boolean);
   return [...new Set(shown.flatMap((t) => contentWords(t, data)))];
 }
 
@@ -304,20 +373,22 @@ function contentWords(token, data) {
 function kanjiFirst(data) {
   if (data._kanjiFirst) return data._kanjiFirst;
   const first = new Map();
-  (data.units || []).flatMap((u) => u.lessons).forEach((l, i) => {
+  lessonOrder(data).forEach((l, i) => {
     for (const c of [...(l.kanji || []), ...(l.words || []).join('')]) if (/[一-龯々]/.test(c) && !first.has(c)) first.set(c, i);
   });
   data._kanjiFirst = first;
   return first;
 }
 // known(id) says whether this sitting or your items already have it (k:字 or w:ワード).
-export function strayTaught(token, data, at, known = () => false) {
+// elsewhere(i) says whether lesson i, in the other track, is done.
+export function strayTaught(token, data, at, known = () => false, elsewhere = () => false) {
   let rest = token;
   for (const n of NAMES_LONGEST) rest = rest.split(n).join(' ');
   const first = firstLessonIndex(data);
   const kf = kanjiFirst(data);
-  for (const run of rest.match(/[ァ-ヶー]+/g) || []) if (!((first.get(run) ?? Infinity) < at) && !known(`w:${run}`)) return false;
-  for (const c of rest.match(/[一-龯々]/g) || []) if (!((kf.get(c) ?? Infinity) < at) && !known(`k:${c}`)) return false;
+  const met = (i) => (i ?? Infinity) < Math.min(at, ownCount(data)) || elsewhere(i);
+  for (const run of rest.match(/[ァ-ヶー]+/g) || []) if (!met(first.get(run)) && !known(`w:${run}`)) return false;
+  for (const c of rest.match(/[一-龯々]/g) || []) if (!met(kf.get(c)) && !known(`k:${c}`)) return false;
   return true;
 }
 // A particle offered as a wrong option counts as taught once the lesson that introduces it
@@ -326,18 +397,22 @@ export const TAUGHT_PARTICLES = ['は', 'が', 'を', 'に', 'へ', 'で', 'と'
 export const wrongWords = (option, data) => (TAUGHT_PARTICLES.includes(option) ? [option] : contentWords(option, data));
 // Whether a piece of text shows only what the course has taught before lesson index `at`
 // (a unit test passes the index just past its last lesson).
+// In Casual, a word from N5's first CASUAL_GATE units counts (Casual opens only after them), and
+// so does an N5 word a Casual lesson taught early.
 export function textTaught(text, data, at) {
-  const first = firstLessonIndex(data);
+  const casual = data.track === 'casual';
+  const first = casual ? taughtAtIndex(data).first : firstLessonIndex(data);
   const parts = particleLesson(data);
+  const gate = (i) => casual && i >= ownCount(data) && lessonPairs(data)[i].u.n <= CASUAL_GATE;
   return words(String(text).replace(/[[\]*。、？！?!「」]|___/g, ' ')).every((t) => wrongWords(t, data).every((w) => {
-    if (w.startsWith('?')) return strayTaught(w.slice(1), data, at);
+    if (w.startsWith('?')) return strayTaught(w.slice(1), data, at, () => false, gate);
     const i = first.has(w) ? first.get(w) : parts.get(w);
-    return i === undefined || i < at;
+    return i === undefined || i < at || gate(i);
   }));
 }
 function particleLesson(data) {
   if (data._particles) return data._particles;
-  const order = (data.units || []).flatMap((u) => u.lessons);
+  const order = lessonOrder(data);
   const first = new Map();
   for (const p of TAUGHT_PARTICLES) {
     const i = order.findIndex((l) => String(l.pattern || '').split(/[\s·,/]+/).includes(p)
@@ -358,21 +433,26 @@ export function choiceShown(ref, taught, data) {
 // you have it (or its kanji) as an item, or the course already went past the lesson that
 // teaches it (testing out of a unit); `extra` holds what this sitting has just taught.
 export function isTaught(w, state, data, at, extra = new Set()) {
-  if (w.startsWith('?')) return strayTaught(w.slice(1), data, at, (id) => extra.has(id) || Boolean(state.items[id]));
+  const elsewhere = (i) => doneElsewhere(data, state, i);
+  if (w.startsWith('?')) return strayTaught(w.slice(1), data, at, (id) => extra.has(id) || Boolean(state.items[id]), elsewhere);
   if (extra.has(`w:${w}`) || extra.has(`k:${w}`)) return true;
   if (state.items[`w:${w}`] || state.items[`k:${w}`]) return true;
-  if (TAUGHT_PARTICLES.includes(w) && !firstLessonIndex(data).has(w)) return (particleLesson(data).get(w) ?? Infinity) <= at;
+  if (TAUGHT_PARTICLES.includes(w) && !firstLessonIndex(data).has(w)) {
+    const i = particleLesson(data).get(w);
+    return (i ?? Infinity) <= Math.min(at, ownCount(data) - 1) || elsewhere(i);
+  }
   const first = firstLessonIndex(data).get(w);
   if (first === undefined) return true;
+  // Taught in the other track: known once you've done that lesson there.
+  if (first >= ownCount(data)) return elsewhere(first);
   if (first >= at) return false;
-  const order = (data.units || []).flatMap((u) => u.lessons.map((l) => ({ u, l })));
-  const { u, l } = order[first];
+  const { u, l } = lessonPairs(data)[first];
   return Boolean(state.course?.done?.[l.id] || state.course?.passed?.[u.id]);
 }
 
 export function firstLessonIndex(data) {
   if (data._firstLesson) return data._firstLesson;
-  const order = (data.units || []).flatMap((u) => u.lessons);
+  const order = lessonOrder(data);
   const first = new Map();
   order.forEach((l, i) => (l.words || []).forEach((w) => { if (!first.has(w)) first.set(w, i); }));
   data._firstLesson = first;
@@ -384,12 +464,27 @@ function taughtAtIndex(data) {
   if (data._taughtAt) return data._taughtAt;
   const order = [];
   const first = new Map();
-  for (const unit of data.units || []) for (const lesson of unit.lessons) {
+  for (const { u: unit, l: lesson } of lessonPairs(data)) {
     const i = order.push(lesson) - 1;
     for (const w of [...wordsNeededEarly(unit, lesson, data), ...(lesson.words || [])]) if (!first.has(w)) first.set(w, i);
   }
   data._taughtAt = { order, first };
   return data._taughtAt;
+}
+
+// A Casual lesson can name the N5 lesson it overlaps (`same`). Whichever of the two you reach
+// second is a short refresher. Returns the lesson you met it in (with its unit), or null.
+export function isRefresher(lesson, state, data) {
+  const done = (l, u) => Boolean(state.course?.done?.[l.id] || state.course?.passed?.[u.id]);
+  const n5 = data.track === 'casual' ? data._otherUnits : data.units;
+  const casual = data.track === 'casual' ? data.units : data.casualUnits;
+  if (lesson.same) {
+    const u = (n5 || []).find((x) => x.lessons.some((l) => l.id === lesson.same));
+    const l = u?.lessons.find((x) => x.id === lesson.same);
+    return l && done(l, u) ? { unit: u, lesson: l } : null;
+  }
+  for (const u of casual || []) for (const l of u.lessons) if (l.same === lesson.id && state.course?.done?.[l.id]) return { unit: u, lesson: l };
+  return null;
 }
 
 // How a lesson splits into parts: its new items, LESSON_NEW at a time. `index` is the part
@@ -479,9 +574,22 @@ export function lessonSteps(unit, lesson, state, data, resume = null) {
     if (s) return { type: 'sentence', id: `s:${id}`, ref: s, uses };
     return { type: 'particle', id: `p:${id}`, ref: data.courseChoices.find((c) => c.id === id), set: {}, uses };
   });
+  // Form gym (Casual): each verb waits until it's taught, like any drill.
+  const forms = (lesson.forms || []).map((f, n) => ({ type: 'form', id: `f:${lesson.id}-${n}`, ref: f, uses: [`w:${f.d}`] }));
+  // A refresher (met already in the other course) keeps two drills and two forms.
+  const refresh = isRefresher(lesson, state, data);
+  if (refresh) {
+    drills.splice(2);
+    // The irregular verbs (来る, する, 行く) are the point of a form drill, so they stay.
+    const odd = (f) => /^(来る|する|行く)$/.test(f.ref.d) || /する$/.test(f.ref.d);
+    const kept = [...forms.filter(odd), ...forms.filter((f) => !odd(f))].slice(0, 2);
+    forms.splice(0, forms.length, ...forms.filter((f) => kept.includes(f)));
+  }
+  // Forms come first: the form is what the lesson's sentences are built on.
+  drills.unshift(...forms);
   // The lesson's grammar is practised between the pairs of new items, not saved for the end,
   // each drill as soon as every new word it uses has been taught.
-  const at = (data.units || []).flatMap((u) => u.lessons).indexOf(lesson);
+  const at = lessonOrder(data).indexOf(lesson);
   const taught = new Set();
   // This part's new items count only once taught here, even if a resumed lesson already rated
   // them, so the steps rebuild the same.
@@ -524,7 +632,7 @@ export function lessonSteps(unit, lesson, state, data, resume = null) {
   const word = [...newWords.filter((v) => v !== spell), ...newWords, ...known].find(compoundable);
   if (word) extra.push({ type: 'compound', key: `compound:${word.w}`, ref: word });
   // No listening step: the course stays silent so music from other apps keeps playing.
-  const intro = { type: 'lesson', ref: lesson, unit };
+  const intro = { type: 'lesson', ref: lesson, unit, ...(refresh ? { refresh } : {}) };
   if (more) return [intro, ...groups, ...extra, ...spread, { type: 'lessonPart', id: lesson.id }];
   // The reading closes the Words lesson, and the dialogue closes the unit, after every word it uses is taught.
   const isLast = unit.lessons.at(-1) === lesson;

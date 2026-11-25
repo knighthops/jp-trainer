@@ -1428,6 +1428,26 @@ a.btn{text-decoration:none}
 /* A wrong answer's Continue is the calm "go on" colour, not an alarm. */
 .sheet.bad .btn{background:var(--act);box-shadow:0 1px 0 rgba(255,255,255,.25) inset,0 6px 18px -8px var(--act)}
 
+/* Two courses: the N5 · Casual switch, Casual's intro, its Home card, and the day's load line. */
+.course-switch{margin:0 0 14px}
+.casual-intro strong{font-size:17px}
+.casual-intro p{margin:0}
+.casual-next{display:flex;flex-direction:row;align-items:center;gap:12px;width:100%;text-align:left;color:inherit;font:inherit;border:0;cursor:pointer}
+.casual-next .grow{flex:1;display:flex;flex-direction:column;gap:3px;min-width:0}
+.casual-next .caps{color:var(--act)}
+.dayload{display:flex;flex-wrap:wrap;gap:6px;margin:0;color:var(--ink2)}
+.dayload b{color:var(--ink);font-weight:650}
+/* Casual: kanji N5 hasn't taught yet get kana above and a quiet dotted underline, never red. */
+.word.untaught{text-decoration:underline dotted var(--act);text-decoration-thickness:2px;text-underline-offset:6px}
+.word.untaught rt{font-size:10px;color:var(--ink2);font-weight:400}
+.from rt,.kpeek-host rt{font-size:10px;color:var(--ink2);font-weight:400}
+.kcoming{margin:6px 0 0;color:var(--act)}
+.kcoming b{margin-right:6px;color:var(--ink)}
+.refresher{margin:0;padding:8px 10px;border-radius:10px;background:var(--act-soft);color:var(--ink)}
+.form-target{text-align:center;margin:6px 0 0;color:var(--act);font-size:15px}
+.answer.spell .block.given{opacity:.55}
+p.from{font-size:22px;margin:4px 0 0}
+
 /* Themes: Settings → Theme sets data-theme on <html>. Each one swaps the surfaces and the
    "do this next" colour; right (green), wrong (coral) and stars (gold) keep their meaning. */
 :root[data-theme="ai"]{

@@ -2,7 +2,7 @@
 // and grade a test; startExam runs it on screen. In the data, the first option of a
 // question is the right one. Options are shuffled here, with a fixed order per exam
 // so a mock exam can be resumed.
-import { words, PASS_SHARE, textTaught } from './course.js';
+import { words, PASS_SHARE, textTaught, CASUAL_GATE, unitNo } from './course.js';
 import { shuffled, romajiLine, bindGloss, glossHtml, compareHtml, MARK_SVG } from './drills.js';
 import { sameMeaning } from './exercises.js';
 import { speakLines, cancel, SLOW, NORMAL } from './tts.js';
@@ -210,7 +210,9 @@ export function unitTest(unit, data, rng = Math.random) {
   // Wrong options look like the right one: a verb's options are verbs, an adjective's are
   // adjectives. Words sharing a kanji come first (大学 next to 大人 and 学生), then words from
   // the course so far. Readings come from other kanji words, nearest in length, never katakana.
-  const known = new Set(data.units.slice(0, data.units.indexOf(unit) + 1).flatMap((u) => u.lessons.flatMap((l) => l.words || [])));
+  // A Casual test can also use N5's first units: Casual opens only once they're passed.
+  const prior = data.track === 'casual' ? (data._otherUnits || []).filter((u) => u.n <= CASUAL_GATE) : [];
+  const known = new Set([...prior, ...data.units.slice(0, data.units.indexOf(unit) + 1)].flatMap((u) => u.lessons.flatMap((l) => l.words || [])));
   // Nothing on a test is from a later unit: not a wrong option, not a word in a question.
   const end = data.units.slice(0, data.units.indexOf(unit) + 1).reduce((n, u) => n + u.lessons.length, 0);
   // The question and its answer must be taught; an untaught wrong option is left off, and
@@ -255,7 +257,7 @@ export function unitTest(unit, data, rng = Math.random) {
   }
   // The spelling question picks its word first, so a unit with few kanji words still gets one;
   // the word questions then leave that word alone. Set in one of the unit's sentences if it can be.
-  const taughtKanji = data.units.slice(0, data.units.indexOf(unit) + 1)
+  const taughtKanji = [...prior, ...data.units.slice(0, data.units.indexOf(unit) + 1)]
     .flatMap((u) => u.lessons.flatMap((l) => l.kanji || []));
   const lines = unit.lessons.flatMap((l) => [...l.drills.filter((d) => d.b).map((d) => d.b), ...(l.examples || []).map((e) => e.t)]).filter(ok);
   const inStars = new Set(order.flatMap((q) => words(q.w)));
@@ -272,7 +274,8 @@ export function unitTest(unit, data, rng = Math.random) {
   const chosen = shuffled(taught.filter((v) => !quizzed.has(v.w) && v !== spelled?.v), rng).slice(0, 6);
   const wordQs = chosen.map((v, i) => (i % 2 === 0 && v.w !== v.y
     ? { id: `${unit.id}-r${i}`, q: `[${v.w}]`, ask: 'How is this read?', o: [v.y, ...others('y', v.y, v)], w: `${v.w} is read ${v.y}: ${v.m}.`, word: v.w }
-    : { id: `${unit.id}-m${i}`, q: `[${v.w}]`, ask: 'What does this mean?', o: [v.m, ...others('m', v.m, v)], w: `${v.w} means ${v.m}.`, word: v.w }));
+    : { id: `${unit.id}-m${i}`, q: `[${v.w}]`, ask: 'What does this mean?', o: [v.m, ...others('m', v.m, v)], w: `${v.w} means ${v.m}.`, word: v.w }))
+    .filter(fair);
   const written = (unit.quiz || []).map((q, i) => ({ ...q, id: `${unit.id}-q${i}` })).map(trim).filter(fair);
   // Units that teach few words borrow fill-the-blank drills, so no test is too short to be fair.
   const blanks = unit.lessons.flatMap((l) => l.drills).filter((d) => d.c)
@@ -294,10 +297,10 @@ export function unitTest(unit, data, rng = Math.random) {
   written.push(...shuffled(blanks, rng).slice(0, room));
   return {
     key: unit.id,
-    title: `Unit ${unit.n} test`,
+    title: `Unit ${unitNo(unit)} test`,
     scoring: 'unit',
     sections: [{
-      title: `Unit ${unit.n} test`, minutes: null,
+      title: `Unit ${unitNo(unit)} test`, minutes: null,
       // Questions on one passage stay together at the end, as on the exam.
       questions: [...shuffled([...wordQs, ...written.filter((q) => !q.p)], rng), ...written.filter((q) => q.p)].map((q) => prepared(q, rng)),
     }],

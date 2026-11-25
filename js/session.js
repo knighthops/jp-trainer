@@ -38,7 +38,8 @@ export function reviewSteps(state, data, now = Date.now(), { cards = 15, grammar
   const pick = (list, n) => list.filter(due).sort(oldestFirst).slice(0, n);
   const saved = state.talk?.saved || {};
   // A grammar point is practised through one of its lesson's drills, a different one each time.
-  const lessons = (data.units || []).flatMap((unit) => unit.lessons.map((lesson) => ({ unit, lesson })));
+  // One queue for both courses: N5 and Casual grammar come due side by side.
+  const lessons = [...(data.units || []), ...(data.casualUnits || [])].flatMap((unit) => unit.lessons.map((lesson) => ({ unit, lesson })));
   const grammarSteps = pick(lessons.map(({ unit, lesson }) => ({ id: grammarId(lesson), unit, lesson })), grammar)
     .map(({ id, unit, lesson }) => {
       const options = grammarDrills(lesson, data);

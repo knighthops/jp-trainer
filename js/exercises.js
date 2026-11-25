@@ -78,6 +78,33 @@ export function spellPuzzle(v, rng = Math.random) {
   return { word: v, tiles, pool };
 }
 
+// Form gym (Casual): a verb in its dictionary form and a target form; you build the answer
+// from kana tiles. Spares are the sounds forms mix up (っ for ん, い for っ, で for て).
+const FORM_SPARES = ['っ', 'ん', 'い', 'で', 'て', 'た', 'だ', 'き', 'り', 'み'];
+export function formPuzzle(f, glossary = {}, rng = Math.random) {
+  // The part that stays the same as the dictionary form (たべ in たべて) is given; you build the ending.
+  const all = kanaTiles(f.y);
+  const dict = glossary[f.d]?.y ? kanaTiles(glossary[f.d].y) : [];
+  let same = 0;
+  while (same < all.length - 1 && same < dict.length - 1 && all[same] === dict[same]) same++;
+  const given = all.slice(0, same);
+  const tiles = all.slice(same);
+  const spares = shuffled(FORM_SPARES.filter((t) => !tiles.includes(t)), rng).slice(0, 3);
+  const pool = shuffled([...tiles.map((t, i) => ({ t, i })), ...spares.map((t, k) => ({ t, i: tiles.length + k, spare: true }))], rng);
+  const g = glossary[f.d];
+  const m = g?.m || '';
+  return {
+    word: { w: f.a, y: f.y, m },
+    tiles,
+    given,
+    pool,
+    tag: `Form gym · ${f.f}`,
+    prompt: `<p class="qz-big jp">${f.d}</p><p class="small muted center">${g && g.y !== f.d ? `<span class="jp">${g.y}</span> · ` : ''}${m}</p>
+      <p class="form-target">→ <b>${f.f}</b></p>`,
+    lines: [`<span class="small">${f.why}</span>`],
+  };
+}
+
 // Words worth spelling: written with kanji, with a reading short enough for tiles.
 export const spellable = (v) => KANJI.test(v.w) && v.w !== v.y && kanaTiles(v.y).length <= 6;
 
@@ -143,11 +170,12 @@ export function renderSpell(root, p, { review = false, onDone }) {
   const placed = [];
   let clean = true;
   const tries = [];
+  // A Form gym puzzle brings its own tag, prompt and closing line.
   root.innerHTML = `<div class="qz">
-      <span class="qz-tag">Spell the reading</span>
-      <p class="qz-big jp">${v.w}</p>
-      <p class="small muted center">${v.m}</p>
-      <div class="answer spell" id="ans">${'<i class="slot"></i>'.repeat(p.tiles.length)}</div>
+      <span class="qz-tag">${p.tag || 'Spell the reading'}</span>
+      ${p.prompt || `<p class="qz-big jp">${v.w}</p>
+      <p class="small muted center">${v.m}</p>`}
+      <div class="answer spell" id="ans">${(p.given || []).map((t) => `<span class="block kana placed given"><span class="jp">${t}</span></span>`).join('')}${'<i class="slot"></i>'.repeat(p.tiles.length)}</div>
     </div>
     <div class="reach">
       <div class="fb" id="fb" role="status"></div>
@@ -183,10 +211,10 @@ export function renderSpell(root, p, { review = false, onDone }) {
       pool.querySelectorAll('.block').forEach((x) => x.classList.add('used'));
       showSheet(root, {
         right: clean,
-        headline: clean ? 'Spelled it' : 'Got there',
+        headline: clean ? (p.tag ? 'Built it' : 'Spelled it') : 'Got there',
         picked: tries,
         title: `<span class="jp">${v.w}</span> <span class="jp muted">${v.y}</span>`,
-        lines: [`<span class="small muted">${romaji(v.y)} · ${v.m}</span> ${sayBtn(v.y)}`],
+        lines: p.lines || [`<span class="small muted">${romaji(v.y)} · ${v.m}</span> ${sayBtn(v.y)}`],
       }, () => onDone(clean));
     }
   };

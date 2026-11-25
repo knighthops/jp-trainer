@@ -9,7 +9,7 @@ plus the silent pauses between lines and the Japanese of every Listen phrase. Sa
 <code>tools/make-audio.ps1</code> to record whatever is missing into <code>audio/</code>.</p>
 <div id="out">Working…</div>
 <script type="module">
-import { UNIT_FILES, mergeCourse } from '../js/course.js';
+import { UNIT_FILES, CASUAL_FILES, mergeCourse } from '../js/course.js';
 import { radioChannels } from '../js/radio.js';
 import { romaji } from '../js/romaji.js';
 import { VOICES, SILENCE, silenceId, englishSaid, clipId, clipSsml } from '../js/clips.js';
@@ -22,7 +22,8 @@ try {
     get('talk').catch(() => ({ lex: {} })), get('stories').catch(() => []), get('trip'),
     ...UNIT_FILES.map((f) => get(`course/${f}`).catch(() => [])),
   ]);
-  const data = mergeCourse({ kanji: [], vocab, sentences, particles: [], glossary, bank, papers: [] }, units);
+  const casualFiles = await Promise.all(CASUAL_FILES.map((f) => get(`course/${f}`).catch(() => [])));
+  const data = mergeCourse({ kanji: [], vocab, sentences, particles: [], glossary, bank, papers: [] }, units, casualFiles);
   for (const [w, [y, m, ro]] of [...Object.entries(bank.lex), ...Object.entries(talk.lex), ...Object.entries(trip.lex)]) {
     if (!glossary[w]) glossary[w] = { y, m, ro: ro ?? romaji(y) };
   }
@@ -30,7 +31,7 @@ try {
   data.stories = stories;
   // Everything finished and read, so every channel is on air.
   const state = { course: { done: {}, stories: {} } };
-  for (const u of data.units) for (const l of u.lessons) state.course.done[l.id] = 1;
+  for (const u of [...data.units, ...(data.casualUnits || [])]) for (const l of u.lessons) state.course.done[l.id] = 1;
   for (const s of stories) state.course.stories[s.unit] = 1;
   const channels = radioChannels(state, data);
 
@@ -49,6 +50,11 @@ try {
   for (const p of talk.categories?.flatMap((c) => c.items) || []) {
     const ja = clipId('ja', p.t);
     if (!lines.has(ja)) lines.set(ja, { id: ja, voice: VOICES.ja, ssml: clipSsml('ja', p.t, glossary), text: p.t });
+  }
+  // Casual's chats, played on a tap in the lesson. Only the Japanese.
+  for (const l of (data.casualUnits || []).flatMap((u) => u.dialogue?.lines || [])) {
+    const ja = clipId('ja', l.t);
+    if (!lines.has(ja)) lines.set(ja, { id: ja, voice: VOICES.ja, ssml: clipSsml('ja', l.t, glossary), text: l.t });
   }
   for (const key of Object.keys(SILENCE)) {
     lines.set(silenceId(key), { id: silenceId(key), voice: VOICES.en, ssml: `<break time="${SILENCE[key]}ms"/>`, text: '' });

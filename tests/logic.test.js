@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { newRecord, rate, isDue, stageOf, isStruggling, CLEARS, STRONG, MASTERED } from '../js/srs.js';
-import { validNext, explainWrong, decoysFor, orders, tokenize, romajiLine, spoken, setNotes, noteSlotInner, partsHtml, setKanji, linkKanji, peekHtml, soundLine } from '../js/drills.js';
-import { backupJson, parseBackup, xpOf, streakWithRest, dayKey } from '../js/store.js';
+import { validNext, explainWrong, decoysFor, orders, answers, isComplete, tokenize, romajiLine, spoken, setNotes, noteSlotInner, partsHtml, setKanji, linkKanji, peekHtml, soundLine } from '../js/drills.js';
+import { backupJson, parseBackup, xpOf, streakWithRest, dayKey, lessonsToday, lessonLoad } from '../js/store.js';
 import { quizQuestion, similarKanji, drillKanji, kindFor, readWords, possibleKana } from '../js/quiz.js';
 import { romaji, toHiragana, toKana, judgeReading } from '../js/romaji.js';
 import { speechText } from '../js/tts.js';
@@ -11,10 +11,10 @@ import { matchReading, splitRun } from '../js/readings.js';
 import { reviewSteps, kanjiId, talkId, buildAsCheck } from '../js/session.js';
 import {
   UNIT_FILES, mergeCourse, nextUp, isUnlocked, examUnlocked, lessonSteps, LEVELS, levelUnlocked, toBlocks, autoAlts, words, particleItem,
-  courseSteps, rankOf, LESSON_NEW, wordsNeededEarly, unitStars, recordTest, unitItems, grammarId, passUnit, lessonStars, isTaught, choiceShown, lessonParts, tokenWords, textTaught, strayTaught,
+  courseSteps, rankOf, LESSON_NEW, wordsNeededEarly, unitStars, recordTest, unitItems, grammarId, passUnit, lessonStars, isTaught, choiceShown, lessonParts, tokenWords, textTaught, strayTaught, drillWords,
 } from '../js/course.js';
 import { unitTest, mockExam, grade, wordKind, quickReplies, answerText } from '../js/exam.js';
-import { wordQuestion, kanaTiles, spellPuzzle, sameMeaning, partsPuzzle, compoundPuzzle, buildable, compoundable } from '../js/exercises.js';
+import { wordQuestion, kanaTiles, spellPuzzle, formPuzzle, sameMeaning, partsPuzzle, compoundPuzzle, buildable, compoundable } from '../js/exercises.js';
 import { checkLogin, hashPassword, userId } from '../js/lock.js';
 import { radioChannels } from '../js/radio.js';
 import { clipId, clipSsml, englishSaid } from '../js/clips.js';
@@ -1836,4 +1836,191 @@ test('kanji check: a wrong answer brings it back by tomorrow, and swipes need a 
 test('quiz: wrong readings are always kana Japanese can produce', () => {
   for (const bad of ['よんっか', 'さんっつ', 'っか', 'んか', 'がっあ']) assert.equal(possibleKana(bad), false, bad);
   for (const ok of ['がっこう', 'いっぷん', 'まなせい', 'ほん']) assert.equal(possibleKana(ok), true, ok);
+});
+
+// A made-up Casual unit, to check the two courses share what you've been taught.
+function tandem() {
+  const n5 = course().units;
+  const fresh = {
+    kanji: json('kanji-n5'), vocab: json('vocab-n5'), sentences: json('sentences'), particles: json('particles'),
+    glossary: json('glossary'), bank: json('particle-bank'), papers: [],
+  };
+  const files = UNIT_FILES.map((f) => optional(`course/${f}`) || []);
+  const firstIn = (w) => n5.find((u) => u.lessons.some((l) => (l.words || []).includes(w)));
+  const known = new Set(fresh.vocab.map((v) => v.w));
+  const late = n5.find((u) => u.n === 12).lessons.flatMap((l) => l.words || [])
+    .find((w) => known.has(w) && firstIn(w).n === 12 && !/[ぁ-ん]$/.test(w));
+  const unit = {
+    id: 'c01', n: 1, title: 'Test unit', goal: 'Test',
+    lex: { ぜんぜん: ['ぜんぜん', 'not at all'] },
+    lessons: [
+      { id: 'c01a', title: 'A', words: ['ぜんぜん'], kanji: [], drills: [{ b: `${late} を 見ました`, en: 'x' }] },
+      { id: 'c01b', title: 'B', words: [], kanji: [], drills: [{ b: 'ぜんぜん 見ません', en: 'y' }] },
+    ],
+  };
+  mergeCourse(fresh, files, [[unit]]);
+  return { data: fresh, late, lateUnit: firstIn(late) };
+}
+
+test('tandem: Casual has its own units and unlock chain, N5 is unchanged', async () => {
+  const { trackData, trackOf, casualOpen, CASUAL_GATE } = await import('../js/course.js');
+  const { data } = tandem();
+  assert.equal(trackData(data, 'n5'), data);
+  assert.ok(data.units.every((u) => trackOf(u) === 'n5'), 'no Casual unit in N5');
+  const casual = trackData(data, 'casual');
+  assert.deepEqual(casual.units.map((u) => u.id), ['c01']);
+  assert.equal(trackOf(casual.units[0]), 'casual');
+  const state = blank();
+  assert.equal(nextUp(state, casual.units).lesson.id, 'c01a');
+  assert.equal(nextUp(state, data.units).lesson.id, data.units[0].lessons[0].id, 'each course has its own next step');
+  const gate = data.units.find((u) => u.n === CASUAL_GATE);
+  assert.equal(casualOpen(state, data), false);
+  state.course.passed[data.units.find((u) => u.n === CASUAL_GATE - 1).id] = 1;
+  assert.equal(casualOpen(state, data), false, 'unit 7 is not enough');
+  state.course.passed[gate.id] = 1;
+  assert.equal(casualOpen(state, data), true);
+  assert.equal(casualOpen(state, casual), true, 'works from either view');
+});
+
+test('tandem: a word from the other course counts once its lesson there is done', async () => {
+  const { trackData } = await import('../js/course.js');
+  const { data, late, lateUnit } = tandem();
+  const casual = trackData(data, 'casual');
+  const state = blank();
+  const [a, b] = casual.units[0].lessons;
+  // Casual teaches the N5 word it needs early, as N5 does within itself.
+  assert.ok(wordsNeededEarly(casual.units[0], a, casual).includes(late), `${late} taught early in Casual`);
+  assert.equal(isTaught(late, state, casual, 1), false);
+  // Done in N5 first: Casual counts it.
+  const lesson = lateUnit.lessons.find((l) => (l.words || []).includes(late));
+  state.course.done[lesson.id] = 1;
+  assert.equal(isTaught(late, state, casual, 1), true);
+  // Its own words follow its own order.
+  const fresh = blank();
+  assert.equal(isTaught('ぜんぜん', fresh, casual, 1), false);
+  fresh.course.done.c01a = 1;
+  assert.equal(isTaught('ぜんぜん', fresh, casual, 1), true);
+  // A word learned in Casual is an item, so N5 knows it too.
+  fresh.items[`w:${late}`] = newRecord();
+  assert.equal(isTaught(late, fresh, data, 0), true);
+  // The lesson's steps teach the borrowed word, and skip it once you have it.
+  const steps = lessonSteps(casual.units[0], a, blank(), casual);
+  assert.ok(steps.some((s) => s.type === 'learn' && s.id === `w:${late}`));
+  const has = blank();
+  has.items[`w:${late}`] = newRecord();
+  assert.ok(!lessonSteps(casual.units[0], a, has, casual).some((s) => s.type === 'learn' && s.id === `w:${late}`));
+  assert.ok(b);
+});
+
+test('tandem: particles count once N5 has taught them', async () => {
+  const { trackData } = await import('../js/course.js');
+  const { data } = tandem();
+  const casual = trackData(data, 'casual');
+  const state = blank();
+  assert.equal(isTaught('は', state, casual, 0), false, 'nothing done yet');
+  for (const u of data.units.filter((x) => x.n <= 8)) state.course.passed[u.id] = 1;
+  assert.equal(isTaught('は', state, casual, 0), true, 'taught by the gate');
+  // N5 itself is unchanged: は counts by position in N5.
+  assert.equal(isTaught('は', blank(), data, data.units.flatMap((u) => u.lessons).length), true);
+});
+
+// The real Casual course, as you'd meet it: N5 units 1–8 passed, then each Casual lesson in turn.
+function casualCourse() {
+  const fresh = {
+    kanji: json('kanji-n5'), vocab: json('vocab-n5'), sentences: json('sentences'), particles: json('particles'),
+    glossary: json('glossary'), bank: json('particle-bank'), papers: [],
+  };
+  return import('../js/course.js').then((C) => {
+    mergeCourse(fresh, UNIT_FILES.map((f) => optional(`course/${f}`) || []), C.CASUAL_FILES.map((f) => optional(`course/${f}`) || []));
+    return { C, data: fresh, casual: C.trackData(fresh, 'casual') };
+  });
+}
+
+test('casual data: every drill and form is asked, from N5 unit 8 on, with at most 3 N5 words borrowed', async () => {
+  const { C, casual, data } = await casualCourse();
+  assert.ok(casual.units.length >= 3, 'the pilot units load');
+  const state = blank();
+  for (const u of data.units.filter((x) => x.n <= C.CASUAL_GATE)) state.course.passed[u.id] = 1;
+  assert.equal(C.casualOpen(state, data), true);
+  for (const unit of casual.units) {
+    for (const lesson of unit.lessons) {
+      assert.ok(wordsNeededEarly(unit, lesson, casual).length <= 3, `${lesson.id} borrows at most 3 words`);
+      const steps = lessonSteps(unit, lesson, state, casual);
+      const asked = steps.filter((s) => ['sentence', 'particle', 'form'].includes(s.type)).length;
+      assert.equal(asked, lesson.drills.length + (lesson.forms || []).length, `${lesson.id}: every drill and form is asked`);
+      for (const s of steps) if (s.type === 'learn') state.items[s.id] = newRecord();
+      state.course.done[lesson.id] = 1;
+    }
+    // The conversation uses only what's been taught by the end of its unit.
+    const at = casual.units.slice(0, casual.units.indexOf(unit) + 1).reduce((n, u) => n + u.lessons.length, 0);
+    for (const line of unit.dialogue.lines) {
+      for (const w of drillWords({ b: line.t }, casual)) assert.ok(isTaught(w, state, casual, at), `${unit.id} dialogue: ${w} is taught`);
+    }
+  }
+});
+
+test('casual data: unit tests are fair and keep their written questions', async () => {
+  const { casual } = await casualCourse();
+  for (const unit of casual.units) {
+    const exam = unitTest(unit, casual, () => 0.3);
+    const qs = exam.sections[0].questions;
+    assert.ok(qs.length >= 8, `${unit.id} test has ${qs.length} questions`);
+    assert.match(exam.title, /^Unit C\d+ test$/);
+    for (const q of unit.quiz) assert.ok(qs.some((x) => x.q === q.q), `${unit.id}: quiz question kept: ${q.q}`);
+    for (const q of qs) assert.ok(q.o.length >= 3, `${unit.id}: ${q.q} has ${q.o.length} options`);
+  }
+});
+
+test('casual: a lesson met in the other course first is a short refresher', async () => {
+  const { C, casual, data } = await casualCourse();
+  const c02a = casual.units[1].lessons[0];
+  assert.equal(c02a.same, 'u20b');
+  const state = blank();
+  for (const u of data.units.filter((x) => x.n <= 8)) state.course.passed[u.id] = 1;
+  assert.equal(C.isRefresher(c02a, state, casual), null);
+  const full = lessonSteps(casual.units[1], c02a, state, casual).filter((s) => ['sentence', 'particle', 'form'].includes(s.type)).length;
+  state.course.done.u20b = 1;
+  assert.ok(C.isRefresher(c02a, state, casual));
+  const short = lessonSteps(casual.units[1], c02a, state, casual);
+  assert.ok(short[0].refresh, 'the intro says it is a refresher');
+  // The irregular verbs are what a short form drill keeps.
+  if (c02a.forms.some((f) => /^(来る|する|行く)$/.test(f.d))) assert.ok(short.some((s) => s.type === 'form' && /^(来る|する|行く)$/.test(s.ref.d)));
+  assert.ok(short.filter((s) => ['sentence', 'particle', 'form'].includes(s.type)).length <= 4 && full > 4);
+  // And the other way: N5's lesson is the refresher once Casual's is done.
+  const n5 = data.units.find((u) => u.lessons.some((l) => l.id === 'u20b')).lessons.find((l) => l.id === 'u20b');
+  const s2 = blank();
+  assert.equal(C.isRefresher(n5, s2, data), null);
+  s2.course.done.c02a = 1;
+  assert.ok(C.isRefresher(n5, s2, data));
+});
+
+test('casual: を is optional in a Casual sentence and never a spare tile', () => {
+  const s = { casual: true, blocks: [{ t: '映画', r: 'object' }, { t: 'を', r: 'particle' }, { t: '見た', r: 'verb' }], alts: [] };
+  assert.ok(isComplete(s, ['映画', 'を', '見た']));
+  assert.ok(isComplete(s, ['映画', '見た']));
+  assert.ok(validNext(s, ['映画']).has('見た'));
+  assert.ok(!isComplete(s, ['映画']));
+  const bare = { casual: true, blocks: [{ t: '何', r: 'other' }, { t: 'した', r: 'verb' }], alts: [] };
+  for (let n = 0; n < 20; n++) assert.ok(!decoysFor(bare).some((b) => b.t === 'を'));
+  // N5 sentences still need their を.
+  assert.ok(!isComplete({ ...s, casual: false }, ['映画', '見た']));
+  assert.equal(answers({ ...s, casual: false }).length, 1);
+});
+
+test('casual: Form gym gives the unchanged stem and builds only the ending', () => {
+  const p = formPuzzle({ d: '食べる', a: '食べて', y: 'たべて', f: 'て form', why: '' }, { 食べる: { y: 'たべる', m: 'eat' } });
+  assert.deepEqual(p.given, ['た', 'べ']);
+  assert.deepEqual(p.tiles, ['て']);
+  const k = formPuzzle({ d: '来る', a: '来て', y: 'きて', f: 'て form', why: '' }, { 来る: { y: 'くる', m: 'come' } });
+  assert.deepEqual(k.given, []);
+  assert.deepEqual(k.tiles, ['き', 'て']);
+});
+
+test('casual: a short Casual lesson counts half toward the day, a refresher nothing', () => {
+  assert.equal(lessonLoad(), 1);
+  assert.equal(lessonLoad({ casual: true }), 0.5);
+  assert.equal(lessonLoad({ casual: true, refresher: true }), 0);
+  const now = Date.now();
+  assert.equal(lessonsToday({ days: { [dayKey(now)]: { lessons: 2 } } }, now), 2);
+  assert.equal(lessonsToday({ days: { [dayKey(now)]: { lessons: 3, load: 1.5 } } }, now), 1.5);
 });

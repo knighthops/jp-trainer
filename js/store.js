@@ -89,6 +89,18 @@ export function dayStats(state, now = Date.now()) {
 // XP is a plain sum of work already logged for a day. It is never spent and never lost.
 export const XP = { newK: 5, newW: 3, reviews: 1, sentences: 2, particles: 1, shadow: 1, lessons: 10, tests: 30 };
 export const DAILY_GOAL = 50;
+// A guide for studying N5 and Casual side by side, not a lock: after this many new lessons in a
+// day (from either course), Home offers reviews or practice instead of another new lesson.
+export const NEW_LESSONS_PER_DAY = 2;
+// With more reviews than this due, Home leads with reviews before any new lesson.
+export const REVIEWS_FIRST_AT = 40;
+// The day's lesson load toward the guide: a full N5 lesson counts 1, a short Casual one ½, a refresher 0.
+export const lessonsToday = (state, now = Date.now()) => {
+  const d = state.days[dayKey(now)];
+  return d?.load ?? d?.lessons ?? 0;
+};
+// How much a finished lesson adds to the day's load.
+export const lessonLoad = ({ casual = false, refresher = false } = {}) => (refresher ? 0 : casual ? 0.5 : 1);
 export const xpOf = (d) => (d ? Object.entries(XP).reduce((n, [k, w]) => n + (Number.isFinite(d[k]) ? d[k] * w : 0), 0) : 0);
 export const xpToday = (state, now = Date.now()) => xpOf(state.days[dayKey(now)]);
 

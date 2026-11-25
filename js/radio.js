@@ -23,8 +23,10 @@ function lessonItems(lesson, data) {
 
 // The channels open to this learner, in order. Each has { id, jp, title, sub, items: [{ t, en }] }.
 export function radioChannels(state, data) {
-  const done = (data.units || []).flatMap((unit) => unit.lessons.filter((l) => state.course.done[l.id]).map((lesson) => ({ unit, lesson })));
-  const latest = done.at(-1)?.unit;
+  // Both courses: finished Casual lessons play in "Your course" too. The latest-unit channel stays N5's.
+  const units = [...(data.units || []), ...(data.casualUnits || [])];
+  const done = units.flatMap((unit) => unit.lessons.filter((l) => state.course.done[l.id]).map((lesson) => ({ unit, lesson })));
+  const latest = done.filter((d) => d.unit.track !== 'casual').at(-1)?.unit;
   // Story chapters join once you have read them.
   const stories = (data.stories || []).filter((s) => state.course.stories?.[s.unit]);
   // Trip scenes are always on air: what you'll say, then what you'll hear back.
