@@ -1444,6 +1444,10 @@ a.btn{text-decoration:none}
 .kcoming{margin:6px 0 0;color:var(--act)}
 .kcoming b{margin-right:6px;color:var(--ink)}
 .refresher{margin:0;padding:8px 10px;border-radius:10px;background:var(--act-soft);color:var(--ink)}
+.casual-soon{display:flex;flex-direction:column;gap:4px}
+.casual-soon .caps{color:var(--act)}
+.soon-list .node{opacity:.75}
+.soon-pill{flex:none;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:999px;background:var(--act-soft);color:var(--act)}
 .form-target{text-align:center;margin:6px 0 0;color:var(--act);font-size:15px}
 .answer.spell .block.given{opacity:.55}
 p.from{font-size:22px;margin:4px 0 0}

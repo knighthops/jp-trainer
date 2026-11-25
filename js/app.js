@@ -2053,6 +2053,16 @@ function bindCourseSwitch() {
   }));
 }
 
+// The Casual chapters not written yet, marked Coming soon, so the course never looks finished.
+function casualSoon(soon, caughtUp) {
+  const range = soon.length > 1 ? `Chapters ${soon[0].n}–${soon.at(-1).n}` : `Chapter ${soon[0].n}`;
+  return `<section class="card casual-soon"><span class="caps">Coming soon</span>
+      <strong>${caughtUp ? 'You’ve done every Casual unit so far' : `${range} ${soon.length > 1 ? 'are' : 'is'} on the way`}</strong>
+      <p class="small muted">Casual is added a few units at a time. New units appear here, after the last one, and pick up where you left off.${caughtUp ? ' Until then, N5 and your reviews carry on as usual.' : ''}</p></section>
+    <section class="path soon-list">${soon.map((c) => `<div class="node off"><span class="dot">${c.n}</span>
+      <span class="grow"><span class="label">${c.title}</span><span class="small muted jp">${c.sub}</span></span><span class="soon-pill">Soon</span></div>`).join('')}</section>`;
+}
+
 // Casual before it opens, or before its first unit is ready: what it covers and when it opens.
 function casualIntro() {
   const open = casualOpen(state, data);
@@ -2172,11 +2182,16 @@ function screenCourse() {
   }).join('');
   // Casual has no rank titles: its strip names the chapter you're in.
   const chapter = casual ? CASUAL_CHAPTERS.find((c) => c.n === (next?.unit?.chapter ?? units.at(-1).chapter)) : null;
+  // Casual is written a few units at a time: the chapters not here yet say so plainly.
+  const builtTo = casual ? Math.max(...units.map((u) => u.chapter || 0)) : 0;
+  const soon = casual ? CASUAL_CHAPTERS.filter((c) => c.n > builtTo) : [];
+  // Every Casual unit written so far is passed (nextUp then points past the end, as N5's exam).
+  const caughtUp = casual && (!next || next.type === 'exam');
   view.innerHTML = `
     ${courseSwitch()}
     <section class="course-strip">
       <div class="row tight"><span class="grow">${casual
-    ? `<strong>${chapter ? `Chapter ${chapter.n} · ${chapter.title}` : 'Casual'}</strong>`
+    ? `<strong>${caughtUp ? 'All caught up · more coming soon' : chapter ? `Chapter ${chapter.n} · ${chapter.title}` : 'Casual'}</strong>`
     : `<span class="jp">${rank.jp}</span> <strong>${rank.en}</strong>`}</span>
         <span class="small muted num">${steps.done} of ${steps.total} steps</span></div>
       <div class="meter"><i style="width:${(steps.done / steps.total) * 100}%"></i></div>
@@ -2189,6 +2204,7 @@ function screenCourse() {
     ${folded ? `<details class="path fold-list"><summary class="node fold"><span class="dot">${icons.lock}</span><span class="grow"><span class="label">${units.length - shown.length === 1 ? `Unit ${unitNo(units.at(-1))}` : `Units ${unitNo(units[shown.length])}–${unitNo(units.at(-1))}`}</span>
       <span class="small muted">Know some already? Open one to test out</span></span><span class="chev">${icons.chevron}</span></summary>
       ${units.slice(shown.length).map(node).join('')}</details>` : ''}
+    ${soon.length ? casualSoon(soon, caughtUp) : ''}
     <p class="small muted center">★ passed · ★★ most of it remembered · ★★★ mastered</p>`;
   bindCourseSwitch();
   view.querySelector('#placeme')?.addEventListener('click', () => {
@@ -2443,7 +2459,9 @@ function runUnitTest(unit) {
         top,
         title: gained && stars === 3 ? 'Unit mastered' : gained && stars === 2 ? 'Two stars' : 'Passed',
         // Only what changed: the units a test-out cleared, then the next star.
-        note: [skipped.length ? `Units ${unitNo(skipped[0])}–${unitNo(unit)} passed` : '', goal].filter(Boolean).join(' · '),
+        note: [skipped.length ? `Units ${unitNo(skipped[0])}–${unitNo(unit)} passed` : '', goal,
+          // Past the last Casual unit written so far: say more is coming, not that the course is over.
+          !go && trackOf(unit) === 'casual' ? 'You’re caught up. More Casual units are coming soon' : ''].filter(Boolean).join(' · '),
         badge: `${rose ? `<div class="rankup"><span class="jp">${rank.jp}</span><span><small>New rank</small><b>${rank.en}</b>${rank.next
           ? `<small>${toGo} more ${toGo === 1 ? 'unit' : 'units'} to ${rank.next.en}</small>` : ''}</span></div>` : ''}
           ${stories.length ? `<p class="unlock">${icons.story}<span><small>${stories.length > 1 ? `${stories.length} stories unlocked` : 'Story unlocked'}</small><b>${stories.map((s) => s.title).join(' · ')}</b></span></p>` : ''}`,
