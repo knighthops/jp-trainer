@@ -1,0 +1,2492 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Tank Screen</title><meta name="color-scheme" content="dark">
+<style>html,body{background:#141518;color:#e7e4dd}
+/* One theme: 墨 sumi. A soft graphite base, low glare for night study, warm off-white text.
+   Value does the layering, not borders and white slabs:
+     --page   the screen            --card   a card on the page
+     --paper  inset well in a card   --raised chips, selected segments, heroes' lift
+   Colour roles. Each colour means one thing, everywhere:
+     --act    藍 lavender  Do this next: primary buttons, the current/next node, focus, links, live line.
+     --good   green        Right, done, progress made: correct answers, finished lessons, meters, streak days.
+     --bad    coral        Missed or wrong: wrong answers, exit armed, kanji you keep missing.
+     --gold   gold         Rewards only: stars, rank badges, saved favourites.
+     Kanji memory stages, used for nothing else:
+     --s-learn 習 amber   --s-strong 強 blue   --s-mastered 極 green (mastered is the final "right")
+     --r-*    grammar roles, only on sentence-builder blocks and their legend.
+   Text on any colour fill uses --on-acc (dark), never white. */
+:root{
+  --page:#141518;--card:#1e2024;--raised:#292c31;--paper:#17181b;--sel:#383b42;
+  --line:#33363c;--line2:#272a2f;--rim:rgba(255,255,255,.05);--ledge:#0c0d0f;
+  --ink:#e7e4dd;--ink2:#bab6ae;--mute:#8c8981;
+  --on-ink:#16171a;--on-acc:#121316;
+  --top-bg:#111214;--bar:rgba(19,20,23,.88);
+  --act:#a9a4f7;--act-soft:rgba(169,164,247,.14);--act-line:rgba(169,164,247,.38);
+  --good:#62c69e;--good-soft:rgba(98,198,158,.13);
+  --bad:#ee8073;--bad-soft:rgba(238,128,115,.12);
+  --gold:#f2cb63;
+  --accent:var(--good);--accent-soft:var(--good-soft);
+  --r-topic:#62c69e;--r-subject:#68aaeb;--r-object:#e6a550;--r-verb:#e48dbd;--r-other:#6c6a66;
+  --s-learn:#e6a550;--s-strong:#68aaeb;--s-mastered:#62c69e;--s-strong-soft:rgba(104,170,235,.15);--s-learn-soft:rgba(230,165,80,.15);
+  --shadow:0 1px 0 rgba(255,255,255,.025) inset,0 8px 24px rgba(0,0,0,.18);
+  --head:52px;--gut:16px;
+  --jp:"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",sans-serif;
+  font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue","Segoe UI",Roboto,Arial,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+/* Stops double-tap and pinch zoom on every element. Scrolling still works. */
+*{touch-action:pan-x pan-y}
+.tabbar:empty{display:none}
+.login{width:100%;max-width:380px;margin:0 auto;padding-top:24px;display:flex;flex-direction:column;align-items:center;gap:18px}
+.login-mark{width:72px;height:72px;border-radius:20px;background:var(--raised);color:var(--ink);display:grid;place-items:center;font-family:var(--jp);font-weight:700;font-size:40px;position:relative}
+.login-mark::after{content:"";position:absolute;right:-4px;bottom:-4px;width:18px;height:18px;border-radius:50%;background:var(--act);box-shadow:0 0 0 3px var(--page)}
+.login form{width:100%;gap:14px}
+.login h2{font-size:20px}
+.login label{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:var(--mute)}
+.login input{height:50px;border:0;border-radius:12px;padding:0 14px;font:inherit;font-size:17px;font-weight:400;color:var(--ink);background:var(--paper);box-shadow:inset 0 0 0 1.5px var(--line);width:100%}
+.login input:focus{outline:none;box-shadow:inset 0 0 0 2px var(--ink)}
+.login .btn[disabled]{opacity:.6}
+.login-err{min-height:20px;color:var(--bad);font-size:14px;text-align:center}
+html,body{margin:0;background:var(--page);color:var(--ink);-webkit-text-size-adjust:100%;overscroll-behavior-y:none}
+body{min-height:100dvh;display:flex;flex-direction:column;line-height:1.45;font-size:16px;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;-webkit-user-select:none;user-select:none;transition:transform .12s,background-color .15s,box-shadow .15s,opacity .15s}
+button:not(:disabled):active{transform:scale(.97)}
+:focus-visible{outline:2px solid var(--act);outline-offset:2px}
+h1,h2,h3,p{margin:0}
+a{color:inherit}
+svg.ic{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none;display:block}
+.jp{font-family:var(--jp)}
+.muted{color:var(--mute)}.center{text-align:center}.pad{padding:24px}
+.small{font-size:14px}
+.caps{font-size:11.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--mute)}
+.sect{margin:10px 2px -4px;display:flex;justify-content:space-between;align-items:baseline}
+
+/* Header */
+.top{position:sticky;top:0;z-index:5;background:var(--top-bg);color:var(--ink);box-shadow:0 1px 0 var(--line2);padding-top:env(safe-area-inset-top)}
+.top-in{height:var(--head);display:flex;align-items:center;gap:10px;padding:0 calc(var(--gut) + env(safe-area-inset-right)) 0 calc(var(--gut) + env(safe-area-inset-left))}
+.top h1{font-size:17px;font-weight:700;letter-spacing:-.01em;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mark{width:28px;height:28px;border-radius:8px;background:var(--raised);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line);display:grid;place-items:center;font-family:var(--jp);font-weight:700;font-size:16px;position:relative;flex:none}
+.mark::after{content:"";position:absolute;right:-2px;bottom:-2px;width:9px;height:9px;border-radius:50%;background:var(--act);box-shadow:0 0 0 2px var(--top-bg)}
+.hbtn{width:44px;height:44px;margin-left:-11px;display:grid;place-items:center;border-radius:10px;color:var(--ink2)}
+.count{font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--mute)}
+.progress{height:3px;background:var(--line2)}.progress i{display:block;height:100%;background:var(--good);border-radius:0 2px 2px 0;transition:width .3s ease}
+
+/* Layout */
+main{flex:1;width:100%;max-width:560px;margin:0 auto;padding:16px calc(var(--gut) + env(safe-area-inset-right)) 24px calc(var(--gut) + env(safe-area-inset-left));display:flex;flex-direction:column;gap:12px}
+body.in-run main{padding-bottom:0}
+.tabbar{position:sticky;bottom:0;z-index:5;display:grid;grid-template-columns:repeat(5,1fr);background:var(--bar);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+.tabbar a{min-height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:11px;font-weight:600;color:var(--mute);text-decoration:none;transition:color .15s}
+.tabbar a.on{color:var(--ink)}
+.tabbar a.on svg.ic{stroke-width:2.3}
+body.in-run .tabbar{display:none}
+.dock{position:sticky;bottom:0;z-index:3;margin-top:auto;padding:14px 0 calc(14px + env(safe-area-inset-bottom));background:linear-gradient(to bottom,transparent,var(--page) 14px)}
+.dock:empty{display:none}
+/* Sub-screens keep the tab bar: the dock sits just above it, not behind it. */
+body:not(.in-run):not(.has-runbar) .dock{bottom:calc(57px + env(safe-area-inset-bottom));padding-bottom:12px}
+/* Answer controls sink to the bottom, in thumb reach; feedback sits just above them. */
+.reach{margin-top:auto;display:flex;flex-direction:column;gap:12px}
+.reach~.dock{margin-top:0}
+
+/* Motion */
+.anim>*{animation:rise .26s cubic-bezier(.2,.7,.2,1) both}
+.anim>*:nth-child(2){animation-delay:.04s}.anim>*:nth-child(3){animation-delay:.08s}.anim>*:nth-child(4){animation-delay:.12s}.anim>*:nth-child(n+5){animation-delay:.15s}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes pop{0%{transform:scale(.86)}60%{transform:scale(1.05)}100%{transform:scale(1)}}
+@keyframes shake{25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+
+/* Base components */
+.card{background:var(--card);border-radius:20px;padding:18px;box-shadow:inset 0 0 0 1px var(--rim),var(--shadow);display:flex;flex-direction:column;gap:10px}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:52px;padding:0 22px;border-radius:14px;background:var(--act);color:var(--on-acc);font-weight:680;letter-spacing:-.005em;width:100%;box-shadow:0 1px 0 rgba(255,255,255,.25) inset,0 6px 18px -8px var(--act)}
+.row{display:flex;align-items:center;gap:12px;min-height:44px}
+.row .grow{flex:1;min-width:0}
+.list{padding:4px 16px;gap:0}
+.list>.row{padding:10px 0;border-bottom:1px solid var(--line2)}
+.list>.row:last-child{border-bottom:0}
+.tap{width:100%;text-align:left}
+.num{font-weight:700;font-variant-numeric:tabular-nums}
+.chev{color:var(--mute)}.chev svg.ic{width:18px;height:18px}
+.icbox{width:38px;height:38px;border-radius:11px;background:var(--paper);display:grid;place-items:center;flex:none;color:var(--ink2)}
+.seg{display:flex;background:var(--paper);box-shadow:inset 0 0 0 1px var(--line);border-radius:13px;padding:3px;gap:3px}
+.seg button{flex:1;min-height:44px;border-radius:10px;font-size:14px;font-weight:600;color:var(--mute)}
+.seg button.on{background:var(--sel);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.3)}
+
+/* Home */
+/* Heroes are lifted, not lit: a raised surface with a faint lavender wash where the next step is. */
+.hero{position:relative;overflow:hidden;color:var(--ink);padding:20px;gap:6px;min-height:196px;
+  background:radial-gradient(120% 90% at 100% 0%,color-mix(in srgb,var(--act) 15%,transparent),transparent 60%),linear-gradient(180deg,var(--raised),var(--card));
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--act) 22%,transparent),inset 0 1px 0 rgba(255,255,255,.06),var(--shadow)}
+.hero>*{position:relative}
+.hero .caps{color:var(--act);opacity:.9}
+.hero h2{font-size:28px;line-height:1.15;letter-spacing:-.02em;font-weight:750;margin-top:auto}
+.hero .sub{color:var(--ink2);font-size:15px}
+.hero .btn{margin-top:10px}
+/* Finish screens: the same lift, washed green for work done. */
+.hero.done-hero{background:radial-gradient(110% 80% at 50% 0%,color-mix(in srgb,var(--good) 16%,transparent),transparent 65%),linear-gradient(180deg,var(--raised),var(--card));
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--good) 22%,transparent),inset 0 1px 0 rgba(255,255,255,.06),var(--shadow)}
+.hero.done-hero .caps{color:var(--good)}
+.water{position:absolute!important;right:-6px;top:-18px;font-family:var(--jp);font-size:168px;line-height:1;font-weight:700;opacity:.06;pointer-events:none}
+.plan .label{font-weight:550}
+.plan .sub{font-size:13px;color:var(--mute)}
+.pill{min-width:28px;height:26px;padding:0 9px;border-radius:13px;display:inline-grid;place-items:center;font-size:13px;font-weight:700;background:var(--paper);font-variant-numeric:tabular-nums}
+.pill.live{background:var(--act-soft);color:var(--act)}
+.row.off{opacity:.55}
+.strip{display:grid;grid-template-columns:repeat(3,1fr);padding:14px 6px;gap:0}
+.strip>div{display:flex;flex-direction:column;align-items:center;gap:0;border-right:1px solid var(--line2)}
+.strip>div:last-child{border-right:0}
+.strip b{font-size:22px;font-weight:750;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.2}
+.strip b small{font-size:13px;font-weight:600;color:var(--mute);letter-spacing:0}
+.strip span{font-size:12px;color:var(--mute)}
+.week{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.week div{aspect-ratio:1;max-width:42px;width:100%;justify-self:center;border-radius:50%;display:grid;place-items:center;font-family:var(--jp);font-size:13px;color:var(--mute);background:var(--paper)}
+.week .on{background:var(--accent);color:var(--on-acc)}
+.week .now{box-shadow:0 0 0 2px var(--card),0 0 0 3.5px var(--act)}
+
+/* Study cards */
+.study{gap:14px;align-items:stretch}
+.study-head{display:flex;justify-content:space-between;align-items:center}
+.tag{font-size:11px;font-weight:700;padding:3px 8px;border-radius:10px;background:var(--paper);color:var(--ink2)}
+.genko{--s:min(58vw,216px);width:var(--s);height:var(--s);margin:2px auto;display:grid;place-items:center;font-family:var(--jp);font-size:calc(var(--s)*.72);line-height:1;border-radius:14px;box-shadow:inset 0 0 0 1.5px var(--line);
+  background-image:repeating-linear-gradient(90deg,var(--line) 0 5px,transparent 5px 10px),repeating-linear-gradient(0deg,var(--line) 0 5px,transparent 5px 10px);
+  background-size:100% 1px,1px 100%;background-position:center;background-repeat:no-repeat;transition:width .22s ease,height .22s ease,font-size .22s ease}
+.revealed .genko{--s:112px}
+.wordglyph{font-family:var(--jp);font-size:52px;line-height:1.2;text-align:center;padding:30px 0 22px;letter-spacing:.02em}
+.revealed .wordglyph{font-size:38px;padding:8px 0 0}
+.ask{display:flex;align-items:center;justify-content:center;gap:8px;color:var(--mute);font-size:14px;text-align:center}
+.back{display:flex;flex-direction:column;gap:14px;animation:rise .24s ease both}
+.back[hidden]{display:none}
+.mean{font-size:23px;font-weight:750;letter-spacing:-.015em;text-align:center;line-height:1.2}
+.meta{margin-top:3px;font-size:13px;color:var(--mute);text-align:center}
+.head-read{margin-top:4px;text-align:center;line-height:1.3}
+.head-read .jp{font-size:20px;font-weight:600}
+.head-read .ro{display:block;font-size:12px;color:var(--mute)}
+.reads{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.read{background:var(--paper);border-radius:12px;padding:9px 12px;display:flex;flex-direction:column;gap:1px;min-width:0}
+.read .jp{font-size:17px;line-height:1.35}
+.block-sec{display:flex;flex-direction:column}
+.block-sec .caps{margin-bottom:2px}
+.wrow{display:flex;justify-content:space-between;gap:12px;align-items:baseline;padding:8px 0;border-bottom:1px solid var(--line2)}
+.wrow:last-child{border-bottom:0}
+.wrow b{font-family:var(--jp);font-size:17px;font-weight:600}
+.wrow .y{font-family:var(--jp);font-size:13px;color:var(--mute);margin-left:6px}
+.wrow .m{font-size:14px;color:var(--ink2);text-align:right}
+.part{display:flex;gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line2)}
+.part:last-child{border-bottom:0}
+.part .pg{width:44px;height:44px;border-radius:11px;background:var(--paper);font-family:var(--jp);font-size:24px;display:grid;place-items:center;flex:none}
+.part img{width:44px;height:44px;border-radius:11px;flex:none}
+.part strong{font-size:14.5px}
+.part .small{color:var(--ink2);line-height:1.35}
+.rate{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
+.rate button{--c:var(--mute);min-height:64px;border-radius:14px;background:var(--card);box-shadow:inset 0 0 0 1px var(--line),inset 0 3px 0 var(--c);font-weight:650;font-size:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}
+.rate small{font-weight:500;font-size:12px;color:var(--mute);font-variant-numeric:tabular-nums}
+.rate .again{--c:var(--bad)}.rate .hard{--c:var(--r-object)}.rate .good{--c:var(--accent)}.rate .easy{--c:var(--r-subject)}
+
+/* Kanji tab */
+.meter{height:6px;border-radius:3px;background:var(--line);overflow:hidden}
+.meter i{display:block;height:100%;background:var(--accent);border-radius:3px}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.tile{position:relative;overflow:hidden;background:var(--card);border-radius:14px;box-shadow:inset 0 0 0 1px var(--line);padding:10px 2px 12px;display:flex;flex-direction:column;align-items:center;gap:0;min-height:84px}
+.tile b{font-family:var(--jp);font-size:32px;font-weight:500;line-height:1.2}
+.tile small{font-size:11px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;padding:0 4px}
+.tile i{position:absolute;left:0;bottom:0;height:4px;background:var(--accent);border-radius:0 2px 2px 0}
+
+/* Practice tab */
+.action{display:flex;align-items:center;gap:14px;padding:16px;background:var(--card);border-radius:18px;box-shadow:inset 0 0 0 1px var(--line),var(--shadow);text-align:left;width:100%}
+.action .icbox{background:var(--raised);color:var(--ink);width:44px;height:44px;border-radius:13px}
+.action strong{display:block;font-size:16px}
+.action .small{color:var(--mute);line-height:1.3;display:block}
+.action .grow{flex:1;min-width:0}
+.pgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.ptile{background:var(--card);border-radius:14px;box-shadow:inset 0 0 0 1px var(--line);padding:12px 6px 10px;display:flex;flex-direction:column;align-items:center;gap:2px;min-height:104px;text-align:center}
+.ptile b{font-family:var(--jp);font-size:30px;font-weight:600;line-height:1.2}
+.ptile small{font-size:11.5px;line-height:1.25;color:var(--mute)}
+
+/* Sentence drill */
+.en{font-size:21px;font-weight:700;line-height:1.25;letter-spacing:-.015em}
+.answer{min-height:68px;display:flex;flex-wrap:wrap;gap:6px;align-content:flex-start;padding:10px;background:var(--paper);border-radius:14px;transition:box-shadow .2s}
+.answer.done{box-shadow:inset 0 0 0 2px var(--accent);background:var(--accent-soft)}
+.slot{width:48px;height:48px;border-radius:10px;border:1.5px dashed var(--line)}
+.pool{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;min-height:60px;padding:8px 0}
+.block{--c:var(--r-other);min-height:48px;min-width:48px;padding:5px 12px 7px;border-radius:11px;background:var(--card);box-shadow:inset 0 0 0 1px var(--line),inset 0 -4px 0 var(--c);display:inline-flex;flex-direction:column;align-items:center;justify-content:center;font-family:var(--jp);font-size:19px;line-height:1.25}
+.block small{font-size:10px;color:var(--mute)}
+.block.topic{--c:var(--r-topic)}.block.subject{--c:var(--r-subject)}.block.object{--c:var(--r-object)}.block.verb{--c:var(--r-verb)}
+.block.particle{background:var(--mute);color:var(--on-acc);box-shadow:none;padding-bottom:5px}
+.block.particle small{color:inherit;opacity:.7}
+.block.used{opacity:0;pointer-events:none;transform:scale(.9)}
+.block.placed{animation:pop .2s ease both}
+.block.shake{animation:shake .3s}
+.legend{display:flex;flex-wrap:wrap;justify-content:center;gap:3px 12px;font-size:13px;color:var(--mute);padding-top:2px}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.legend i{width:9px;height:9px;border-radius:3px;background:var(--c,var(--r-other))}
+.legend .topic{--c:var(--r-topic)}.legend .subject{--c:var(--r-subject)}.legend .object{--c:var(--r-object)}.legend .verb{--c:var(--r-verb)}.legend .particle{--c:var(--mute)}
+.fb{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:14px;font-size:15px;line-height:1.35;background:var(--paper);animation:rise .2s ease both}
+.fb::before{font-weight:800;flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:12px;color:var(--on-acc);margin-top:-1px}
+.fb.bad{background:var(--bad-soft)}.fb.bad::before{content:"✕";background:var(--bad)}
+.fb.good{background:var(--accent-soft)}.fb.good::before{content:"✓";background:var(--accent)}
+.fb:empty{display:none}
+
+/* Particle drill */
+.pline{font-family:var(--jp);font-size:28px;display:flex;flex-wrap:wrap;justify-content:center;align-items:center;padding:8px 0 2px}
+.word{min-height:44px;min-width:44px;padding:0 3px;font:inherit;border-radius:7px;text-decoration:underline dotted var(--mute) 2px;text-underline-offset:7px}
+.word.sel,.block.sel{outline:2px solid var(--act);outline-offset:2px}
+.blank{display:inline-block;min-width:46px;margin:0 5px;border-bottom:3px solid var(--ink);text-align:center;color:var(--act);font-weight:700}
+.word.blank{text-decoration:none;border-radius:0;animation:pop .22s ease both}
+.romaji{font-size:15px;color:var(--ink2);font-weight:500}
+.gloss{min-height:46px;padding:10px 12px;border-radius:12px;background:var(--paper);font-size:15px;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:0 6px;text-align:center}
+.opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(72px,1fr));gap:8px}
+.opt{min-height:68px;border-radius:16px;background:var(--card);box-shadow:inset 0 0 0 1px var(--line),var(--shadow);font-family:var(--jp);font-size:26px}
+.opt.wrong{color:var(--bad);box-shadow:inset 0 0 0 1.5px var(--bad);opacity:.55;animation:shake .3s}
+.opt.right{color:var(--on-acc);background:var(--accent);box-shadow:none;animation:pop .22s ease both}
+.pcard-head{display:flex;align-items:center;gap:14px}
+.pbig{width:60px;height:60px;border-radius:16px;background:var(--raised);color:var(--ink);font-family:var(--jp);font-size:34px;font-weight:600;display:grid;place-items:center;flex:none}
+.pcard-head h3{font-size:19px;letter-spacing:-.01em}
+.exrow{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;padding:6px 0 2px}
+.picture{display:flex;gap:10px;align-items:flex-start;padding-top:12px;border-top:1px solid var(--line2);font-size:14px;color:var(--ink2)}
+.picture svg.ic{width:18px;height:18px;color:var(--mute);margin-top:1px}
+
+.ro{font-size:13px;color:var(--mute);display:block;line-height:1.3}
+.rline{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 7px;padding-top:2px}
+.rline>*{white-space:nowrap}
+.rline .jp{font-size:15px}
+.read{padding:8px 11px}
+.wrow.big{padding:8px 0;gap:8px}
+.wrow.big .wtop{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 8px}
+.wrow.big b{font-size:21px}
+.wrow.big .y{font-size:14px;margin-left:0;color:var(--ink2)}
+.wrow.big .ro{margin-top:1px;color:var(--ink2)}
+.wrow.big .say{align-self:center}
+mark{background:var(--act-soft);color:var(--act);font-weight:700;border-radius:3px;padding:0 1px}
+.rt{display:inline-block;margin-top:5px;padding:2px 8px;border-radius:9px;font-size:11.5px;font-weight:650;background:var(--paper);color:var(--mute)}
+.rt.on{background:var(--act-soft);color:var(--act)}
+.rt.kun{background:var(--raised);color:var(--ink2)}
+.sechead{display:flex;align-items:center;justify-content:space-between;min-height:44px;margin-bottom:-4px}
+.sechead .caps{margin:0}
+.info{width:44px;height:44px;margin-right:-11px;display:grid;place-items:center;color:var(--mute);border-radius:50%}
+.info svg.ic{width:19px;height:19px}
+.info[aria-expanded="true"]{color:var(--act)}
+.explain{background:var(--paper);border-radius:12px;padding:10px 12px;margin:4px 0 8px;color:var(--ink2);line-height:1.4;animation:rise .2s ease both}
+
+/* Audio, shadowing and backup */
+.say{width:44px;height:44px;display:inline-grid;place-items:center;border-radius:50%;color:var(--ink2);vertical-align:middle;flex:none}
+.say svg.ic{width:20px;height:20px}
+.say:active{color:var(--act)}
+.answer .say{margin-left:auto}
+.wrow{align-items:center;padding:2px 0}
+.wrow .wl{flex:1;min-width:0}
+.gloss .say{margin:-8px -6px -8px 0}
+.romaji .say{margin:-10px 0}
+.btn.ghost{background:var(--card);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line)}
+.btn.ghost svg.ic{width:20px;height:20px}
+.btn.danger{background:var(--bad);color:var(--on-acc)}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.shadow{gap:10px}
+.srow{display:flex;align-items:center;gap:10px;min-height:40px}
+.srow .grow{flex:1;min-width:0;line-height:1.25}
+.snum{width:24px;height:24px;border-radius:50%;background:var(--raised);color:var(--ink);display:grid;place-items:center;font-size:12px;font-weight:750;flex:none}
+.seg.mini button{min-height:44px;padding:0 10px;font-size:13px}
+.fb.info{background:var(--paper);box-shadow:inset 0 0 0 1px var(--line);width:auto;height:auto;margin:0;display:flex;place-items:normal;border-radius:14px;color:inherit}
+.fb.info::before{content:"i";background:var(--mute)}
+.nudge{display:flex;align-items:center;gap:12px;padding:12px 14px;min-height:52px;border-radius:14px;background:var(--card);box-shadow:inset 0 0 0 1px var(--line);text-decoration:none;font-size:14px;line-height:1.3}
+.nudge .grow{flex:1;min-width:0}
+.nudge>svg.ic{color:var(--act)}
+
+/* Summary */
+.done-hero{align-items:center;text-align:center;padding:28px 20px;min-height:0;gap:8px}
+.ring{width:108px;height:108px;position:relative;margin-bottom:6px}
+.ring svg{width:100%;height:100%;transform:rotate(-90deg);display:block}
+.ring circle{fill:none;stroke-width:8}
+.ring .tr{stroke:currentColor;opacity:.16}
+.ring .fg{stroke:var(--good);stroke-linecap:round;transition:stroke-dashoffset .6s ease}
+.ring div{position:absolute;inset:0;display:grid;place-items:center;font-size:24px;font-weight:750;letter-spacing:-.02em}
+.ring div svg.ic{transform:none;width:38px;height:38px;stroke:var(--good);stroke-width:2.4}
+.done-hero h2{margin-top:0}
+
+/* Previous button */
+.hprev{min-height:44px;display:inline-flex;align-items:center;gap:2px;padding:0 10px 0 4px;margin-left:-6px;border-radius:10px;color:var(--on-acc);font-size:14px;font-weight:600}
+.hprev svg.ic{width:18px;height:18px}
+
+/* Course */
+.hero .meter{background:rgba(127,127,127,.35);margin-top:8px}
+.unit{text-decoration:none;color:inherit}
+.unit .label,.lessonrow .label{font-weight:600}
+.unum{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;flex:none;background:var(--paper);font-weight:700;font-size:14px;color:var(--ink2)}
+.unum svg.ic{width:18px;height:18px}
+.unum.on{background:var(--accent);color:var(--on-acc)}
+.lessonrow:disabled{opacity:.55}
+.lesson{gap:12px}
+.lesson h3,.card h3{font-size:19px;letter-spacing:-.01em}
+.pattern{padding:10px 12px;border-radius:12px;background:var(--paper);font-size:18px;text-align:center}
+.example{padding:8px 0;border-bottom:1px solid var(--line2);display:flex;flex-direction:column;gap:2px}
+.example:last-child{border-bottom:0}
+.stem{font-size:22px;line-height:1.5;display:flex;flex-wrap:wrap;align-items:center}
+.stem.flow{display:block}
+.stem u{text-underline-offset:5px;text-decoration-thickness:2px}
+.stem .word{min-height:40px;min-width:0}
+.dline{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--line2)}
+.who{width:28px;height:28px;border-radius:50%;background:var(--raised);color:var(--ink);display:grid;place-items:center;font-size:12px;font-weight:700;flex:none;margin-top:6px}
+.dline .grow{flex:1;min-width:0}
+.dline{border-radius:10px;transition:background .2s}.dline.now{background:var(--act-soft);margin:0 -8px;padding:8px}.dline .say{align-self:center}
+#lines .gloss{margin-top:10px}
+.choices{display:flex;flex-direction:column;gap:8px}
+.choice{min-height:56px;width:100%;padding:10px 14px;border-radius:14px;background:var(--card);box-shadow:inset 0 0 0 1px var(--line);text-align:left;font-size:17px;line-height:1.3;display:flex;align-items:center;gap:10px}
+.choice .grow{flex:1;min-width:0}
+.choice.right{background:var(--accent);color:var(--on-acc);box-shadow:none}
+.choice.wrong{color:var(--bad);box-shadow:inset 0 0 0 1.5px var(--bad);opacity:.7}
+.choice.picked{box-shadow:inset 0 0 0 2px var(--act);background:var(--act-soft)}
+.cnum{width:26px;height:26px;border-radius:50%;background:var(--paper);display:grid;place-items:center;font-size:13px;font-weight:700;flex:none}
+.choice.picked .cnum{background:var(--act);color:var(--on-acc)}
+.opts.long{grid-template-columns:1fr}
+.opts.long .opt{min-height:56px;font-size:19px}
+.small-line{font-size:22px}
+.level:disabled{opacity:.55}
+.level .icbox{font-weight:700}
+.level .meter{display:block;margin-top:6px;height:4px}
+.ptile.short{min-height:78px;justify-content:center}
+
+/* Exams */
+.passage{padding:12px;border-radius:12px;background:var(--paper);font-size:17px;line-height:1.6;max-height:34vh;overflow-y:auto;overscroll-behavior:contain}
+.link{display:block;width:100%;min-height:44px;margin-top:6px;color:var(--mute);font-size:14px;font-weight:600}
+.btn:disabled{opacity:.45}
+.qmap{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+.qmap button{min-height:44px;border-radius:10px;background:var(--paper);font-weight:650;font-size:14px;font-variant-numeric:tabular-nums}
+.qmap button.on{background:var(--act);color:var(--on-acc)}
+.score{font-size:44px;font-weight:800;letter-spacing:-.02em}
+.score small{font-size:18px;font-weight:600;opacity:.7}
+.bad-text{color:var(--bad)}
+.good-text{color:var(--accent);font-weight:600}
+
+/* ---------- Today dashboard ---------- */
+.goals{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+.goal{display:flex;flex-direction:column;align-items:center;gap:2px;padding:10px 4px;border-radius:14px;background:rgba(127,127,127,.18)}
+.goal .gic{width:26px;height:26px;display:grid;place-items:center;opacity:.8}
+.goal .gic svg.ic{width:20px;height:20px}
+.goal b{font-size:22px;font-weight:750;line-height:1.1;font-variant-numeric:tabular-nums;min-height:24px}
+.goal span:last-child{font-size:12px;opacity:.75}
+.goal.done{background:var(--accent);color:var(--on-acc)}
+.goal.done .gic{opacity:1}
+.goal.none{opacity:.55}
+
+.kod{flex-direction:row;align-items:center;gap:16px;width:100%;text-align:left;font:inherit;color:inherit;cursor:pointer}
+.kod:active{background:var(--raised)}
+.kod-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.kod-glyph{flex:none;width:96px;height:96px;border-radius:20px;background:var(--paper);font-size:64px;font-weight:500;line-height:1;display:grid;place-items:center;color:var(--ink)}
+.kod-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+.kod-info strong{font-size:19px;line-height:1.25;letter-spacing:-.01em}
+.kod-info .caps{margin-right:4px}
+.kod-parts{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.part{display:flex;align-items:center;gap:6px;padding:6px 10px 6px 8px;border-radius:12px;box-shadow:inset 0 0 0 1px var(--line)}
+.part b{font-size:22px;font-weight:500;line-height:1}
+.part small{font-size:12px;color:var(--ink2)}
+.plus{color:var(--mute);font-weight:700}
+.kod-words{display:flex;flex-direction:column;border-top:1px solid var(--line2)}
+.kword{display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--line2)}
+.kword:last-child{border-bottom:0}
+.kw{font-size:22px;min-width:64px}
+
+.course-card{gap:12px}
+.cc-top{display:flex;align-items:center;gap:16px}
+.cc-top h3{font-size:19px;line-height:1.25}
+.ringbox{position:relative;width:88px;height:88px;flex:none}
+.ring{width:100%;height:100%}
+.ring circle{fill:none;stroke-width:11}
+.ring .track{stroke:var(--line2)}
+.ring .fill{stroke:var(--accent);stroke-linecap:round}
+.ringtext{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1}
+.ringtext b{font-size:26px;font-weight:750;font-variant-numeric:tabular-nums}
+.ringtext small{font-size:11px;color:var(--mute);margin-top:2px}
+.segs{display:grid;grid-template-columns:repeat(24,1fr);gap:3px}
+.segs i{height:8px;border-radius:3px;background:var(--line2)}
+.segs i.on{background:var(--accent)}
+.segs i.now{background:var(--act)}
+
+.heat-days,.heat{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.heat-days span{text-align:center;font-size:12px;color:var(--mute)}
+.heat i{aspect-ratio:1;border-radius:7px;background:var(--line2)}
+.heat i.l1{background:color-mix(in srgb,var(--accent) 30%,var(--line2))}
+.heat i.l2{background:color-mix(in srgb,var(--accent) 55%,var(--line2))}
+.heat i.l3{background:color-mix(in srgb,var(--accent) 80%,var(--line2))}
+.heat i.l4{background:var(--accent)}
+.heat i.future{background:transparent;box-shadow:inset 0 0 0 1px var(--line2)}
+.heat i.now{box-shadow:0 0 0 2px var(--card),0 0 0 3.5px var(--act)}
+
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.stat{position:relative;overflow:hidden;display:flex;flex-direction:column;gap:2px;padding:14px;background:var(--card);border-radius:18px;box-shadow:inset 0 0 0 1px var(--line),var(--shadow);color:inherit;text-decoration:none}
+.stat b{font-size:26px;font-weight:750;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.15}
+.stat b small{font-size:13px;font-weight:600;color:var(--mute);letter-spacing:0}
+.stat span{font-size:13px;color:var(--mute)}
+.stat i{position:absolute;left:0;bottom:0;height:4px;background:var(--accent);border-radius:0 2px 2px 0}
+
+/* ---------- Talk ---------- */
+a.action{color:inherit;text-decoration:none}
+.cgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ctile{display:flex;flex-direction:column;gap:2px;padding:14px;min-height:112px;background:var(--card);border-radius:18px;box-shadow:inset 0 0 0 1px var(--line),var(--shadow);color:inherit;text-decoration:none}
+.ctile:active{background:var(--paper)}
+.ctile strong{font-size:15px;line-height:1.25;margin-top:auto}
+.cjp{font-size:20px;font-weight:600;color:var(--ink)}
+.talkbar{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.talkbar .seg{margin:0}
+.phrase{gap:4px}
+.phrase .pline{justify-content:flex-start;font-size:24px;padding:0}
+.pen{font-size:16px;font-weight:600;line-height:1.35}
+.prow{display:flex;align-items:center;gap:4px;margin-top:2px}
+.tag.casual{background:var(--act-soft);color:var(--act)}
+.say.star.on{color:var(--gold)}
+.say.star.on svg{fill:currentColor}
+
+/* ---------- Course progress ---------- */
+.pips{display:inline-flex;align-items:center;gap:4px;vertical-align:middle}
+.pip{width:9px;height:9px;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--line);background:transparent}
+.pip.on{background:var(--accent);box-shadow:none}
+.pip.test{border-radius:2px;transform:rotate(45deg) scale(.9);margin-left:3px}
+.pip.pop{animation:pip-pop .5s .25s both cubic-bezier(.3,1.6,.5,1)}
+@keyframes pip-pop{from{transform:scale(0)}to{transform:scale(1)}}
+.hero .pip{box-shadow:inset 0 0 0 1.5px currentColor;opacity:.9}
+.hero .pip.on{box-shadow:none;opacity:1}
+.path{display:flex;flex-direction:column;position:relative;padding-left:2px}
+.node{display:flex;align-items:center;gap:14px;min-height:64px;padding:10px 4px;text-decoration:none;color:inherit;position:relative}
+.node::before{content:"";position:absolute;left:21px;top:0;bottom:0;width:2px;background:var(--line)}
+.node:first-child::before{top:50%}
+.node.last::before{bottom:50%}
+.node.done::before{background:var(--accent)}
+.node .dot{position:relative;width:36px;height:36px;border-radius:50%;flex:none;display:grid;place-items:center;font-weight:750;font-size:14px;background:var(--card);box-shadow:inset 0 0 0 2px var(--line);color:var(--ink2)}
+.node .dot svg.ic{width:18px;height:18px}
+.node.done .dot{background:var(--accent);box-shadow:none;color:var(--on-acc)}
+.node.now .dot{background:var(--act);color:var(--on-acc);box-shadow:0 0 0 5px var(--act-soft)}
+.node.off{opacity:.5}
+.node .grow{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.node .label{font-weight:650;line-height:1.25}
+.node.now .label{font-size:17px}
+.nsub{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+@media (prefers-reduced-motion:no-preference){.node.now .dot{animation:now-glow 2.4s ease-in-out infinite}}
+@keyframes now-glow{50%{box-shadow:0 0 0 9px var(--act-soft)}}
+.dock.stack{display:flex;flex-direction:column;gap:8px}
+.lesson-done .burst{width:64px;height:64px;border-radius:50%;background:var(--accent);display:grid;place-items:center;margin-bottom:4px}
+.lesson-done .burst svg.ic{width:34px;height:34px;stroke:var(--on-acc);stroke-width:2.6}
+@media (prefers-reduced-motion:no-preference){.lesson-done .burst{animation:burst .45s both cubic-bezier(.3,1.5,.5,1)}}
+@keyframes burst{from{transform:scale(.3);opacity:0}to{transform:scale(1);opacity:1}}
+.unit-strip{display:flex;align-items:center;gap:10px;margin-top:4px;opacity:.85}
+.gains{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
+.gain{background:var(--card);border-radius:16px;padding:14px;box-shadow:inset 0 0 0 1px var(--line);display:flex;flex-direction:column;gap:2px}
+.gain b{font-size:26px;font-weight:800;color:var(--accent);letter-spacing:-.02em;line-height:1.1}
+.gain span{font-size:13px;color:var(--mute)}
+.gain .gl{font-size:22px;color:var(--ink);letter-spacing:.12em;margin-top:4px}
+.rankup{display:flex;align-items:center;gap:12px;margin-top:8px;padding:10px 16px 10px 10px;border-radius:16px;background:rgba(127,127,127,.18)}
+.rankup .jp{font-size:26px;font-weight:700;width:52px;height:52px;border-radius:12px;background:var(--gold);color:var(--on-acc);display:grid;place-items:center}
+.rankup span:last-child{display:flex;flex-direction:column;text-align:left;line-height:1.2}
+.rankup small{font-size:11px;text-transform:uppercase;letter-spacing:.08em;opacity:.7}
+.rankup b{font-size:18px}
+@media (prefers-reduced-motion:reduce){.pip.pop{animation:none}}
+.hero .btn.hero-ghost{background:transparent;color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--line);margin-top:2px}
+.course-card .btn{margin-top:2px}
+
+/* ---------- Memory stages and mastery ---------- */
+.head-tags{display:inline-flex;align-items:center;gap:6px}
+.stage{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;padding:2px 8px 2px 3px;border-radius:10px;background:var(--paper);color:var(--ink2)}
+.stage .jp{width:18px;height:18px;border-radius:6px;display:grid;place-items:center;font-size:11px;background:var(--line);color:var(--ink)}
+.stage.s-learning .jp{background:var(--s-learn);color:var(--on-acc)}
+.stage.s-strong .jp{background:var(--s-strong);color:var(--on-acc)}
+.stage.s-mastered .jp{background:var(--s-mastered);color:var(--on-acc)}
+.tile i.s-learning{background:var(--s-learn)}
+.tile i.s-strong{background:var(--s-strong)}
+.tile i.s-mastered{background:var(--s-mastered)}
+.stars{display:inline-flex;gap:1px;margin-left:6px;font-size:13px;vertical-align:1px;letter-spacing:0}
+.stars i{font-style:normal;color:var(--line)}
+.stars i.on{color:var(--gold)}
+.gtag{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 12px;margin-bottom:10px;border-radius:12px;background:var(--card);box-shadow:inset 0 0 0 1px var(--line)}
+.gtag .grow{flex:1;min-width:0}
+.type-in{display:flex;flex-direction:column;gap:4px;margin-top:4px}
+.type-in input{height:54px;border:0;border-radius:14px;padding:0 16px;font-size:22px;text-align:center;color:var(--ink);background:var(--paper);box-shadow:inset 0 0 0 1.5px var(--line);width:100%}
+.type-in input:focus{outline:none;box-shadow:inset 0 0 0 2px var(--ink)}
+.type-in input:disabled{opacity:.7}
+.type-in #kana{font-size:18px;min-height:24px;color:var(--ink2)}
+.rate.three{grid-template-columns:repeat(3,1fr)}
+/* The summary ring and the home progress ring share a class name; keep the summary one its own size. */
+.done-hero .ring{width:108px;height:108px;flex:none}
+.done-hero .ring circle{stroke-width:8}
+
+/* Header gear */
+.hbtn.gear{margin:0 -11px 0 0;color:var(--ink2)}
+.hbtn.gear svg.ic{width:22px;height:22px}
+
+/* Shared bits */
+.stack{display:flex;flex-direction:column;gap:12px}
+.stack[hidden],#results[hidden]{display:none}
+#results{display:flex;flex-direction:column;gap:12px}
+.row.tight{min-height:0;gap:8px}
+.chip{min-height:44px;padding:0 16px;border-radius:22px;font-size:13px;font-weight:650;background:var(--card);box-shadow:inset 0 0 0 1px var(--line);color:var(--ink)}
+.btn.small-btn{width:auto;min-height:44px;padding:0 16px;font-size:15px;text-decoration:none}
+.btn.small-btn svg.ic{width:16px;height:16px}
+.pad{padding:14px}
+
+/* Listen */
+.search{display:flex;align-items:center;gap:10px;padding:0 14px;min-height:48px;border-radius:14px;background:var(--card);box-shadow:inset 0 0 0 1px var(--line);color:var(--mute)}
+.search input{flex:1;min-width:0;border:0;background:none;font:inherit;font-size:16px;color:var(--ink);outline:none;min-height:46px}
+.clist{display:flex;flex-direction:column;background:var(--card);border-radius:18px;box-shadow:inset 0 0 0 1px var(--line),var(--shadow);overflow:hidden}
+.crow{display:flex;align-items:center;gap:12px;min-height:60px;padding:0 6px 0 14px;color:inherit;text-decoration:none;border-bottom:1px solid var(--line2)}
+.crow:last-child{border-bottom:0}
+.crow:active,.crow-in:active{background:var(--paper)}
+.crow-in{display:flex;align-items:center;gap:12px;min-height:60px;color:inherit;text-decoration:none}
+.crow .cjp{width:62px;flex:none;font-size:14px;line-height:1.2;text-align:center;white-space:nowrap}
+.crow .cjp.big{font-size:18px}
+.crow .cjp svg.ic{width:20px;height:20px}
+.crow strong{display:block;font-size:15px;line-height:1.25}
+.crow .small{display:block;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.crow .grow{flex:1;min-width:0}
+.playdot,.playbtn{width:44px;height:44px;flex:none;display:grid;place-items:center;border-radius:50%;color:var(--ink)}
+.playdot svg.ic,.playbtn svg.ic{width:18px;height:18px}
+.playbtn{box-shadow:inset 0 0 0 1.5px var(--line)}
+.playbtn:active{background:var(--act-soft);color:var(--act)}
+.pplay{display:block;width:100%;text-align:left;padding:0;border-radius:10px}
+.pplay:active{background:var(--paper)}
+.pplay .word{min-height:0;min-width:0;padding:0;text-decoration:none}
+.phrase.open .pplay .word{text-decoration:underline dotted var(--mute) 2px;text-underline-offset:7px}
+.phrase .ptext{display:none;flex-direction:column;gap:4px}
+.phrase.open .ptext{display:flex}
+.phrase .prow{display:flex;align-items:center;gap:4px}
+
+/* Radio */
+.radio{align-items:center;text-align:center;min-height:250px;gap:8px;padding:18px 18px 22px}
+.r-head{display:flex;justify-content:space-between;width:100%}
+.r-live{font-size:12px;font-weight:650;color:var(--act)}
+.r-ear{width:56px;height:56px;border-radius:50%;display:grid;place-items:center;background:var(--paper);color:var(--ink2);margin:6px 0}
+.r-ear svg.ic{width:28px;height:28px}
+.radio.playing .r-ear{background:var(--act-soft);color:var(--act);animation:breathe 1.8s ease-in-out infinite}
+@keyframes breathe{50%{transform:scale(1.08)}}
+.r-jp{font-size:26px;line-height:1.4;font-weight:600}
+.r-en{font-size:17px;font-weight:600;color:var(--ink2);min-height:1.4em}
+.radio.no-text .r-jp,.radio.no-text .romaji{filter:blur(9px);opacity:.5}
+.r-controls{display:flex;justify-content:center;align-items:center;gap:22px}
+.r-btn{width:56px;height:56px;border-radius:50%;display:grid;place-items:center;background:var(--card);box-shadow:inset 0 0 0 1px var(--line);color:var(--ink)}
+.r-btn.big{width:76px;height:76px;background:var(--act);color:var(--on-acc);box-shadow:none}
+.r-btn svg.ic{width:22px;height:22px}
+.r-btn.big svg.ic{width:30px;height:30px}
+.r-opts{gap:6px}
+.r-opts .row{gap:10px}
+.r-opts .seg{flex:none;width:200px}
+.r-opts .seg button{min-height:38px;font-size:13px}
+@media (prefers-reduced-motion:reduce){.radio.playing .r-ear{animation:none}}
+
+
+/* Stories */
+.story-head h2{font-size:24px;letter-spacing:-.01em}
+.story{gap:0;padding:8px 16px}
+.sline{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--line2);align-items:flex-start;border-radius:10px;transition:background .2s}
+.sline:last-of-type{border-bottom:0}
+.sline .grow{flex:1;min-width:0}
+.sline .who{width:auto;min-width:36px;padding:0 7px;border-radius:14px;font-size:12px;background:var(--paper);color:var(--ink2)}
+.sline.b .who{background:var(--act-soft);color:var(--act)}
+.sline.now{background:var(--act-soft);margin:0 -8px;padding:10px 8px}
+.sline .romaji,.sline .sen{display:none}
+.sline.open .romaji,.sline.open .sen,.story.all .sline .romaji,.story.all .sline .sen{display:block}
+.sline .sen{color:var(--mute)}
+.node.story-node{min-height:52px}
+.node.story-node .dot{width:30px;height:30px;margin:0 3px;font-size:15px}
+.node.story-node .dot svg.ic{width:16px;height:16px}
+.node.story-node.unread .dot{background:var(--act);color:var(--on-acc);box-shadow:0 0 0 5px var(--act-soft)}
+.story .stem{font-size:20px}
+/* Each kanji of a word, with its breakdown: on word cards and under a tapped word. */
+.wk-one{padding:10px 0 4px;border-top:1px solid var(--line2)}
+.wk-one:first-of-type{border-top:0}
+.wk-head{display:flex;gap:12px;align-items:center;margin-bottom:2px}
+.wk-g{width:52px;height:52px;border-radius:12px;box-shadow:inset 0 0 0 1.5px var(--line);font-size:32px;display:grid;place-items:center;flex:none}
+.wk-head strong{font-size:16px}
+.wk-head .rt{margin-top:3px}
+.wk .part{padding:7px 0 7px 6px}
+.wk .part .pg{width:38px;height:38px;font-size:21px}
+.gloss .gk{flex-basis:100%;display:flex;flex-direction:column;gap:8px;margin-top:8px;text-align:left}
+.gk-one{background:var(--card);border-radius:10px;padding:8px 10px;box-shadow:inset 0 0 0 1px var(--line2)}
+.gk-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.gk-top b{font-size:22px}
+.gk-top .rt{margin-top:0}
+.gk-parts{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;margin-top:4px;font-size:13px;color:var(--ink2)}
+.gk-parts b{font-size:16px;color:var(--ink)}
+.gk-parts i{font-style:normal;color:var(--mute)}
+.gk-one .small{margin:3px 0 0;color:var(--ink2);line-height:1.35}
+/* A forgotten or trouble card opens on its parts. */
+.hintbd{margin:4px 0 2px;padding:6px 12px 4px;border-radius:12px;background:var(--bad-soft)}
+.hintbd .caps{color:var(--bad)}
+.hintbd .part{border-bottom-color:rgba(255,255,255,.06)}
+.hint-k{margin:6px 0 0;font-size:20px;font-weight:600}
+.kod.trouble .kod-glyph{font-size:26px;letter-spacing:-.02em;color:var(--bad)}
+.explain p{margin:4px 0}
+.opt.kana{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;min-height:68px}
+.opt.kana .jp{font-size:24px;line-height:1.2}
+.opt.kana small{font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue","Segoe UI",Roboto,Arial,sans-serif;font-size:12px;font-weight:500;color:var(--mute)}
+.opt.kana.right small,.opt.kana.wrong small{color:inherit}
+/* Session bar: Exit, Previous and the count, at the bottom where the thumb is. */
+:root{--runbar:58px}
+.runbar{position:sticky;bottom:0;z-index:5;display:grid;grid-template-columns:repeat(3,1fr);background:var(--bar);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+.runbar>*{min-height:var(--runbar);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:11px;font-weight:600;color:var(--ink2)}
+.runbar .rbi svg.ic{width:21px;height:21px}
+.runbar button:disabled{color:var(--line);cursor:default}
+.runbar button:disabled:active{transform:none}
+.runbar .rbcount .count{font-size:15px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
+.runbar .jump{color:var(--act)}
+.runbar #rbexit.armed{color:var(--bad)}
+body.has-runbar .tabbar{display:none}
+body.has-runbar .dock{bottom:calc(var(--runbar) + 1px + env(safe-area-inset-bottom));padding-bottom:12px}
+body.has-runbar main{padding-bottom:12px}
+.top-in.slim{height:44px;justify-content:center}
+.top-in.slim h1{flex:none;font-size:15px;font-weight:650;color:var(--ink2);max-width:100%}
+
+/* Trip */
+.bar{display:block;height:6px;border-radius:3px;background:var(--line2);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent);border-radius:3px;transition:width .3s}
+.hero .bar{background:rgba(127,127,127,.35);margin-top:8px}
+.trip-card{position:relative;overflow:hidden;text-align:left;font:inherit;color:inherit;width:100%;gap:4px}
+.trip-card strong{font-size:19px;line-height:1.25;letter-spacing:-.01em}
+.trip-card .bar{margin-top:8px}
+.trip-card .water{font-size:120px;top:-14px;opacity:.06}
+.trip-card:active{background:var(--raised)}
+.trip-date{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px}
+.trip-date .small{opacity:.75}
+.trip-date input{font:inherit;font-size:15px;color:var(--ink);background:var(--paper);box-shadow:inset 0 0 0 1px var(--line);color-scheme:dark;border:0;border-radius:10px;min-height:44px;padding:0 10px}
+.scene-row{flex-direction:row;align-items:center;gap:14px;text-decoration:none;color:inherit}
+.scene-row strong{display:block;font-size:17px;margin:1px 0 7px}
+.scene-row .grow{flex:1;min-width:0}
+.scene-jp{flex:none;width:64px;height:64px;border-radius:16px;background:var(--paper);display:grid;place-items:center;font-size:14px;font-weight:700;white-space:nowrap;letter-spacing:-.04em}
+.sign-strip{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.part-row .icbox{font-size:13px;font-weight:700;letter-spacing:-.02em}
+.part-row .small.muted{margin-top:2px}
+.part-row.now{box-shadow:inset 0 0 0 2px var(--act)}
+.part-row .num{color:var(--mute)}
+/* Signs look like the real thing: station boards, shop signs, price tags. */
+.sign{display:inline-block;font-family:var(--jp);font-weight:700;font-size:15px;line-height:1.2;padding:5px 9px;border-radius:5px;letter-spacing:.04em;white-space:nowrap}
+.sign.big{font-size:min(44px,calc((100cqi - 60px) / (var(--n,1) * 1.08)));padding:14px 26px;border-radius:9px}
+.sign.station{background:#1f2f5c;color:#fff}
+.sign.board{background:#111;color:#ffb21a;font-family:var(--jp)}
+.sign.exit{background:#f5c400;color:#111}
+.sign.shop{background:#fff;color:#c8102e;box-shadow:inset 0 0 0 3px #c8102e}
+.sign.notice{background:#fff;color:#111;box-shadow:inset 0 0 0 2px #111}
+.sign.price{background:#ffe23d;color:#c8102e;transform:rotate(-2deg)}
+.sign.green{background:#0b7a4d;color:#fff}
+.sign.curtain{background:#23335e;color:#fff;border-radius:0 0 6px 6px;padding-top:9px}
+.sign.big.curtain{padding-top:26px}
+.sign-stage{display:grid;place-items:center;container-type:inline-size;min-height:132px;padding:8px 0;background:var(--paper);border-radius:14px}
+.sign-read{text-align:center;font-size:20px}
+.sign-read .ro{font-size:14px;color:var(--mute)}
+.reply{display:flex;flex-direction:column;gap:4px;padding:12px;border-radius:14px;background:var(--paper)}
+/* Role-play chat */
+.chat{display:flex;flex-direction:column;gap:8px}
+.bub{position:relative;max-width:86%;padding:10px 40px 10px 13px;border-radius:16px;display:flex;flex-direction:column;gap:2px}
+.bub .jp{font-size:19px}
+.bub .ro{font-size:12.5px;opacity:.75}
+.bub-en{font-size:13px;opacity:.75}
+.bub .say{position:absolute;right:6px;top:8px}
+.bub.staff{align-self:flex-start;background:var(--card);box-shadow:inset 0 0 0 1px var(--line);border-bottom-left-radius:5px;cursor:pointer}
+.bub.you{align-self:flex-end;background:color-mix(in srgb,var(--act) 22%,var(--card));color:var(--ink);border-bottom-right-radius:5px}
+.bub-note{align-self:center;max-width:92%;font-size:13px;color:var(--mute);text-align:center}
+.turn-goal{display:flex;flex-direction:column;gap:2px;margin:0;font-weight:600}
+.choice.jpopt{flex-direction:column;align-items:flex-start;gap:2px}
+.choice.jpopt .jp{font-size:19px}
+.choice.jpopt small{font-size:12.5px;color:var(--mute)}
+.choice.right.jpopt small{color:inherit;opacity:.85}
+.bub.you .say{color:inherit}
+.glue{display:inline-flex;align-items:center}
+details.more{border-top:1px solid var(--line2);padding-top:8px}
+details.more summary{min-height:44px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;color:var(--ink2);cursor:pointer;list-style:none}
+details.more summary::-webkit-details-marker{display:none}
+details.more summary::after{content:"＋";margin-left:6px;color:var(--mute)}
+details.more[open] summary::after{content:"−"}
+.path>.node:last-child::before{bottom:50%}
+.course-strip{display:flex;flex-direction:column;gap:8px;padding:4px 4px 0}
+.rankup small+b+small{text-transform:none;letter-spacing:0;font-size:12px;margin-top:2px}
+.unlock{display:flex;align-items:center;gap:12px;margin:8px 0 0;padding:10px 16px 10px 14px;border-radius:16px;background:rgba(127,127,127,.18);text-align:left}
+.unlock svg{width:24px;height:24px;flex:none}
+.unlock span{display:flex;flex-direction:column;line-height:1.2}
+.unlock small{font-size:11px;text-transform:uppercase;letter-spacing:.08em;opacity:.7}
+.unlock b{font-size:16px}
+.casual-unlock>.jp{font-size:22px;font-weight:700;color:var(--act);flex:none;display:block}
+.stem.lone{justify-content:center;font-size:64px;font-weight:500;line-height:1.15;text-align:center;padding:12px 0 4px;container-type:inline-size;min-height:90px;align-items:center}
+.stem.lone>span{font-size:min(64px,calc(92cqi / var(--n)));white-space:nowrap}
+/* Reading passages: Japanese only until the reader asks for help. */
+.rdline{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--line2);align-items:flex-start}
+.rdline:last-child{border-bottom:0}
+.rdline .grow{flex:1;min-width:0}
+.rdline .stem{font-size:20px}
+.rdline .say{align-self:center}
+.reading .romaji,.reading .sen{display:none}
+.reading.open .romaji,.reading.open .sen{display:block}
+/* A unit's parts at a glance, and lesson rows labelled like a textbook. */
+.ucontents{display:flex;gap:6px;flex-wrap:wrap}
+.uc{flex:1 1 0;min-width:56px;background:var(--card);border:1px solid var(--line2);border-radius:12px;padding:8px 6px;display:flex;flex-direction:column;align-items:center;gap:2px}
+.uc b{font-size:18px;font-variant-numeric:tabular-nums}
+.uc span{font-size:11px;color:var(--mute);text-align:center;line-height:1.2}
+.lessonrow .grow,.syl .grow{display:flex;flex-direction:column;gap:2px;min-width:0}
+.lessonrow .caps{font-size:10.5px}
+.syl-link{display:flex;align-items:center;gap:4px;min-height:44px;color:var(--act);font-weight:600;margin-top:8px}
+.syl-link svg.ic{width:14px;height:14px}
+.syl .unum{width:24px;height:24px}
+
+/* Dictionary */
+.dsearch{position:sticky;top:calc(var(--head) + env(safe-area-inset-top));z-index:3;display:flex;align-items:center;gap:8px;padding:0 14px;height:50px;border-radius:14px;background:var(--card);box-shadow:inset 0 0 0 1.5px var(--line),var(--shadow);color:var(--mute)}
+.dsearch:focus-within{box-shadow:inset 0 0 0 1.5px var(--act-line)}
+.dsearch input{flex:1;min-width:0;height:100%;border:0;background:none;font:inherit;font-size:17px;color:var(--ink)}
+.dsearch input:focus{outline:none}
+.dsearch input::-webkit-search-cancel-button{display:none}
+.dclear{display:grid;place-items:center;width:44px;height:44px;margin-right:-12px;border-radius:50%;color:var(--mute);flex:none}
+.dclear svg.ic{width:16px;height:16px;padding:4px;box-sizing:content-box;border-radius:50%;background:var(--line2);color:var(--ink2)}
+.dclear[hidden]{display:none}
+/* Type or Write */
+.dmode button{display:flex;align-items:center;justify-content:center;gap:7px}
+.dmode svg.ic{width:17px;height:17px}
+/* Handwriting pad: suggestions on top, in thumb reach of the drawing. */
+.hw{padding:10px}
+.hw-cands{display:flex;gap:6px;align-items:center;height:50px;overflow-x:auto;scrollbar-width:none;padding:0 2px}
+.hw-cands::-webkit-scrollbar{display:none}
+.hw-cands>span{margin:auto}
+.hw-c{flex:none;width:46px;height:46px;border-radius:10px;font-size:28px;line-height:1;background:var(--paper);box-shadow:inset 0 0 0 1px var(--line);color:var(--ink)}
+.hw-c:first-child{background:var(--act-soft);color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--act)}
+.hw-box{width:min(250px,100%);aspect-ratio:1;margin:8px auto;border-radius:16px;background:var(--paper);box-shadow:inset 0 0 0 1px var(--line)}
+.hw-ink path{stroke:var(--ink);stroke-width:3.6}
+.hw-row{display:flex;gap:8px}
+.hw-row .btn{flex:1;min-height:44px;padding:0 10px}
+.hw-row .btn:last-child{flex:0 0 64px}
+#kinfo:empty,#detail:empty{display:none}
+#detail{scroll-margin-top:calc(var(--head) + env(safe-area-inset-top) + 64px)}
+/* Write mode: the best word for what you've written, right under the search bar. */
+.dmatch{display:flex;align-items:center;gap:12px;min-height:60px;padding:8px 10px 8px 14px;text-align:left;border-radius:14px;background:var(--card);box-shadow:inset 0 0 0 1px var(--line),var(--shadow);color:var(--ink)}
+.dmatch[hidden]{display:none}
+.dmatch.whole{box-shadow:inset 0 0 0 2px var(--accent),var(--shadow)}
+.dmatch .grow{display:flex;flex-direction:column;min-width:0}
+.dm-w{font-size:22px;font-weight:600;flex:none;max-width:45%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dm-tag{flex:none;font-size:12px;font-weight:700;padding:3px 8px;border-radius:8px;background:var(--accent-soft);color:var(--accent)}
+.dmatch.whole{animation:dmpop .3s cubic-bezier(.3,1.5,.5,1)}
+@keyframes dmpop{0%{transform:scale(.97)}60%{transform:scale(1.015)}100%{transform:scale(1)}}
+@media (prefers-reduced-motion: reduce){.dmatch.whole{animation:none}}
+.dlist{display:flex;flex-direction:column;background:var(--card);border-radius:18px;box-shadow:inset 0 0 0 1px var(--line),var(--shadow);overflow:hidden}
+.dlist:empty{display:none}
+.dlist>p{padding:18px}
+.dres{display:flex;align-items:center;gap:12px;padding:11px 14px;text-align:left;border-bottom:1px solid var(--line2)}
+.dres:last-child{border-bottom:0}
+.dres-w{font-size:18px;width:100px;flex:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dres .grow{flex:1;min-width:0;display:flex;flex-direction:column}
+.dres .small{color:var(--mute)}
+.dres-m{font-size:14px;color:var(--ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dhead{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.dword{font-size:34px;line-height:1.15;font-weight:600;word-break:break-all}
+/* Empty search: recent lookups, then topics to browse. */
+.dbrowse{display:flex;flex-direction:column;gap:12px}
+.dbrowse:empty,.dbrowse[hidden]{display:none}
+.dbrowse .sect{margin:6px 2px -2px}
+.dlink{display:inline-flex;align-items:center;gap:4px;min-height:32px;padding:0 2px;font:inherit;font-size:13px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--act)}
+.dback{align-self:flex-start;min-height:44px;margin:-4px 0 -8px -6px;font-size:15px}
+.dback svg.ic{width:18px;height:18px}
+.dchips{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:0 calc(-1 * var(--gut));padding:2px var(--gut) 4px}
+.dchips::-webkit-scrollbar{display:none}
+.dchip{flex:none;min-height:44px;padding:0 16px;border-radius:22px;font-size:17px;background:var(--card);box-shadow:inset 0 0 0 1px var(--line);color:var(--ink)}
+.dtopics{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.dtile{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-height:118px;padding:14px 14px 12px;text-align:left;border-radius:18px;background:var(--card);box-shadow:inset 0 0 0 1px var(--line),var(--shadow);color:var(--ink)}
+.dtile:active{transform:scale(.97)}
+.dtile-m{font-size:26px;line-height:1.2;font-weight:600;margin-bottom:auto;padding-bottom:10px;letter-spacing:.02em;color:var(--ink2)}
+.dtile strong{font-size:15px;line-height:1.25}
+
+
+
+.dtile:last-child:nth-child(odd){grid-column:1 / -1;min-height:96px}
+.dtopic{padding:2px 16px}
+.dfoot{margin-top:4px}
+.brow{display:flex;align-items:center;gap:8px}
+.brow>button{text-align:left;display:flex;flex-direction:column;gap:2px}
+.brow .jp{font-size:18px}
+.senses{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:4px}
+
+/* Flashcards and Home's reading card */
+.fbar{display:flex;justify-content:space-between;align-items:center;padding:0 2px}
+.fcard{position:relative;align-items:center;text-align:center;min-height:300px;justify-content:center}
+.fcard>.caps{position:absolute;top:16px;left:18px}
+.fcard .femoji{font-size:64px;line-height:1.1}
+.fword{font-size:52px;font-weight:600;line-height:1.15;word-break:keep-all}
+.fsent{justify-content:center;font-size:22px}
+.fsay{position:absolute;top:10px;right:10px}
+.fback{display:flex;flex-direction:column;gap:6px;align-items:center;width:100%}
+.fback:empty{display:none}
+.fback .wk{text-align:left;width:100%}
+.fcard .gloss{width:100%;text-align:left}
+.fnav{display:grid;grid-template-columns:64px 1fr;gap:10px}
+.home-read{min-height:0;gap:12px}
+.home-read .kod-head{width:100%}
+.home-read .femoji{font-size:44px}
+.home-read .fword{font-size:40px}
+.home-read .fnav{grid-template-columns:56px 1fr 1fr;width:100%}
+.home-read .fnav .btn{min-height:46px;padding:0 12px}
+
+/* Your notes on kanji: above the breakdown, never in place of it. */
+.knote-slot{margin:2px 0 4px}
+.knote-slot:empty{display:none}
+.knote{display:block;width:100%;text-align:left;margin:0;padding:8px 12px;border-left:3px solid var(--ink);background:var(--paper);border-radius:0 10px 10px 0;font-size:14.5px;line-height:1.4;color:var(--ink);white-space:pre-wrap;overflow-wrap:anywhere}
+.knote-add{min-height:44px;padding:0;font-size:13px;font-weight:600;color:var(--mute)}
+.knote-edit textarea{display:block;width:100%;box-sizing:border-box;font:inherit;font-size:16px;line-height:1.4;padding:9px 12px;border:0;border-radius:10px;box-shadow:inset 0 0 0 1.5px var(--ink);background:var(--card);color:var(--ink);resize:none;overflow:hidden}
+.knote-btns{display:flex;justify-content:flex-end;gap:2px}
+.knote-btns button{min-height:40px;padding:0 12px;font-size:14px;font-weight:600;color:var(--mute)}
+.knote-btns .save{color:var(--ink)}
+.gk-one .knote{margin-top:6px;padding:5px 9px;font-size:13px}
+.tile .tnote{position:absolute;top:7px;right:7px;width:7px;height:7px;border-radius:50%;background:var(--ink)}
+#kview .num{opacity:.7;font-weight:600}
+/* The story that ties a kanji's parts together, under the parts. */
+.kstory{margin:8px 0 2px;font-size:15px;line-height:1.45;color:var(--ink)}
+/* Real origin or memory trick, then the sound family. */
+.kmeta{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin:8px 0 2px;font-size:13px;color:var(--ink2);line-height:1.5}
+.kmeta .jp{font-size:15px}
+.ktag{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;border-radius:10px;box-shadow:inset 0 0 0 1px var(--line);color:var(--mute)}
+.ktag.real{background:var(--sel);color:var(--ink);box-shadow:none}
+/* A kanji you can tap in a story or sound family, and the small card it opens. */
+.kref{display:inline;padding:12px 4px;margin:-12px -2px;font:inherit;font-weight:600;color:var(--ink);text-decoration:underline dotted;text-underline-offset:4px;text-decoration-color:var(--mute);background:none;min-height:0;vertical-align:baseline}
+.kmeta .kref{font-size:15px}
+.kpeek{display:flex;gap:12px;align-items:flex-start;margin:6px 0;padding:10px 12px;border-radius:12px;background:var(--paper);box-shadow:inset 0 0 0 1px var(--line)}
+.kp-g{font-size:30px;line-height:1.1;flex:none}
+.kp-r{font-size:13px;color:var(--ink2);margin-left:4px}
+.kpeek .small{margin-top:2px;color:var(--ink2);line-height:1.4}
+
+/* ---------- Game feel: feedback, combo, rewards ---------- */
+/* Answer buttons sit on a small ledge that collapses when pressed, so a tap feels physical. */
+.opt,.choice{box-shadow:inset 0 0 0 1px var(--line),0 3px 0 var(--line);transition:transform .08s ease-out,box-shadow .08s ease-out,background-color .15s,opacity .15s}
+.opt:not(:disabled):active,.choice:not(:disabled):active{transform:translateY(3px);box-shadow:inset 0 0 0 1px var(--line),0 0 0 var(--line)}
+.opt.right,.choice.right{box-shadow:0 3px 0 color-mix(in srgb,var(--accent) 70%,#000)}
+.opt.dim{opacity:.35}
+.opt.wrong,.choice.wrong{box-shadow:inset 0 0 0 1.5px var(--bad),0 3px 0 var(--bad-soft)}
+@media (prefers-reduced-motion:no-preference){
+  .opt.right,.choice.right{animation:juicy .32s cubic-bezier(.3,1.6,.5,1) both}
+  .opt.wrong,.choice.wrong,.block.shake{animation:shake2 .34s ease}
+}
+@keyframes juicy{0%{transform:scale(.85)}60%{transform:scale(1.08)}100%{transform:scale(1)}}
+@keyframes shake2{20%{transform:translateX(-4px)}45%{transform:translateX(3px)}70%{transform:translateX(-2px)}90%{transform:translateX(1px)}}
+
+/* Feedback strips read as a verdict: tinted, with a badge that pops. */
+.fb{font-size:15.5px;padding:14px 16px;border-radius:16px}
+.fb.good{background:var(--accent-soft);box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--accent) 40%,transparent)}
+.fb.bad{background:var(--bad-soft);box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--bad) 35%,transparent)}
+.fb.good::before,.fb.bad::before{width:26px;height:26px;font-size:13px}
+@media (prefers-reduced-motion:no-preference){
+  .fb.good,.fb.bad{animation:sheet-up .26s cubic-bezier(.2,.9,.25,1.05) both}
+  .fb.good::before,.fb.bad::before{animation:juicy .36s .12s cubic-bezier(.3,1.6,.5,1) both}
+}
+@keyframes sheet-up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+
+/* Combo pill in the session header, and the toast every fourth right answer. */
+.combo{flex:none;margin-left:8px;min-width:34px;height:24px;padding:0 8px;border-radius:12px;display:inline-grid;place-items:center;font-size:12.5px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--ink2);box-shadow:inset 0 0 0 1.5px var(--line)}
+.combo.hot{background:var(--good);color:#0d1f17;box-shadow:none}
+@media (prefers-reduced-motion:no-preference){.combo{animation:juicy .3s cubic-bezier(.3,1.6,.5,1) both}}
+.toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 64px);z-index:30;transform:translateX(-50%);padding:9px 16px;border-radius:20px;background:var(--sel);color:var(--ink);font-weight:750;font-size:14px;box-shadow:0 8px 24px rgba(0,0,0,.2);pointer-events:none}
+@media (prefers-reduced-motion:no-preference){.toast{animation:toast 1.4s ease both}}
+@keyframes toast{0%{opacity:0;transform:translate(-50%,-8px) scale(.9)}14%{opacity:1;transform:translate(-50%,0) scale(1)}78%{opacity:1}100%{opacity:0}}
+
+/* Opt-in hint on a struggling card, and the word a kanji is asked in. */
+.hintbtn{align-self:center;min-height:44px;padding:0 16px;border-radius:22px;display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:700;color:var(--ink2);background:var(--card);box-shadow:inset 0 0 0 1.5px var(--line)}
+.hintbtn small{font-weight:500;color:var(--mute);font-size:12px}
+.askword{text-align:center;font-size:30px;line-height:1.3;margin-top:-4px}
+.askword b{font-weight:700;box-shadow:inset 0 -6px 0 var(--act-soft)}
+
+/* Kanji quiz steps */
+.qz{display:flex;flex-direction:column;align-items:center;gap:8px}
+.qz-tag{margin-top:6px;font-size:12px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:4px 10px;border-radius:10px;background:var(--card);box-shadow:inset 0 0 0 1px var(--line);color:var(--ink2)}
+.qz-tag.on{color:var(--act);box-shadow:inset 0 0 0 1.5px var(--act-line)}
+.qz-q{font-size:17px;font-weight:650;text-align:center;margin-top:4px}
+.qz-mean{font-size:40px;font-weight:800;letter-spacing:-.02em;text-align:center;line-height:1.15;padding:18px 0 6px}
+.qz-say{font-size:48px;font-weight:600;text-align:center;line-height:1.2;padding:16px 0 2px}
+.qz-big{font-size:64px;font-weight:600;line-height:1.2;text-align:center;padding:10px 0 2px}
+.qz-big u{text-decoration:none;box-shadow:inset 0 -.14em 0 var(--act-soft)}
+.qz-opts{grid-template-columns:1fr 1fr}
+.opt.qk{font-size:36px;min-height:80px}
+.opt.qm{font-family:inherit;font-size:18px;font-weight:650;min-height:64px;padding:0 8px}
+.qz-opts .opt.kana{min-height:68px}
+/* The answer sheet: slides up over the bottom, Continue in the same thumb spot as the answers. */
+.sheet{position:fixed;left:0;right:0;bottom:calc(var(--runbar) + 1px + env(safe-area-inset-bottom));z-index:6;display:flex;flex-direction:column;gap:10px;padding:16px calc(var(--gut) + env(safe-area-inset-right)) 14px calc(var(--gut) + env(safe-area-inset-left));border-radius:22px 22px 0 0;background:linear-gradient(180deg,color-mix(in srgb,var(--c) 11%,var(--raised)),var(--raised) 70%);box-shadow:0 -14px 40px rgba(0,0,0,.45),inset 0 1px 0 color-mix(in srgb,var(--c) 55%,transparent)}
+.sheet.good{--c:var(--good)}.sheet.bad{--c:var(--bad)}
+.sheet>*{width:100%;max-width:528px;margin:0 auto}
+.sh-head{display:flex;align-items:center;gap:10px;font-size:19px}
+.sh-head b{color:var(--c);letter-spacing:-.01em}
+.sh-badge{width:30px;height:30px;border-radius:50%;background:var(--c);color:var(--on-acc);display:grid;place-items:center;font-weight:900;font-size:15px;flex:none}
+.sh-body{display:flex;gap:14px;align-items:center}
+.sh-k{width:60px;height:60px;border-radius:14px;background:var(--paper);box-shadow:inset 0 0 0 1px var(--line2);display:grid;place-items:center;font-size:38px;flex:none}
+.sh-body .grow{display:flex;flex-direction:column;gap:2px;min-width:0}
+.sh-line{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;font-size:17px}
+.sh-line .rt{margin-top:0}
+.sh-w{font-weight:700}
+.sheet .btn{background:var(--c);color:var(--on-acc);box-shadow:0 1px 0 rgba(255,255,255,.25) inset,0 6px 18px -8px var(--c)}
+body.has-sheet main{padding-bottom:230px}
+@media (prefers-reduced-motion:no-preference){
+  .sheet{animation:sheet-in .26s .08s cubic-bezier(.2,.9,.25,1.05) both}
+  .sh-badge{animation:juicy .36s .16s cubic-bezier(.3,1.6,.5,1) both}
+}
+@keyframes sheet-in{from{transform:translateY(100%)}to{transform:none}}
+
+/* End screens: stars, the score, kanji flipping in, and what to go over. No XP here. */
+.flips{display:flex;flex-wrap:wrap;gap:8px}
+.flip{width:56px;height:56px;border-radius:14px;display:grid;place-items:center;font-size:32px;background:var(--accent-soft);box-shadow:inset 0 0 0 1.5px var(--accent)}
+/* A new kanji you missed keeps its place, with an amber ring and dot: one to watch. */
+.flip.watch{position:relative;background:var(--s-learn-soft);box-shadow:inset 0 0 0 1.5px var(--s-learn)}
+.flip.watch::after{content:"";position:absolute;top:-4px;right:-4px;width:12px;height:12px;border-radius:50%;background:var(--s-learn);box-shadow:0 0 0 2.5px var(--card)}
+.wchips{display:flex;flex-wrap:wrap;gap:6px}
+.wchip{padding:6px 12px;border-radius:10px;font-size:17px;background:var(--accent-soft);box-shadow:inset 0 0 0 1.5px var(--accent)}
+.watch-key{display:flex;align-items:center;gap:7px}
+.watch-key::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--s-learn)}
+.done-hero.fin{padding:26px 20px 22px;gap:6px}
+.done-hero.fin h2{font-size:32px}
+.done-hero .sub b{font-weight:800;opacity:1}
+.bigstars{display:flex;align-items:flex-end;justify-content:center;gap:6px;margin-bottom:8px;height:60px}
+.bs{display:block;width:44px;height:44px;color:inherit}
+.bs:nth-child(2){width:58px;height:58px;margin-bottom:8px}
+.bs svg{display:block;width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:1.4;stroke-linejoin:round;opacity:.28}
+.bs.on svg{fill:var(--gold);stroke:var(--gold);opacity:1}
+.beat h2{font-size:46px;letter-spacing:-.03em;font-variant-numeric:tabular-nums;line-height:1.05}
+.beat h2 small{font-size:22px}
+.goover{gap:12px}
+.misses{display:flex;flex-direction:column}
+/* One line per miss when it fits: the Japanese, then its meaning. Long sentences wrap under. */
+.miss{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 12px;padding:9px 0;border-top:1px solid var(--line2);min-width:0}
+.miss:first-child{border-top:0;padding-top:2px}
+.miss b{font-size:18px;font-weight:650;overflow-wrap:anywhere}
+.miss span{flex:1 1 150px;font-size:14px;color:var(--mute);line-height:1.3}
+.miss.long{flex-direction:column;align-items:flex-start}.miss.long span{flex:none}
+.misses .small{padding-top:8px}
+.ringbox.small{width:72px;height:72px}
+.ringbox.small .ringtext b{font-size:20px}
+.ring .fill{transition:stroke-dasharray .9s cubic-bezier(.2,.8,.2,1)}
+.kts{display:flex;flex-wrap:wrap;gap:8px}
+.kt{position:relative;width:60px;height:66px;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:28px;line-height:1.1;background:var(--paper);box-shadow:inset 0 0 0 1.5px var(--line)}
+.kt small{font-size:10px;color:var(--mute);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;max-width:56px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kt.clear{box-shadow:inset 0 0 0 1.5px var(--accent)}
+.kt.clear::after{content:"✓";position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;background:var(--accent);color:var(--on-acc);font-size:11px;font-weight:900;display:grid;place-items:center}
+.kt.left{box-shadow:inset 0 0 0 1.5px var(--s-learn)}
+.done-hero h2 small{font-size:18px;opacity:.6}
+.combo-n{color:var(--accent)}
+@media (prefers-reduced-motion:no-preference){
+  .flip{animation:flip-in .45s cubic-bezier(.3,1.4,.5,1) both;animation-delay:calc(1.1s + var(--d) * .1s)}
+  .kt.clear::after{animation:juicy .36s .4s cubic-bezier(.3,1.7,.5,1) both}
+  /* Stars land one by one, each with a small glint; unearned ones just fade in. */
+  .bs{animation:star-dim .3s calc(.15s + var(--d) * .22s) both}
+  .bs.on{animation:star-in .5s calc(.15s + var(--d) * .22s) cubic-bezier(.3,1.7,.45,1) both}
+  .bs.on svg{animation:star-glint .7s calc(.4s + var(--d) * .22s) ease-out both}
+  .wchip{animation:pop-in .38s calc(1.1s + var(--d) * .06s) ease-out both}
+  .goover .kt{animation:pop-in .38s calc(.9s + var(--i, 0) * .05s) ease-out both}
+  .beat h2{animation:juicy .4s .2s cubic-bezier(.3,1.6,.5,1) both}
+}
+@keyframes flip-in{from{transform:perspective(300px) rotateY(90deg);opacity:0}to{transform:none;opacity:1}}
+@keyframes star-in{0%{transform:scale(0) rotate(-40deg);opacity:0}100%{transform:none;opacity:1}}
+@keyframes pop-in{0%{opacity:0;transform:scale(.6)}60%{opacity:1;transform:scale(1.08)}100%{opacity:1;transform:none}}
+@keyframes star-dim{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:none}}
+@keyframes star-glint{0%{filter:drop-shadow(0 0 0 rgba(242,203,99,0))}40%{filter:drop-shadow(0 0 10px rgba(242,203,99,.8))}100%{filter:drop-shadow(0 0 0 rgba(242,203,99,0))}}
+
+/* ---------- Home ---------- */
+.upnext{min-height:0;gap:8px}
+.upnext h2{margin-top:2px;font-size:26px}
+.upnext .water{font-size:150px;top:-22px}
+.plan-chips{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:2px}
+.pchip{font-size:13px;font-weight:650;padding:4px 10px;border-radius:12px;background:rgba(127,127,127,.22)}
+.plan-chips .arrow{opacity:.55;font-size:13px}
+.hero-link{min-height:44px;font-size:14px;font-weight:600;opacity:.75;color:inherit;margin-bottom:-8px}
+.goalhome{gap:14px}
+.gh-top{display:flex;align-items:center;gap:14px}
+.gh-top .grow{display:flex;flex-direction:column;gap:2px;min-width:0}
+.gh-top strong{font-size:17px}
+.weekrow{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.wd{display:flex;flex-direction:column;align-items:center;gap:3px}
+.wd i{width:100%;max-width:38px;aspect-ratio:1;border-radius:50%;display:grid;place-items:center;font-style:normal;font-family:var(--jp);font-size:12px;color:var(--mute);background:var(--paper)}
+.wd.on i{background:var(--accent);box-shadow:0 2px 0 color-mix(in srgb,var(--accent) 65%,#000)}
+.wd.rest i{background:transparent;box-shadow:inset 0 0 0 1.5px var(--line)}
+.wd.now i{box-shadow:0 0 0 2px var(--card),0 0 0 3.5px var(--act)}
+.wd small{font-size:11px;color:var(--mute)}
+.kanjihome{gap:10px}
+.kh-link{text-decoration:none;color:inherit;min-height:44px;margin:-8px 0}
+.stagebar{display:flex;height:12px;border-radius:6px;overflow:hidden;gap:2px;background:var(--line2)}
+.stagebar i{display:block;height:100%}
+.stagebar .m,.stagekey .m{background:var(--s-mastered)}.stagebar .s,.stagekey .s{background:var(--s-strong)}.stagebar .l,.stagekey .l{background:var(--s-learn)}.stagebar .n,.stagekey .n{background:var(--line)}
+.stagekey{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13px;color:var(--ink2);font-variant-numeric:tabular-nums}
+.stagekey>span{display:inline-flex;align-items:center;gap:5px}
+.stagekey i{width:9px;height:9px;border-radius:3px}
+.stagekey b{font-weight:600;color:var(--ink)}
+.weakrow{display:flex;align-items:center;gap:12px;width:100%;text-align:left;min-height:64px;padding:10px 12px;margin-top:2px;border-radius:16px;background:var(--paper);box-shadow:0 3px 0 var(--line)}
+.weakrow:active{transform:translateY(2px);box-shadow:0 1px 0 var(--line)}
+.wk-glyphs{font-size:24px;font-weight:600;letter-spacing:-.02em;color:var(--bad);flex:none;min-width:58px}
+.weakrow .grow{display:flex;flex-direction:column;min-width:0}
+.weakrow strong{font-size:16px}
+@media (prefers-reduced-motion:no-preference){
+  .stagebar i{animation:grow-x .6s cubic-bezier(.2,.8,.2,1) both;transform-origin:left}
+  .stagebar i:nth-child(2){animation-delay:.08s}.stagebar i:nth-child(3){animation-delay:.16s}.stagebar i:nth-child(4){animation-delay:.24s}
+}
+@keyframes grow-x{from{transform:scaleX(0)}to{transform:none}}
+
+/* ---------- Kanji mastery map ---------- */
+.stagecounts{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.sc{min-height:64px;border-radius:14px;background:var(--card);box-shadow:inset 0 0 0 1px var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:6px 2px}
+.sc b{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.1}
+.sc>span{display:flex;align-items:center;gap:4px;font-size:12px;font-weight:600;color:var(--mute)}
+.sj{width:17px;height:17px;border-radius:5px;display:grid;place-items:center;font-size:10.5px;color:var(--on-acc)}
+.sc1 .sj{background:var(--s-learn)}.sc2 .sj{background:var(--s-strong)}.sc3 .sj{background:var(--s-mastered)}
+.sc.on{box-shadow:inset 0 0 0 2px var(--ink)}
+.fchips{display:flex;flex-wrap:wrap;gap:6px}
+.fchip{min-height:44px;padding:0 14px;border-radius:22px;display:inline-flex;align-items:center;gap:6px;font-size:13.5px;font-weight:650;background:var(--card);box-shadow:inset 0 0 0 1px var(--line);color:var(--ink2)}
+.fchip .num{color:var(--mute);font-weight:600}
+.fchip.on{background:var(--sel);color:var(--ink);box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}
+.fchip.on .num{color:inherit;opacity:.7}
+.fchip .dot{width:8px;height:8px;border-radius:50%;background:var(--bad)}
+.fchip.hide{margin-left:auto}
+.kgroup .sect{margin-bottom:8px}
+.kgrid{grid-template-columns:repeat(5,1fr);gap:7px}
+.kgrid .tile{min-height:72px;padding:8px 2px 8px;border-radius:13px;justify-content:center}
+.kgrid .tile b{font-size:28px}
+.kgrid .tile small{font-size:10.5px}
+.tile.st0{background:transparent;box-shadow:inset 0 0 0 1px var(--line2)}
+.tile.st0 b{color:#4f525a}
+.tile.st0 small{opacity:.6}
+.tile.st1{box-shadow:inset 0 0 0 2px var(--s-learn)}
+.tile.st2{background:var(--s-strong-soft);box-shadow:inset 0 0 0 2px var(--s-strong)}
+.tile.st3{background:var(--s-mastered);box-shadow:none;color:var(--on-acc)}
+.tile.st3 small{color:rgba(18,19,22,.72)}
+.tpips{position:absolute;top:6px;right:6px;display:flex;gap:2px}
+.tpips i{width:4px;height:4px;border-radius:50%;background:var(--line)}
+.st1 .tpips i.on{background:var(--s-learn)}.st2 .tpips i.on{background:var(--s-strong)}.st3 .tpips i{background:rgba(18,19,22,.3)}.st3 .tpips i.on{background:var(--on-acc)}
+.tbad{position:absolute;top:6px;left:6px;width:8px;height:8px;border-radius:50%;background:var(--bad);box-shadow:0 0 0 2px var(--card)}
+.kgrid .tnote{top:auto;bottom:6px;right:6px;width:5px;height:5px}
+.st3 .tnote{background:var(--on-acc)}
+@media (prefers-reduced-motion:no-preference){
+  .kgrid .tile{animation:juicy .3s cubic-bezier(.3,1.5,.5,1) both}
+}
+
+/* ---------- Course path ---------- */
+.trail-unit{display:flex;flex-direction:column;gap:6px}
+.ubanner{display:flex;flex-direction:column;gap:2px;padding:12px 16px;border-radius:16px;background:var(--card);box-shadow:inset 0 0 0 1px var(--line);text-decoration:none;color:inherit}
+.ubanner.now{background:radial-gradient(120% 120% at 100% 0%,color-mix(in srgb,var(--act) 14%,transparent),transparent 60%),var(--raised);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--act) 24%,transparent)}
+.ubanner.now .caps{color:var(--act)}
+.ubanner strong{font-size:17px;letter-spacing:-.01em}
+.ub-k{font-size:15px;letter-spacing:.12em;opacity:.75}
+.trail{position:relative;margin:4px 0}
+.trail-line{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.trail-line path{fill:none;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.tl-all{stroke:var(--line2);stroke-dasharray:2 10}
+.tl-done{stroke:var(--accent)}
+.tn{position:absolute;transform:translate(-50%,-50%);width:64px;height:64px;padding:0;border-radius:50%;display:grid;place-items:center}
+.tn:not(:disabled):active{transform:translate(-50%,-50%) scale(.95)}
+.tn-dot{width:64px;height:64px;border-radius:50%;display:grid;place-items:center;font-size:26px;font-weight:600;background:var(--card);box-shadow:inset 0 0 0 2px var(--line),0 5px 0 var(--line);color:var(--ink2)}
+.tn-dot svg.ic{width:26px;height:26px;stroke-width:2.6}
+.tn.done .tn-dot{background:var(--accent);color:var(--on-acc);box-shadow:0 5px 0 color-mix(in srgb,var(--accent) 60%,#000)}
+.tn.now{width:76px;height:76px}
+.tn.now .tn-dot{width:76px;height:76px;font-size:32px;background:var(--act);color:var(--on-acc);box-shadow:0 5px 0 color-mix(in srgb,var(--act) 50%,#000),0 0 0 6px var(--act-soft)}
+.tn.off{opacity:.5}
+.tn.gate .tn-dot{border-radius:18px;transform:rotate(45deg) scale(.82)}
+.tn.gate .tn-dot>*{transform:rotate(-45deg)}
+.tn.gate .tn-dot{font-size:22px}
+.tn-label{position:absolute;top:50%;transform:translateY(-50%);width:max-content;max-width:min(calc(50vw - 66px),170px);display:flex;flex-direction:column;text-align:left;line-height:1.2;pointer-events:none}
+.tn-label.right{left:calc(100% + 12px)}
+.tn-label.left{right:calc(100% + 12px);text-align:right}
+.tn-label b{font-size:13.5px;font-weight:650;color:var(--ink)}
+.tn-label small{font-size:11.5px;color:var(--mute)}
+.tn-start{position:absolute;top:-34px;left:50%;transform:translateX(-50%);padding:5px 10px;border-radius:10px;background:var(--act);color:var(--on-acc);font-size:11.5px;font-weight:850;letter-spacing:.08em;z-index:1}
+.tn-start::after{content:"";position:absolute;left:50%;bottom:-5px;margin-left:-5px;border:5px solid transparent;border-bottom:0;border-top-color:var(--act)}
+@media (prefers-reduced-motion:no-preference){
+  .tn.now .tn-dot{animation:breathe-node 2.4s ease-in-out infinite}
+  .tn-start{animation:bob 1.8s ease-in-out infinite}
+  .tl-done{stroke-dasharray:2000;animation:draw-line 1.2s .2s cubic-bezier(.2,.8,.2,1) both}
+}
+@keyframes breathe-node{50%{box-shadow:0 5px 0 color-mix(in srgb,var(--act) 50%,#000),0 0 0 14px var(--act-soft)}}
+@keyframes bob{50%{transform:translate(-50%,-4px)}}
+@keyframes draw-line{from{stroke-dashoffset:2000}to{stroke-dashoffset:0}}
+.rankgoal{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:16px;box-shadow:inset 0 0 0 1.5px var(--line);border:0;background:transparent;outline:1.5px dashed var(--line);outline-offset:-1.5px}
+.rankgoal>.jp{width:46px;height:46px;border-radius:12px;display:grid;place-items:center;font-size:20px;font-weight:700;background:var(--paper);flex:none}
+.rankgoal .grow{display:flex;flex-direction:column;line-height:1.25}
+.rankgoal small{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--mute);font-weight:700}
+.casual-goal{width:100%;text-align:left;color:inherit;font:inherit;cursor:pointer;outline-color:var(--act)}
+.casual-goal>.jp{color:var(--act);background:var(--act-soft)}
+.casual-goal small{color:var(--act)}
+.cg-pips{display:flex;gap:5px;margin:6px 0 4px}
+.cg-pips i{width:16px;height:5px;border-radius:3px;background:var(--line)}
+.cg-pips i.on{background:var(--act)}
+.path:empty{display:none}
+
+/* ---------- Kanji detail ---------- */
+.ltrack{display:flex;flex-direction:column;gap:10px;padding:12px;border-radius:14px;background:var(--paper)}
+.lt-steps{display:flex;align-items:center;gap:6px}
+.lt{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:650;color:var(--mute)}
+.lt .jp{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;font-size:15px;background:var(--line2);color:var(--mute)}
+.lt1.on .jp{background:var(--s-learn);color:var(--on-acc)}.lt2.on .jp{background:var(--s-strong);color:var(--on-acc)}.lt3.on .jp{background:var(--s-mastered);color:var(--on-acc)}
+.lt.on{color:var(--ink)}
+.lt.here .jp{box-shadow:0 0 0 2px var(--paper),0 0 0 4px var(--ink)}
+@media (prefers-reduced-motion:no-preference){.lt.here .jp{animation:here-pulse 2.4s ease-in-out infinite}}
+@keyframes here-pulse{50%{box-shadow:0 0 0 2px var(--paper),0 0 0 6px var(--line)}}
+.lt-bar{flex:1;height:2px;min-width:8px;border-radius:1px;background:var(--line)}
+.lt-facts{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.lt-facts span{display:flex;flex-direction:column;line-height:1.25}
+.lt-facts small{font-size:11px;color:var(--mute)}
+.lt-facts b{font-size:14px;font-variant-numeric:tabular-nums}
+.rgroup{padding:8px 0 4px;border-bottom:1px solid var(--line2)}
+.rgroup:last-of-type{border-bottom:0}
+.rg-head{display:flex;align-items:center;gap:8px;min-height:30px}
+.rg-head .rt{margin-top:0}
+.rg-r{font-size:20px;font-weight:650}
+.rgroup .wrow.big .rt{display:none}
+.rg-also{padding-top:8px;line-height:2}
+.rg-also .rt{margin:0 6px 0 2px}
+.dock.pair{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.dock.pair .btn{padding:0 10px}
+.seg a{flex:1;min-height:44px;display:grid;place-items:center;border-radius:10px;font-size:14px;font-weight:600;color:var(--mute);text-decoration:none}
+.seg a.on{background:var(--sel);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.3)}
+nav.seg{margin-bottom:12px}
+.kh-cards{color:var(--mute);text-decoration:none;min-height:44px;display:inline-flex;align-items:center;margin:-12px 0}
+.cardslink{display:flex;align-items:center;gap:10px;color:inherit;text-decoration:none;min-height:56px}
+.cardslink .grow{display:flex;flex-direction:column}
+
+/* Stroke order: watch, trace, then write from memory. Box is KanjiVG's 109 units. */
+.sk-sec .sechead{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.sk-box{position:relative;width:180px;aspect-ratio:1;margin:10px auto;border-radius:18px;background:var(--paper);box-shadow:inset 0 0 0 1px var(--line)}
+.sk-box.big{width:min(300px,calc(100vw - 72px))}
+.sk-svg{display:block;width:100%;height:100%;touch-action:none;user-select:none;-webkit-user-select:none}
+.sk-svg path{fill:none;stroke-linecap:round;stroke-linejoin:round}
+.sk-grid{stroke:var(--line);stroke-width:.6;stroke-dasharray:2 2}
+.sk-ghost path{stroke:var(--line2);stroke-width:4}
+.sk-ghost path.next{stroke:color-mix(in srgb,var(--act) 45%,var(--line2))}
+.sk-ink path{stroke:var(--ink);stroke-width:4.2}
+.sk-live{stroke:var(--act);stroke-width:4.5;opacity:.85}
+.sk-nums text{font-size:7px;font-weight:700;fill:var(--act);font-family:inherit}
+.sk-start{position:absolute;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;background:var(--act);box-shadow:0 0 0 4px var(--act-soft);pointer-events:none;animation:skpulse 1.2s ease-in-out infinite}
+.sk-box.shake2{animation:shake2 .34s ease}
+.sk-box.sk-done{box-shadow:inset 0 0 0 2px var(--good)}
+.sk-box.sk-done .sk-ink path{stroke:var(--good)}
+.sk-row{display:flex;gap:10px;justify-content:center;margin-top:4px}
+.sk-row .btn{flex:1;max-width:170px;white-space:nowrap;padding-inline:12px}
+.sk-msg{min-height:20px;margin:6px 0 0}
+@keyframes skpulse{50%{transform:scale(1.25)}}
+@media (prefers-reduced-motion: reduce){.sk-start{animation:none}.sk-box.shake2{animation:none}}
+
+/* ---------- Answers: one family ---------- */
+/* Short answers sit in a 2-column grid, centred. Long answers are full-width rows, left-aligned.
+   Every answer has the same face, ledge and verdict colours. */
+.opt,.choice{background:var(--card);color:var(--ink);border-radius:16px;box-shadow:inset 0 0 0 1px var(--line),0 3px 0 var(--ledge)}
+.opt:not(:disabled):active,.choice:not(:disabled):active{box-shadow:inset 0 0 0 1px var(--line),0 0 0 var(--ledge)}
+.choice{min-height:58px;padding:12px 16px;font-size:17px}
+.opts.long .opt{display:flex;align-items:center;justify-content:flex-start;text-align:left;min-height:58px;padding:10px 16px;font-size:19px;line-height:1.3}
+.opt.right,.choice.right{background:var(--good);color:var(--on-acc);box-shadow:0 3px 0 color-mix(in srgb,var(--good) 45%,#000)}
+.opt.wrong,.choice.wrong{color:var(--bad);background:var(--bad-soft);box-shadow:inset 0 0 0 1.5px var(--bad),0 3px 0 var(--ledge);opacity:.8}
+/* Rush meanings are short: grid them like the quiz. */
+
+/* ---------- Kanji quiz: prompt centred in the space above the answers ---------- */
+.qz{flex:1;padding-bottom:8px}
+.qz>.qz-top{margin-bottom:auto}
+.qz>:last-child{margin-bottom:auto}
+.qz-big{font-size:120px;line-height:1.1;padding:4px 0 0}
+.qz-big:has(u){font-size:60px;line-height:1.25}
+.qz-mean{font-size:44px;padding:10px 0 4px}
+/* Run screens with a prompt card and answers below: split the spare height above and below the card. */
+main>.card:has(+.reach){margin-top:auto}
+
+/* ---------- Course map ---------- */
+/* START sits in the current node's own label, so it never covers the node above. */
+.tn-start{display:none}
+.tn.now .tn-label b::before{content:"Start here";display:block;margin-bottom:2px;font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--act)}
+.tn-label b{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.tn:not(.now) .tn-label b{-webkit-line-clamp:2}
+.tn-label small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* ---------- Home ---------- */
+/* No system emoji on Home: a quiet 読 badge marks the reading card instead. */
+.home-read .femoji{display:none}
+.home-read .kod-head .caps{display:inline-flex;align-items:center;gap:8px}
+.home-read .kod-head .caps::before{content:"読";width:24px;height:24px;border-radius:7px;display:grid;place-items:center;font-family:var(--jp);font-size:13px;letter-spacing:0;background:var(--act-soft);color:var(--act)}
+
+/* ---------- Lists: a fixed glyph column so the text column lines up ---------- */
+.crow .cjp,.crow-in .cjp{width:76px;flex:none;text-align:center}
+.dres-w{text-align:left}
+
+/* ---------- Romaji setting ---------- */
+body[data-romaji="never"] .romaji{display:none}
+body[data-romaji="tap"] .romaji:not(.shown){position:relative;color:transparent;cursor:pointer;-webkit-user-select:none;user-select:none;min-height:28px}
+body[data-romaji="tap"] .romaji:not(.shown) :not(.say):not(.say *){color:transparent;text-decoration:none;visibility:hidden}
+body[data-romaji="tap"] .romaji:not(.shown)::before{content:"Show romaji";position:absolute;left:0;top:50%;transform:translateY(-50%);height:26px;padding:0 11px;border-radius:13px;display:inline-flex;align-items:center;font-size:12.5px;font-weight:650;color:var(--mute);background:var(--raised);box-shadow:inset 0 0 0 1px var(--line);white-space:nowrap;pointer-events:none}
+body[data-romaji="tap"] .romaji.center:not(.shown)::before{left:50%;transform:translate(-50%,-50%)}
+body[data-romaji="tap"] .romaji.center:not(.shown):has(.say)::before{left:calc(50% - 22px)}
+
+/* ---------- Sentence blocks without role colours, and decoys ---------- */
+body.no-roles .block{--c:var(--line)}
+body.no-roles .block.particle{background:var(--card);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line),inset 0 -4px 0 var(--c);padding-bottom:7px}
+body.no-roles .block.particle small{color:var(--mute);opacity:1}
+body.no-roles .legend{display:none}
+.block{max-width:340px;transition:opacity .2s,transform .2s,max-width .25s .12s,min-width .25s .12s,padding .25s .12s,margin .25s .12s}
+.block.used.gone{min-width:0;max-width:0;padding-left:0;padding-right:0;margin:0 -4px;box-shadow:none;overflow:hidden}
+/* A wrong tap flashes red while it shakes, then the tile goes back to normal. */
+@media (prefers-reduced-motion:no-preference){.block.shake{animation:shake2 .34s ease,bad-flash .7s ease}}
+@keyframes bad-flash{0%,45%{box-shadow:inset 0 0 0 2px var(--bad),inset 0 -4px 0 var(--c)}}
+
+/* ---------- Answer sheet ---------- */
+.sheet{border-radius:24px 24px 0 0}
+.sh-head{font-size:20px}
+.sh-head b{font-weight:780}
+.sh-badge{box-shadow:0 0 0 5px color-mix(in srgb,var(--c) 18%,transparent)}
+.sh-body strong{font-size:17px}
+/* Rush: the kanji card floats in the middle of the free space, answers stay in thumb reach. */
+
+/* ---------- Word exercises (js/exercises.js) ---------- */
+.qz:not(:has(.qz-top))>.qz-tag{margin-top:auto}
+/* Listen: one big round play button, the prompt itself. */
+.hear{display:grid;place-items:center;padding:14px 0 6px}
+.hear .say{width:112px;height:112px;border-radius:50%;background:var(--act-soft);color:var(--act);box-shadow:inset 0 0 0 1.5px var(--act-line),0 10px 30px -12px var(--act)}
+.hear .say svg.ic{width:44px;height:44px;stroke-width:1.7}
+.hear .say:active{background:color-mix(in srgb,var(--act) 24%,transparent)}
+@media (prefers-reduced-motion:no-preference){.hear .say{animation:hear-pulse 2.6s ease-in-out infinite}}
+@keyframes hear-pulse{50%{box-shadow:inset 0 0 0 1.5px var(--act-line),0 0 0 12px var(--act-soft)}}
+.reach>.hero-link{align-self:center;padding:0 14px;color:var(--mute);opacity:1;margin:-4px 0 0}
+.hero-link{color:var(--ink2)}
+/* Spell the reading: kana tiles into slots. */
+.answer.spell{justify-content:center;align-content:center;min-height:72px;width:100%;margin-top:10px;gap:6px}
+.answer.spell .slot{width:52px;height:52px}
+.block.kana{--c:var(--line);min-width:52px;min-height:52px;font-size:24px;padding:4px 10px}
+.answer.spell .block.kana{--c:var(--good)}
+/* Match pairs: two columns, tap one then its partner. */
+.match{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:auto}
+.mcol{display:flex;flex-direction:column;gap:8px}
+.mt{min-height:56px;padding:8px 10px;border-radius:14px;background:var(--card);color:var(--ink);font-size:15px;font-weight:600;line-height:1.25;box-shadow:inset 0 0 0 1px var(--line),0 3px 0 var(--ledge);transition:transform .08s,box-shadow .12s,background-color .15s,opacity .2s}
+.mt.jp{font-size:20px;font-weight:500}
+.mt:not(:disabled):active{transform:translateY(3px);box-shadow:inset 0 0 0 1px var(--line),0 0 0 var(--ledge)}
+.mt.sel{background:var(--act-soft);box-shadow:inset 0 0 0 2px var(--act),0 3px 0 var(--ledge)}
+.mt.right{background:var(--good-soft);color:var(--good);box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--good) 45%,transparent);opacity:.6}
+.mt.wrong{background:var(--bad-soft);color:var(--bad);box-shadow:inset 0 0 0 1.5px var(--bad),0 3px 0 var(--ledge)}
+@media (prefers-reduced-motion:no-preference){.mt.shake{animation:shake2 .34s ease}.mt.right{animation:juicy .3s cubic-bezier(.3,1.6,.5,1) both}}
+
+/* ---------- Shared answer sheet: room for several lines ---------- */
+.sheet{max-height:72dvh;overflow-y:auto}
+.sh-body{align-items:flex-start}
+.sh-body .grow{gap:4px}
+.sh-line .say{margin:-10px -6px -10px 0}
+.sheet .romaji{font-size:14px;color:var(--ink2)}
+
+/* ---------- Course: stars, placement, folded units ---------- */
+.tn-stars{display:flex;gap:1px;margin-top:3px;font-size:13px;line-height:1;letter-spacing:0}
+.tn-label.left .tn-stars{justify-content:flex-end}
+.tn-stars i{font-style:normal;color:var(--line)}
+.tn-stars i.on{color:var(--gold)}
+.placement{gap:8px;background:var(--paper);box-shadow:inset 0 0 0 1px var(--line)}
+.placement strong{font-size:17px}
+.placement .btn{margin-top:4px}
+.fold-list>summary{list-style:none;cursor:pointer}
+.fold-list>summary::-webkit-details-marker{display:none}
+.fold-list>summary::marker{content:""}
+.node.fold .chev svg.ic{transition:transform .2s ease}
+.fold-list[open]>summary .chev svg.ic{transform:rotate(90deg)}
+.node.fold::before{background:var(--line2)}
+.fold-list:not([open])>summary.node::before{bottom:50%}
+.sh-k{width:auto;min-width:60px;padding:0 9px;white-space:nowrap;font-size:34px}
+/* Single kanji in the kanji quiz are big; whole words in the word exercises fit the width. */
+.qz:not(:has(.qz-top)) .qz-big{font-size:64px;line-height:1.15;overflow-wrap:anywhere;max-width:100%}
+
+/* Lesson parts: a small trail of nodes, in the course map's look. Green is done, lavender is
+   where you are (or next), grey is still ahead. */
+.ptrail{display:flex;align-items:flex-start;margin:4px -6px 0;list-style:none;padding:0}
+.pt{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;position:relative;min-width:0}
+.pt::before{content:"";position:absolute;z-index:0;top:calc(var(--d,30px) / 2 - 2px);left:-50%;right:50%;height:4px;background:var(--line);border-radius:2px}
+.pt:first-child::before{display:none}
+.pt.done::before,.pt.now::before,.pt.just::before{background:var(--good)}
+.pt-dot{position:relative;z-index:1;width:var(--d,30px);height:var(--d,30px);border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:750;font-variant-numeric:tabular-nums;
+  background:var(--card);color:var(--ink2);box-shadow:inset 0 0 0 2px var(--line),0 3px 0 var(--ledge)}
+.pt-dot svg.ic{width:16px;height:16px;stroke-width:2.8}
+.pt.done .pt-dot,.pt.just .pt-dot{background:var(--good);color:var(--on-acc);box-shadow:0 3px 0 color-mix(in srgb,var(--good) 55%,#000)}
+.pt.now .pt-dot{background:var(--act);color:var(--on-acc);box-shadow:0 3px 0 color-mix(in srgb,var(--act) 50%,#000),0 0 0 5px var(--act-soft)}
+.pt.next .pt-dot{background:var(--act-soft);color:var(--act);box-shadow:inset 0 0 0 2px var(--act-line),0 3px 0 var(--ledge)}
+.pt small{font-size:11.5px;font-weight:650;color:var(--mute);white-space:nowrap}
+.pt.now small,.pt.next small{color:var(--act)}
+.pt.done small,.pt.just small{color:var(--good)}
+@keyframes pt-glow{50%{box-shadow:0 3px 0 color-mix(in srgb,var(--act) 50%,#000),0 0 0 9px var(--act-soft)}}
+
+/* The big trail heads the end-of-part screen. */
+.ptrail.big{--d:56px;margin:0 -4px 10px;width:calc(100% + 8px)}
+.ptrail.big .pt::before{height:6px;top:calc(var(--d) / 2 - 3px);border-radius:3px}
+.ptrail.big .pt-dot{font-size:22px;box-shadow:inset 0 0 0 2.5px var(--line),0 4px 0 var(--ledge)}
+.ptrail.big .pt-dot svg.ic{width:28px;height:28px}
+.ptrail.big .pt.done .pt-dot,.ptrail.big .pt.just .pt-dot{box-shadow:0 4px 0 color-mix(in srgb,var(--good) 55%,#000)}
+.ptrail.big .pt.next .pt-dot{box-shadow:inset 0 0 0 2.5px var(--act-line),0 4px 0 var(--ledge)}
+.ptrail.big small{font-size:12px}
+.done-hero .ptrail:not(.big){align-self:stretch;max-width:300px;width:100%;margin:8px auto 4px}
+@keyframes pt-fill{0%{background:var(--card);box-shadow:inset 0 0 0 2.5px var(--line),0 4px 0 var(--ledge);transform:scale(.85)}60%{transform:scale(1.12)}100%{transform:none}}
+@keyframes pt-ring{from{box-shadow:0 0 0 0 color-mix(in srgb,var(--good) 60%,transparent)}to{box-shadow:0 0 0 16px transparent}}
+@media (prefers-reduced-motion:no-preference){
+  .pt.now .pt-dot{animation:pt-glow 2.4s ease-in-out infinite}
+  /* The line into the part just finished draws in, its node pops green, then the check lands. */
+  .ptrail.big .pt.just::before{transform-origin:left;animation:grow-x .5s .25s cubic-bezier(.2,.8,.2,1) both}
+  .ptrail.big .pt.just .pt-dot{animation:pt-fill .5s .65s cubic-bezier(.3,1.6,.5,1) both}
+  .ptrail.big .pt.just .pt-dot svg{animation:pop-in .4s .95s ease-out both}
+  .ptrail.big .pt.just .pt-dot::after{content:"";position:absolute;inset:0;border-radius:50%;animation:pt-ring .7s .9s ease-out both}
+  .ptrail.big .pt.next .pt-dot{animation:pop-in .4s 1.2s ease-out both}
+}
+
+/* A lesson pip that's part-way: a pie of the parts done. */
+.pip.partway,.hero .pip.partway{box-shadow:inset 0 0 0 1.5px var(--good);opacity:1;background:conic-gradient(var(--good) calc(var(--p) * 1turn),transparent 0)}
+
+/* In a lesson: the part beside the title, and a progress bar split by part. */
+.partpill{flex:none;margin-left:8px;height:22px;padding:0 8px;border-radius:11px;display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:750;font-variant-numeric:tabular-nums;color:var(--act);background:var(--act-soft)}
+.partpill i{width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.35}
+.partpill i.on{opacity:1}
+.progress.parts{display:flex;gap:3px;background:none}
+.progress.parts b{position:relative;height:100%;background:var(--line2);border-radius:2px;overflow:hidden}
+.progress.parts b.done{background:var(--good)}
+.progress.parts b i{position:absolute;inset:0 auto 0 0;height:100%;background:var(--good);border-radius:0 2px 2px 0;transition:width .3s ease}
+
+/* End of a part: the words still waiting, and Later beside Keep going. */
+.wchip.soon{background:transparent;box-shadow:none;color:var(--ink2);outline:1.5px dashed var(--line);outline-offset:-1.5px}
+.keepgo{display:grid;grid-template-columns:1fr 2fr;gap:8px}
+.keepgo .btn{padding:0 12px}
+.partfin{padding-top:22px}
+.partfin h2{font-size:30px}
+
+/* Home's lesson trail: one node per lesson; a lesson in parts gets a split ring. */
+.ltrail .pt.parted .pt-dot{box-shadow:0 3px 0 color-mix(in srgb,var(--act) 50%,#000);animation:none}
+.lt-ring{position:absolute;inset:-8px;width:calc(100% + 16px);height:calc(100% + 16px);transform:rotate(-90deg);overflow:visible;pointer-events:none}
+.lt-ring circle{fill:none;stroke-width:3.5;stroke-linecap:round}
+.lt-ring .track{stroke:var(--act-line)}
+.lt-ring .fill{stroke:var(--good)}
+.ltrail .pt.parted small{margin-top:6px}
+/* The finish screen's lesson trail: the lesson just done fills in, then the next one lights. */
+.unit-trail{align-self:stretch;display:flex;flex-direction:column;align-items:center;gap:8px;width:100%;max-width:320px;margin:12px auto 0}
+.unit-trail .ltrail{width:100%;margin:0}
+.ltrail .pt.next .pt-dot{background:var(--act-soft);color:var(--act)}
+@media (prefers-reduced-motion:no-preference){
+  .ltrail.fin .pt.just::before{transform-origin:left;animation:grow-x .5s .3s cubic-bezier(.2,.8,.2,1) both}
+  .ltrail.fin .pt.just .pt-dot{animation:pt-fill .5s .6s cubic-bezier(.3,1.6,.5,1) both}
+  .ltrail.fin .pt.just .pt-dot svg{animation:pop-in .4s .9s ease-out both}
+  .ltrail.fin .pt.next .pt-dot{animation:pop-in .4s 1.1s ease-out both}
+  .unit-trail .pt.parted .lt-ring .fill{animation:lt-arc .7s .4s ease-out both}
+}
+@keyframes lt-arc{from{opacity:0}}
+
+/* Quiz runs outside Trip make no sound, so their listen buttons are hidden. */
+body.quiet .say{display:none}
+
+button.crow{width:100%;background:none;border:0;border-bottom:1px solid var(--line2);font:inherit;text-align:left;cursor:pointer}
+button.crow:last-child{border-bottom:0}
+a.btn{text-decoration:none}
+/* Passage questions: short answers two by two, so all four sit above the Next bar on a phone. */
+.choices.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.choices.grid2 .choice{margin:0}
+/* Build questions (unit tests): tap the pieces into the gaps in order. */
+.build-line{gap:6px;row-gap:8px}
+.build-line .gap{width:52px;height:44px;border-radius:11px;border:1.5px dashed var(--line)}
+.build-line .gap.next{border-color:var(--act)}
+.build-line .block{font-size:20px}
+.build-bank{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;padding:4px 0}
+.build-bank .block{font-size:22px;min-height:52px;min-width:56px}
+.build-bank .block.used{opacity:.25;transform:none;pointer-events:none}
+/* Results: answers you got right sit after the misses, quieter. */
+.card.got{gap:6px}
+.got-right summary{cursor:pointer;list-style:none}
+.got-right summary::-webkit-details-marker{display:none}
+.got-right summary span::after{content:' ▸'}
+.got-right[open] summary span::after{content:' ▾'}
+.got-right[open]{display:flex;flex-direction:column;gap:12px}
+/* Rush: the kanji is centred by its own box too, so a shake on the card can't leave it off to one side. */
+/* Build the kanji / Build the word: tiles carry their part's name or the kanji's meaning. */
+.block.ptile,.block.ctile{--c:var(--line);min-width:64px;min-height:64px;padding:6px 10px 8px;gap:2px}
+.block.ptile b,.block.ctile b{font-size:28px;font-weight:500;line-height:1.1}
+.block.ptile small,.block.ctile small{font-size:11px;max-width:84px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.answer.kbuild{justify-content:center;align-content:center;min-height:84px;width:100%;margin-top:10px;gap:8px}
+.answer.kbuild .slot{width:64px;height:64px}
+.answer.kbuild .block.placed{--c:var(--good)}
+.kbuilt{font-size:84px;line-height:1.1;text-align:center;margin-top:6px}
+@media (prefers-reduced-motion:no-preference){.kbuilt{animation:pop-in .35s ease both}}
+
+/* ---------- Answer feedback, the same everywhere ----------
+   Right: a tick draws itself, a soft ring opens around the answer, a run of three or more says so.
+   Wrong: a gentle nudge (never a hard shake), then what you picked next to the answer, the answer loudest. */
+.sh-badge svg,.got-mark svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:3.4;stroke-linecap:round;stroke-linejoin:round}
+.sh-badge path{stroke-dasharray:24;stroke-dashoffset:0}
+.sh-streak{margin-left:auto;flex:none;padding:4px 10px;border-radius:12px;font-size:12.5px;font-weight:760;color:var(--good);background:var(--good-soft);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--good) 35%,transparent);font-variant-numeric:tabular-nums}
+/* On a wrong answer the big glyph is the right one: a green rim says so. */
+.sheet.bad .sh-k{box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--good) 75%,transparent);background:var(--good-soft)}
+.cmp{display:flex;flex-direction:column;gap:8px;padding:11px 12px;border-radius:14px;background:color-mix(in srgb,var(--page) 55%,transparent);box-shadow:inset 0 0 0 1px var(--line2)}
+.cmp-row{display:grid;grid-template-columns:84px minmax(0,1fr);gap:10px;align-items:baseline}
+.cmp-l{font-size:11px;font-weight:720;letter-spacing:.07em;text-transform:uppercase;color:var(--mute)}
+.cmp-v{display:flex;flex-direction:column;gap:2px;min-width:0}
+.cmp-t{font-size:16px;line-height:1.3;overflow-wrap:anywhere}
+.cmp-n{font-size:13.5px;line-height:1.35;color:var(--ink2)}
+.cmp-row.was .cmp-t{color:var(--bad);font-weight:600}
+.cmp-row.is .cmp-l{color:var(--good)}
+.cmp-row.is .cmp-t{justify-self:start;width:fit-content;max-width:100%;padding:3px 10px;margin-left:-2px;border-radius:9px;font-size:18px;font-weight:760;color:var(--good);background:var(--good-soft);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--good) 40%,transparent)}
+.fb .cmp{margin:10px 0 0 -36px;background:color-mix(in srgb,var(--page) 45%,transparent)}
+.fb .grow{flex:1;min-width:0}
+/* Marks on the options themselves: a tick on the answer, a cross on what you picked. */
+.opt,.choice{position:relative}
+.opt.right::after,.opt.wrong::after,.choice.right::after,.choice.wrong::after{position:absolute;top:7px;right:7px;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font:900 11px/1 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.opt.right::after,.choice.right::after{content:"✓";background:rgba(0,0,0,.2);color:var(--on-acc)}
+.opt.wrong::after,.choice.wrong::after{content:"✕";background:var(--bad);color:var(--on-acc)}
+.choice.right::after,.choice.wrong::after{top:50%;right:12px;margin-top:-11px;width:22px;height:22px}
+.choice.right,.choice.wrong{padding-right:44px}
+.choice.wrong,.opt.wrong{opacity:1}
+.choice.dim{opacity:.4}
+/* Rush: the kanji just answered, under the next one. A miss shows its answer. */
+/* Unit test results: a right answer with its tick. */
+.got-line{display:flex;align-items:center;gap:9px;margin:0;font-size:16px;font-weight:600;color:var(--good)}
+.got-mark{flex:none;width:22px;height:22px;border-radius:50%;background:var(--good);color:var(--on-acc);display:grid;place-items:center}
+.got-mark svg{width:13px;height:13px}
+@media (prefers-reduced-motion:no-preference){
+  .sh-badge path{animation:mark-draw .3s .32s ease-out both}
+  .sh-badge path+path{animation-delay:.42s}
+  .sheet.good .sh-badge{animation:juicy .36s .16s cubic-bezier(.3,1.6,.5,1) both,good-halo .9s .3s ease-out}
+  .sheet.bad .sh-badge{animation:juicy .36s .16s cubic-bezier(.3,1.6,.5,1) both,nudge .5s .5s ease-in-out}
+  .sheet.good .sh-k{animation:pop-in .4s .2s ease both}
+  .sh-streak{animation:juicy .36s .45s cubic-bezier(.3,1.6,.5,1) both}
+  .cmp-row{animation:rise .26s .2s ease both}
+  .cmp-row.is{animation-delay:.32s}
+  .cmp-row.is .cmp-t{animation:answer-glow 1.1s .5s ease-out}
+  .opt.right,.choice.right{animation:juicy .32s cubic-bezier(.3,1.6,.5,1) both,good-ring .7s .08s ease-out}
+  .opt.wrong,.choice.wrong{animation:soft-shake .42s ease}
+  .opt.right::after,.choice.right::after,.opt.wrong::after,.choice.wrong::after{animation:juicy .32s .12s cubic-bezier(.3,1.6,.5,1) both}
+}
+@keyframes mark-draw{from{stroke-dashoffset:24}to{stroke-dashoffset:0}}
+@keyframes good-halo{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--c) 50%,transparent)}70%{box-shadow:0 0 0 14px transparent}100%{box-shadow:0 0 0 5px color-mix(in srgb,var(--c) 18%,transparent)}}
+@keyframes nudge{25%{transform:rotate(-9deg)}60%{transform:rotate(6deg)}}
+@keyframes good-ring{from{outline:2px solid color-mix(in srgb,var(--good) 70%,transparent);outline-offset:0}to{outline:2px solid transparent;outline-offset:9px}}
+@keyframes soft-shake{20%{transform:translateX(-4px)}45%{transform:translateX(3px)}70%{transform:translateX(-2px)}90%{transform:translateX(1px)}}
+@keyframes answer-glow{0%{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--good) 40%,transparent),0 0 0 0 color-mix(in srgb,var(--good) 45%,transparent)}100%{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--good) 40%,transparent),0 0 0 10px transparent}}
+/* A wrong answer's Continue is the calm "go on" colour, not an alarm. */
+.sheet.bad .btn{background:var(--act);box-shadow:0 1px 0 rgba(255,255,255,.25) inset,0 6px 18px -8px var(--act)}
+
+/* Two courses: the N5 · Casual switch, Casual's intro, its Home card, and the day's load line. */
+.course-switch{margin:0 0 14px}
+.casual-intro strong{font-size:17px}
+.casual-intro p{margin:0}
+.casual-next{display:flex;flex-direction:row;align-items:center;gap:12px;width:100%;text-align:left;color:inherit;font:inherit;border:0;cursor:pointer}
+.casual-next .grow{flex:1;display:flex;flex-direction:column;gap:3px;min-width:0}
+.casual-next .caps{color:var(--act)}
+.casual-soonline{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:14px;color:var(--ink2);text-decoration:none;outline:1.5px dashed var(--line);outline-offset:-1.5px}
+.casual-soonline>.jp{color:var(--act);font-weight:700;font-size:16px}
+.casual-soonline b{color:var(--ink)}
+.dayload{display:flex;flex-wrap:wrap;gap:6px;margin:0;color:var(--ink2)}
+.dayload b{color:var(--ink);font-weight:650}
+/* Casual: kanji N5 hasn't taught yet get kana above and a quiet dotted underline, never red. */
+.word.untaught{text-decoration:underline dotted var(--act);text-decoration-thickness:2px;text-underline-offset:6px}
+.word.untaught rt{font-size:10px;color:var(--ink2);font-weight:400}
+.from rt,.kpeek-host rt{font-size:10px;color:var(--ink2);font-weight:400}
+.kcoming{margin:6px 0 0;color:var(--act)}
+.kcoming b{margin-right:6px;color:var(--ink)}
+.refresher{margin:0;padding:8px 10px;border-radius:10px;background:var(--act-soft);color:var(--ink)}
+.casual-soon{display:flex;flex-direction:column;gap:4px}
+.casual-soon .caps{color:var(--act)}
+.soon-list .node{opacity:.75}
+.soon-pill{flex:none;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:999px;background:var(--act-soft);color:var(--act)}
+.newpart{margin-left:6px;font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:2px 6px;border-radius:999px;background:var(--act-soft);color:var(--act);vertical-align:2px}
+.form-target{text-align:center;margin:6px 0 0;color:var(--act);font-size:15px}
+.answer.spell .block.given{opacity:.55}
+p.from{font-size:22px;margin:4px 0 0}
+
+/* Themes: Settings → Theme sets data-theme on <html>. Each one swaps the surfaces and the
+   "do this next" colour; right (green), wrong (coral) and stars (gold) keep their meaning. */
+:root[data-theme="ai"]{
+  --page:#0f1420;--card:#18202f;--raised:#222b3d;--paper:#121826;--sel:#2f3a50;
+  --line:#2c3548;--line2:#212a3a;--ledge:#090c14;
+  --ink:#e3e7ef;--ink2:#b4bccb;--mute:#8792a6;--on-ink:#0f1420;--on-acc:#0d1220;
+  --top-bg:#0c111b;--bar:rgba(14,19,30,.88);
+  --act:#7fa6f0;--act-soft:rgba(127,166,240,.14);--act-line:rgba(127,166,240,.38);
+  --good:#5fc4a0;--good-soft:rgba(95,196,160,.13);--bad:#ef8577;--bad-soft:rgba(239,133,119,.12);--gold:#f0c868;
+}
+:root[data-theme="matcha"]{
+  --page:#131612;--card:#1c211b;--raised:#262d24;--paper:#161a15;--sel:#343c31;
+  --line:#30382d;--line2:#252b23;--ledge:#0b0d0a;
+  --ink:#e4e6dc;--ink2:#b7bbad;--mute:#8b9183;--on-ink:#131612;--on-acc:#121610;
+  --top-bg:#101310;--bar:rgba(18,21,17,.88);
+  --act:#a8cf7e;--act-soft:rgba(168,207,126,.14);--act-line:rgba(168,207,126,.38);
+  --good:#6fcfb0;--good-soft:rgba(111,207,176,.13);--bad:#ee8a74;--bad-soft:rgba(238,138,116,.12);--gold:#ecc96a;
+}
+:root[data-theme="hinoki"]{
+  --page:#17140f;--card:#211d17;--raised:#2c2720;--paper:#1a1712;--sel:#3a342b;
+  --line:#36302a;--line2:#29241e;--ledge:#0e0c08;
+  --ink:#efe7da;--ink2:#c2b9a9;--mute:#9a8f7e;--on-ink:#17140f;--on-acc:#17120a;
+  --top-bg:#13110c;--bar:rgba(22,19,14,.88);
+  --act:#e8b36a;--act-soft:rgba(232,179,106,.14);--act-line:rgba(232,179,106,.38);
+  --good:#7ccaa0;--good-soft:rgba(124,202,160,.13);--bad:#ee8073;--bad-soft:rgba(238,128,115,.12);--gold:#f4d27a;
+}
+:root[data-theme="yoru"]{
+  --page:#0c0f10;--card:#151a1c;--raised:#1f2628;--paper:#101415;--sel:#2b3437;
+  --line:#283033;--line2:#1c2325;--ledge:#050707;
+  --ink:#e6ecec;--ink2:#b5c0c1;--mute:#839093;--on-ink:#0c0f10;--on-acc:#081011;
+  --top-bg:#0a0d0e;--bar:rgba(11,14,15,.88);
+  --act:#5fd0cf;--act-soft:rgba(95,208,207,.14);--act-line:rgba(95,208,207,.38);
+  --good:#7bd88f;--good-soft:rgba(123,216,143,.13);--bad:#f2837a;--bad-soft:rgba(242,131,122,.12);--gold:#f2cb63;
+}
+.themes{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.themes button{display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 2px;font-size:12.5px}
+.themes .dot{width:20px;height:20px;border-radius:50%;background:var(--sw-a);box-shadow:0 0 0 3px var(--sw-p),0 0 0 4px var(--line)}
+/* Unit stars: the result card leads with them, the unit page names the next one. */
+.starhero{display:flex;justify-content:center;gap:6px;font-size:44px;line-height:1;margin-bottom:2px}
+.starhero i{font-style:normal;color:color-mix(in srgb,var(--mute) 40%,transparent);position:relative}
+.starhero i.on{color:var(--gold)}
+.starhero i:nth-child(2){transform:translateY(-8px)}
+@media (prefers-reduced-motion:no-preference){
+  .starhero i.new{animation:star-in .6s calc(.3s + var(--d) * .3s) both cubic-bezier(.3,1.6,.5,1)}
+  .starhero i:nth-child(2).new{animation-name:star-in-mid}
+  .starhero i.new::after{content:"";position:absolute;inset:-6px;border-radius:50%;box-shadow:0 0 0 3px var(--gold);opacity:0;animation:star-ring .7s calc(.45s + var(--d) * .3s) ease-out both}
+}
+@keyframes star-in{from{transform:scale(0) rotate(-40deg);color:var(--line)}to{transform:scale(1)}}
+@keyframes star-in-mid{from{transform:translateY(-8px) scale(0) rotate(-40deg);color:var(--line)}to{transform:translateY(-8px) scale(1)}}
+@keyframes star-ring{0%{opacity:.7;transform:scale(.6)}100%{opacity:0;transform:scale(1.5)}}
+.stargoal{display:flex;align-items:center;gap:8px;margin:12px 0 0;padding:10px 12px;border-radius:12px;background:var(--paper);font-size:14px;font-weight:600}
+.stargoal>i{font-style:normal;color:var(--gold)}
+.stargoal .num{font-size:13px;font-weight:500;color:var(--mute)}
+.hero.done-hero:has(.starhero .new){background:radial-gradient(110% 80% at 50% 0%,color-mix(in srgb,var(--gold) 16%,transparent),transparent 65%),linear-gradient(180deg,var(--raised),var(--card));
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--gold) 26%,transparent),inset 0 1px 0 rgba(255,255,255,.06),var(--shadow)}
+
+/* Kanji check: one card, tap to reveal, swipe right if known by heart, left if not. */
+.ck{--l:0;--r:0;--d:0;display:flex;flex-direction:column;gap:12px;flex:1;min-height:0}
+/* A card dragged or flying off the side never widens the page. */
+html:has(.ck),body:has(.ck){overflow-x:clip}
+/* The deck: the top card with up to two more peeking out below it. */
+.ck-stack{position:relative;flex:1;display:flex;align-items:stretch;min-height:380px;margin-bottom:18px}
+.ck-under{position:absolute;inset:0;border-radius:20px;background:var(--card);box-shadow:inset 0 0 0 1px var(--line),0 6px 16px rgba(0,0,0,.25);transform-origin:50% 100%;pointer-events:none}
+.ck-under.u1{transform:translateY(9px) scale(.95)}
+.ck-under.u2{transform:translateY(18px) scale(.9);background:color-mix(in srgb,var(--card) 55%,var(--page));box-shadow:inset 0 0 0 1px var(--line2)}
+.ck-card{position:relative;z-index:1;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;
+  width:100%;padding:44px 18px 20px;color:var(--ink);font:inherit;text-align:center;touch-action:pan-y;user-select:none;-webkit-user-select:none;
+  background:radial-gradient(120% 60% at 50% 0%,var(--raised),transparent 70%),var(--card);
+  transition:transform .2s ease,opacity .2s ease;cursor:pointer;overflow:hidden}
+@media (prefers-reduced-motion:no-preference){.ck-card{animation:ck-in .24s cubic-bezier(.2,.8,.2,1) backwards}}
+@keyframes ck-in{from{transform:translateY(9px) scale(.95)}}
+/* Drag feedback: the edge you're heading for washes green or coral. */
+.ck-wash,.ck-wash::before,.ck-wash::after{position:absolute;inset:0;border-radius:inherit;pointer-events:none}
+.ck-wash::before,.ck-wash::after{content:""}
+.ck-wash::before{opacity:var(--l);background:linear-gradient(90deg,color-mix(in srgb,var(--bad) 20%,transparent),transparent 75%);box-shadow:inset 0 0 0 2px var(--bad)}
+.ck-wash::after{opacity:var(--r);background:linear-gradient(270deg,color-mix(in srgb,var(--good) 20%,transparent),transparent 75%);box-shadow:inset 0 0 0 2px var(--good)}
+.ck-top{position:absolute;top:14px;left:14px;right:14px;display:flex;justify-content:space-between;pointer-events:none}
+/* The kanji sits in a writing square with dashed guide lines. */
+.ck-k{width:clamp(136px,22vh,176px);aspect-ratio:1;display:grid;place-items:center;border-radius:24px;flex:none;
+  font-size:clamp(92px,15vh,120px);line-height:1;font-weight:500;
+  background:repeating-linear-gradient(90deg,var(--sel) 0 5px,transparent 5px 10px) center/80% 1px no-repeat,
+    repeating-linear-gradient(0deg,var(--sel) 0 5px,transparent 5px 10px) center/1px 80% no-repeat,var(--paper);
+  box-shadow:inset 0 0 0 1px var(--line2)}
+.ck-ans{min-height:214px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:6px;width:100%;margin-top:16px}
+.ck-hint{display:flex;flex-direction:column;gap:4px;color:var(--ink2);font-size:16px;font-weight:600;margin-top:26px}
+.ck-hint small{font-size:13px;font-weight:500;color:var(--mute)}
+@media (prefers-reduced-motion:no-preference){
+  .ck-card.open .ck-ans>*{animation:rise .24s ease both}
+  .ck-card.open .ck-ans>:nth-child(2){animation-delay:.04s}
+  .ck-card.open .ck-ans>:nth-child(3){animation-delay:.08s}
+  .ck-card.open .ck-ans>:nth-child(4){animation-delay:.12s}
+}
+.ck-mean{margin:0;padding:0 6px;font-size:22px;font-weight:700;line-height:1.2;text-wrap:balance}
+.ck-read{margin:0;display:flex;align-items:baseline;gap:8px}
+.ck-read .jp{font-size:28px;font-weight:600}
+.ck-read small{color:var(--mute);font-size:14px}
+.ck-other{margin:0;display:flex;flex-wrap:wrap;justify-content:center;gap:4px 14px;color:var(--ink2);font-size:15px}
+.ck-other>span{display:inline-flex;align-items:center;gap:6px}
+.ck-other i{font-style:normal;font-size:11px;font-weight:700;width:19px;height:19px;border-radius:6px;display:grid;place-items:center;background:var(--raised);color:var(--mute)}
+.ck-words{display:flex;flex-direction:column;width:100%;margin-top:8px;padding:2px 12px;border-radius:14px;background:var(--paper);text-align:left}
+.ck-words>span{display:flex;align-items:baseline;gap:8px;min-width:0;padding:8px 0;font-size:13.5px;color:var(--ink2)}
+.ck-words>span+span{border-top:1px solid var(--line2)}
+.ck-words b{font-size:17px;font-weight:600;color:var(--ink);flex:none}
+.ck-words .jp:not(b){color:var(--mute);flex:none}
+.ck-words em{font-style:normal;margin-left:auto;text-align:right;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Stamps that grow in as you drag. */
+.ck-tint{position:absolute;z-index:2;top:52px;padding:5px 12px;border-radius:10px;font-size:17px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;pointer-events:none;
+  background:color-mix(in srgb,var(--card) 80%,transparent)}
+.ck-tint.l{right:18px;color:var(--bad);box-shadow:inset 0 0 0 2.5px var(--bad);opacity:var(--l);transform:rotate(12deg) scale(calc(.8 + var(--l) * .2))}
+.ck-tint.r{left:18px;color:var(--good);box-shadow:inset 0 0 0 2.5px var(--good);opacity:var(--r);transform:rotate(-12deg) scale(calc(.8 + var(--r) * .2))}
+.ck-card.flying{opacity:0;transition:transform .2s ease-in,opacity .2s ease-in;pointer-events:none}
+/* Forgot / Slow / Knew it, under the deck's pips. */
+.ck-btns{display:grid;grid-template-columns:repeat(3,1fr);justify-items:center;align-items:center;gap:10px;padding:0 6px calc(6px + env(safe-area-inset-bottom))}
+.ck-btn{display:flex;flex-direction:column;align-items:center;gap:5px;min-width:72px;background:none;color:inherit;font:inherit}
+.ck-btn small{font-size:12px;font-weight:650;color:var(--mute)}
+.ck-o{position:relative;width:62px;height:62px;border-radius:50%;display:grid;place-items:center;background:var(--card);transition:transform .15s ease}
+.ck-o::before{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none}
+.ck-o svg.ic{position:relative;width:26px;height:26px;stroke-width:2.6}
+.ck-btn.no .ck-o{color:var(--bad);box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--bad) 45%,transparent),var(--shadow);transform:scale(calc(1 + var(--l) * .1))}
+.ck-btn.no .ck-o::before{background:color-mix(in srgb,var(--bad) 22%,transparent);opacity:var(--l)}
+.ck-btn.yes .ck-o{color:var(--good);box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--good) 45%,transparent),var(--shadow);transform:scale(calc(1 + var(--r) * .1))}
+.ck-btn.yes .ck-o::before{background:color-mix(in srgb,var(--good) 22%,transparent);opacity:var(--r)}
+.ck-btn.slow .ck-o{color:var(--r-object);box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--r-object) 45%,transparent),var(--shadow);transform:scale(calc(1 + var(--d) * .1))}
+.ck-btn.slow .ck-o::before{background:color-mix(in srgb,var(--r-object) 22%,transparent);opacity:var(--d)}
+.ck-btn:disabled{opacity:.3}
+.ck-btn:not(:disabled):active .ck-o{transform:scale(.92)}
+.ck-pips{display:flex;flex-wrap:wrap;justify-content:center;align-content:center;gap:6px;min-width:0}
+.ck-pips i{width:7px;height:7px;border-radius:50%;background:var(--line)}
+.ck-pips i.y{background:var(--good)}
+.ck-pips i.n{background:var(--bad)}
+.ck-pips i.s{background:var(--r-object)}
+.ck>.ck-pips{margin:-4px 0 2px}
+.ck-pips i.now{background:var(--ink);box-shadow:0 0 0 2.5px color-mix(in srgb,var(--ink) 22%,transparent)}
+.ck-done h2 small{font-size:.5em;color:var(--mute)}
+.ck-tiles{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:8px}
+.ck-tile{width:52px;height:52px;border-radius:12px;display:grid;place-items:center;font-size:28px;background:var(--paper);box-shadow:inset 0 0 0 1.5px var(--line)}
+.ck-tile.left{box-shadow:inset 0 0 0 1.5px var(--bad-soft)}
+.ck-tile.gold{color:var(--gold);box-shadow:inset 0 0 0 2px var(--gold)}
+.ck-tile{color:var(--ink);font-family:inherit;cursor:pointer;border-bottom:2px solid var(--line);transition:transform .1s ease}
+.ck-tile:active{transform:translateY(2px);border-bottom-width:0}
+.ck-tile.left{border-bottom-color:color-mix(in srgb,var(--bad) 45%,transparent)}
+.ck-tile.gold{color:var(--gold);border-bottom-color:color-mix(in srgb,var(--gold) 55%,transparent)}
+.ck-tiles+.ck-tap{margin:10px 0 0;text-align:center}
+.hero.done-hero.ck-done .caps{color:var(--gold);margin-top:6px}
+.ck-done .ck-pips{margin:2px 0 4px}
+.hero.done-hero.ck-done.gold{background:radial-gradient(110% 80% at 50% 0%,color-mix(in srgb,var(--gold) 14%,transparent),transparent 65%),linear-gradient(180deg,var(--raised),var(--card));
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--gold) 26%,transparent),inset 0 1px 0 rgba(255,255,255,.06),var(--shadow)}
+@media (prefers-reduced-motion:no-preference){.ck-tile.gold{animation:pop-in .45s calc(.25s + var(--d)) ease-out both}}
+/* Kanji check: Slow is a swipe down. Its stamp grows in at the foot of the card. */
+.ck-card.open{touch-action:none}
+.ck-tint.d{top:auto;bottom:18px;left:50%;color:var(--r-object);box-shadow:inset 0 0 0 2.5px var(--r-object);opacity:var(--d);transform:translateX(-50%) scale(calc(.8 + var(--d) * .2))}
+.ck-card .ck-wash{box-shadow:inset 0 0 0 calc(var(--d) * 2px) var(--r-object)}
+/* Question cards the app grades: the reading of a word, or the kanji among look-alikes. */
+.ck-quiz{cursor:default;gap:6px}
+.ck-qword{font-size:64px;font-weight:600;line-height:1.15}
+.ck-qword u{text-decoration-color:var(--act);text-decoration-thickness:3px;text-underline-offset:10px}
+.ck-qsub{font-size:14px;color:var(--mute)}
+.ck-qsay{font-size:52px;font-weight:600;line-height:1.2}
+.ck-qmean{font-size:34px;font-weight:800;letter-spacing:-.02em;line-height:1.15;padding:0 8px;text-wrap:balance}
+.ck-quiz .ck-hint{margin-top:12px}
+.ck-quiz .ck-ans{min-height:0;margin-top:0}
+.ck-quiz.missed{justify-content:flex-start;padding-top:48px}
+.ck-quiz.missed .ck-hint,.ck-quiz.missed .ck-qsub{display:none}
+.ck-quiz.missed .ck-qword{font-size:40px}
+.ck-quiz.missed .ck-qsay{font-size:32px}
+.ck-quiz.missed .ck-qmean{display:none}
+.ck-qk{font-size:44px;line-height:1.1;margin-top:6px}
+.ck-opts{grid-template-columns:1fr 1fr;padding:0 2px calc(6px + env(safe-area-inset-bottom))}
+.ck-next{margin-bottom:calc(6px + env(safe-area-inset-bottom))}
+/* Trip signs: kana over kanji the course hasn't taught. Taught kanji stay bare, so you read them yourself. */
+.sign ruby{ruby-position:over}
+.sign rt{font-size:.36em;font-weight:600;letter-spacing:0;line-height:1;padding-bottom:2px;opacity:.85}
+.sign-card:not(.answered) .rb.n5 rt{visibility:hidden}
+.sign span.rb{text-decoration:underline dotted;text-underline-offset:6px}
+.sign-legend{margin:2px 0 0;text-align:center;font-size:12.5px;color:var(--mute)}
+.sign-legend b{font-size:14px;font-weight:600;color:var(--ink2);letter-spacing:.08em}
+/* Short phones (iPhone SE, Safari with its bars showing): the check fits without scrolling. */
+@media (max-height:720px){
+  .ck{gap:8px}
+  .ck-stack{min-height:0;margin-bottom:12px}
+  .ck-card{padding:38px 14px 14px}
+  .ck-k{width:104px;font-size:74px;border-radius:18px}
+  .ck-ans{min-height:0;margin-top:10px;gap:4px}
+  .ck-mean{font-size:19px}
+  .ck-read .jp{font-size:23px}
+  .ck-words{margin-top:4px}
+  .ck-words>span{padding:6px 0}
+  .ck-o{width:54px;height:54px}
+  .ck-qword{font-size:48px}
+  .ck-qsay{font-size:42px}
+  .ck-opts .opt{min-height:56px}
+  .ck-opts .opt.qk{min-height:64px;font-size:30px}
+  .ck-quiz.missed .ck-words>span+span,.ck-quiz.missed .ck-other{display:none}
+  .ck-quiz.missed{padding-top:36px}
+  .ck-quiz.missed .ck-qk{font-size:36px;margin-top:2px}
+}
+
+/* ---- Tank tab (mock) ---- */
+.demo{display:flex;gap:6px;align-items:center;margin:0 0 12px;font-size:12px;color:var(--mute);flex-wrap:wrap}
+.demo button{border:1px dashed var(--line);background:none;color:var(--ink2);border-radius:999px;padding:5px 10px;font:inherit;cursor:pointer}
+.demo button.on{background:var(--raised);color:var(--ink);border-style:solid}
+.tankcard{padding:12px}
+.tankpin{position:sticky;top:calc(var(--head) + env(safe-area-inset-top));z-index:4;background:var(--page);margin:-12px calc(-1 * var(--gut)) 0;padding:12px var(--gut) 10px;box-shadow:0 8px 10px -8px rgba(0,0,0,.5)}
+.tk-wrap{position:relative}
+.tk-wrap canvas{display:block;width:100%;image-rendering:pixelated;cursor:pointer}
+#bubbles{position:absolute;inset:0;pointer-events:none}
+.bub{position:absolute;transform:translate(-50%,-100%);pointer-events:auto;background:#fff;color:#2a2622;border:2px solid #2a1c14;border-radius:9px;padding:3px 8px;font:600 12.5px/1.3 -apple-system,system-ui,sans-serif;white-space:nowrap;cursor:pointer;z-index:2}
+.bub::after{content:"";position:absolute;left:50%;bottom:-6px;margin-left:-4px;border:4px solid transparent;border-top-color:#2a1c14;border-bottom:0}
+.tk-row{display:flex;align-items:center;gap:10px;margin-top:12px;padding:0 4px 2px}
+.tk-row .grow{flex:1}
+.fh-st{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;padding:5px 11px;border-radius:999px}
+.fh-st::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.fh-st.ok{color:var(--good);background:var(--good-soft)}
+.fh-st.warn{color:var(--gold);background:color-mix(in srgb,var(--gold) 14%,transparent)}
+.fh-st.dead{color:var(--bad);background:var(--bad-soft)}
+.tk-row .btn{width:auto;min-height:44px;padding:0 18px;font-size:15px}
+.iconbtn{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;background:var(--card);color:var(--ink2);box-shadow:inset 0 0 0 1px var(--line);border:0;cursor:pointer}
+.iconbtn svg.ic{width:21px;height:21px}
+.iconbtn.off{background:var(--raised);color:var(--mute)}
+.sec{display:block;margin:22px 4px 10px}
+.fishgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.fishgrid>*{width:100%;min-width:0;margin:0}
+.fishcard{background:var(--card);border:1px solid var(--line2);border-radius:14px;padding:10px 6px 12px;display:flex;flex-direction:column;align-items:center;gap:2px;color:inherit;font:inherit;cursor:pointer}
+.fishcard canvas{width:80px;height:64px;image-rendering:pixelated;margin-bottom:4px;flex:none}
+.fishcard strong{font-size:15px}.fishcard span{font-size:12.5px;color:var(--mute)}
+.fishcard.slot{border:1.5px dashed var(--line);background:none;justify-content:center;color:var(--ink2);min-height:120px;gap:4px}
+.fishcard.slot b{font-size:26px;font-weight:400;line-height:1;color:var(--mute)}
+.homegrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.hcard{background:var(--card);border:1px solid var(--line2);border-radius:14px;padding:10px 10px 12px;display:flex;flex-direction:column;gap:3px}
+.hcard .thumb{height:78px;display:grid;place-items:center;margin-bottom:6px}
+.hcard canvas{max-width:100%;max-height:78px;image-rendering:pixelated}
+.hcard strong{font-size:14.5px}.hcard span{font-size:12.5px;color:var(--mute);display:flex;align-items:center;gap:5px}
+.hcard.now{box-shadow:inset 0 0 0 1.5px var(--act)}
+.hcard.now span{color:var(--act);font-weight:700}
+.hcard.locked canvas{filter:grayscale(1) brightness(.55)}
+.hcard.locked strong{color:var(--ink2)}
+.hcard span svg{width:13px;height:13px}
+.albumrow{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.pol{background:#f6f1e7;color:#2a2622;border-radius:6px;padding:6px 6px 9px;display:flex;flex-direction:column;gap:2px;transform:rotate(-1.5deg);box-shadow:0 3px 8px rgba(0,0,0,.35)}
+.pol:nth-child(2){transform:rotate(1.2deg)}
+.pol canvas{width:100%;aspect-ratio:5/4;image-rendering:pixelated;background:#a9dcec;border-radius:2px}
+.pol b{font-size:13px}.pol span{font-size:11.5px;color:#7a726a}
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:40}
+.fishsheet{position:fixed;left:0;right:0;bottom:0;z-index:41;background:var(--card);border-radius:20px 20px 0 0;padding:10px 20px calc(20px + env(safe-area-inset-bottom));box-shadow:0 -10px 30px rgba(0,0,0,.4);max-width:520px;margin:0 auto}
+.fishsheet .grab{width:38px;height:5px;border-radius:3px;background:var(--line);margin:0 auto 12px}
+.fishsheet .big{display:grid;place-items:center;background:var(--paper);border-radius:14px;height:150px}
+.fishsheet .big canvas{width:200px;height:160px;image-rendering:pixelated}
+.fishsheet h2{margin:14px 0 2px;font-size:22px}
+.fishsheet dl{display:grid;grid-template-columns:auto 1fr;gap:9px 16px;margin:14px 0 18px;font-size:15px}
+.fishsheet dt{color:var(--mute)}.fishsheet dd{margin:0;text-align:right}
+.fishsheet #sSay{font-size:16px;white-space:nowrap}
+[hidden]{display:none!important}
+</style></head>
+<body data-romaji="tap">
+<header class="top" id="top"><div class="top-in"> <span class="mark" aria-hidden="true">学</span> <h1>Tank</h1> <a class="hbtn" aria-label="Dictionary"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"></circle><path d="m16 16 4 4"></path></svg></a><a class="hbtn gear" aria-label="Settings"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M10.3 3.5h3.4l.5 2.4 1.6.9 2.3-.8 1.7 2.9-1.8 1.6v1.9l1.8 1.6-1.7 2.9-2.3-.8-1.6.9-.5 2.4h-3.4l-.5-2.4-1.6-.9-2.3.8-1.7-2.9 1.8-1.6v-1.9L4.2 8.9l1.7-2.9 2.3.8 1.6-.9Z"></path></svg></a></div></header>
+<main id="view">
+ <div class="demo">Demo: <button data-h="fed" class="on">Fed today</button><button data-h="one">1 day missed</button><button data-h="dead">2 days missed</button></div>
+ <div class="tankpin"><section class="card tankcard">
+  <div class="tk-wrap"><canvas id="tank"></canvas><div id="bubbles"></div></div>
+  <div class="tk-row">
+   <span class="grow"><span class="fh-st ok" id="st">Fed today</span></span>
+   <button class="iconbtn" id="light" aria-label="Lights off"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.4 1.1 2.2h5c0-.8.4-1.6 1.1-2.2A6 6 0 0 0 12 3Z"></path></svg></button>
+   <button class="btn" id="cta" hidden>Feed them</button>
+  </div>
+ </section></div>
+ <span class="caps sec" id="fishhead">Fish · 2 of 3</span>
+ <div class="fishgrid" id="fish"></div>
+ <span class="caps sec">Homes</span>
+ <div class="homegrid" id="homes"></div>
+ <span class="caps sec">Album</span>
+ <div class="albumrow" id="album"></div>
+ <div style="height:24px"></div>
+</main>
+<div class="scrim" id="scrim" hidden></div>
+<div class="fishsheet" id="sheet" hidden><div class="grab"></div>
+ <div class="big"><canvas id="sheetcv" width="50" height="40"></canvas></div>
+ <h2 id="sName">Kin</h2>
+ <dl><dt>Breed</dt><dd id="sBreed"></dd><dt>Age</dt><dd id="sAge"></dd><dt>Trait</dt><dd id="sTrait"></dd><dt>Last said</dt><dd id="sSay"></dd></dl>
+ <button class="btn ghost" id="sClose">Done</button>
+</div>
+<nav class="tabbar" id="tabbar" aria-label="Main"><a data-tab="today"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"></path></svg><span>Home</span></a><a data-tab="course"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6c-2-1.5-5-2-8-2v14c3 0 6 .5 8 2 2-1.5 5-2 8-2V4c-3 0-6 .5-8 2ZM12 6v14"></path></svg><span>Course</span></a><a data-tab="kanji"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"></rect><path d="M12 4v16M4 12h16" stroke-dasharray="2 3"></path></svg><span>Kanji</span></a><a data-tab="trip"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5.5c6 1.6 12 1.6 18 0M5 9.5h14M7 6.3V20M17 6.3V20M12 6.7v2.8"></path></svg><span>Trip</span></a><a data-tab="tank" class="on" aria-current="page"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12c2.6-3.6 7.2-5.1 11.2-3.2L20 6v12l-6.3-2.8C9.7 17.1 5.1 15.6 2.5 12Z"></path><circle cx="7.4" cy="11.3" r=".9"></circle></svg><span>Tank</span></a></nav>
+<script>
+// Paint each goldfish with smooth vector shapes at K× size, then pixelate to a fixed palette with an outline.
+const W = 100, H = 80, K = 8;
+const PALETTE = ['#3a1206', '#5a1e08', '#8a2a06', '#b83e0a', '#d9560e', '#ee7016', '#f88a24', '#ffa640', '#ffc070', '#ffd9a0',
+  '#fff6e8', '#ffffff', '#f2e2cc', '#e0c8a8', '#c8ab88',
+  '#6e1010', '#a01e1a', '#c8302a', '#e64a3a', '#ff7a5e', '#ff9f86',
+  '#120806', '#4a1e0c', '#7a3a1c'].map((h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]);
+const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+const OUT = '#3a1206';
+
+function nearest(r, g, b) {
+  let best = 0, bd = 1e9;
+  const reddish = r > 110 && g / r < 0.4;
+  PALETTE.forEach((p, i) => { if (i >= 15 && i <= 20 && !reddish) return; const d = 2 * (p[0] - r) ** 2 + 4 * (p[1] - g) ** 2 + 3 * (p[2] - b) ** 2; if (d < bd) { bd = d; best = i; } });
+  const p = PALETTE[best]; return `rgb(${p[0]},${p[1]},${p[2]})`;
+}
+
+function pixelate(draw, dither = 10) {
+  const big = document.createElement('canvas'); big.width = W * K; big.height = H * K;
+  const c = big.getContext('2d'); c.scale(K, K); c.lineJoin = 'round'; c.lineCap = 'round'; draw(c);
+  const d = c.getImageData(0, 0, W * K, H * K).data, px = new Array(W * H).fill(null);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    let r = 0, g = 0, b = 0, a = 0;
+    for (let j = 0; j < K; j++) for (let i = 0; i < K; i++) { const k = ((y * K + j) * W * K + x * K + i) * 4, al = d[k + 3]; r += d[k] * al; g += d[k + 1] * al; b += d[k + 2] * al; a += al; }
+    if (a / (K * K * 255) < 0.5) continue;
+    const t = (BAYER[(y % 4) * 4 + (x % 4)] / 16 - 0.5) * dither;
+    px[y * W + x] = nearest(r / a + t, g / a + t, b / a + t);
+  }
+  const o = px.slice();
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (!px[y * W + x]) {
+    const n = (xx, yy) => xx >= 0 && yy >= 0 && xx < W && yy < H && px[yy * W + xx];
+    if (n(x - 1, y) || n(x + 1, y) || n(x, y - 1) || n(x, y + 1)) o[y * W + x] = OUT;
+  }
+  return o;
+}
+
+function blit(ctx, px, ox, oy, s, flip) {
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const c = px[y * W + x]; if (!c) continue; ctx.fillStyle = c; ctx.fillRect(ox + (flip ? W - 1 - x : x) * s, oy + y * s, s, s); }
+}
+
+const rng = (s) => () => { s |= 0; s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+// ---------- helpers ----------
+const lin = (c, x0, y0, x1, y1, stops) => { const g = c.createLinearGradient(x0, y0, x1, y1); stops.forEach(([o, col]) => g.addColorStop(o, col)); return g; };
+const rad = (c, x0, y0, r0, x1, y1, r1, stops) => { const g = c.createRadialGradient(x0, y0, r0, x1, y1, r1); stops.forEach(([o, col]) => g.addColorStop(o, col)); return g; };
+function shape(c, pts) { c.beginPath(); c.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 6) c.bezierCurveTo(pts[i], pts[i + 1], pts[i + 2], pts[i + 3], pts[i + 4], pts[i + 5]); c.closePath(); }
+function fin(c, pts, base, tip, opt = {}) {
+  shape(c, pts);
+  c.fillStyle = lin(c, base[0], base[1], tip[0], tip[1], FLAT ? [[0, '#ee7016'], [0.55, '#ee7016'], [0.72, '#fff0dc'], [1, '#fff0dc']] : opt.stops || [[0, '#ee6e16'], [0.35, '#f98a26'], [0.62, '#ffbe70'], [0.85, '#fff0dc'], [1, '#ffffff']]);
+  c.fill();
+  c.save(); shape(c, pts); c.clip();
+  const n = FLAT ? -1 : opt.rays || 9, len = Math.hypot(tip[0] - base[0], tip[1] - base[1]) * 1.5, a0 = Math.atan2(tip[1] - base[1], tip[0] - base[0]), spread = opt.spread || 1.2;
+  for (let i = 0; i <= n; i++) {
+    const a = a0 - spread / 2 + (spread * i) / n;
+    c.strokeStyle = i % 2 ? 'rgba(238,112,22,.8)' : 'rgba(255,255,255,.5)'; c.lineWidth = i % 2 ? 0.8 : 0.7;
+    c.beginPath(); c.moveTo(base[0], base[1]); c.lineTo(base[0] + Math.cos(a) * len, base[1] + Math.sin(a) * len); c.stroke();
+  }
+  c.restore();
+  shape(c, pts); c.strokeStyle = OUT; c.lineWidth = opt.lw || 1; c.stroke();
+}
+function eye(c, x, y, r) {
+  c.beginPath(); c.arc(x, y, r, 0, 7); c.fillStyle = '#fff8ee'; c.fill(); c.strokeStyle = OUT; c.lineWidth = 1; c.stroke();
+  c.beginPath(); c.arc(x + r * 0.08, y + r * 0.05, r * 0.76, 0, 7); c.fillStyle = rad(c, x - r * .2, y - r * .2, 0, x, y, r * .8, [[0, '#7a3a1c'], [1, '#2a0e06']]); c.fill();
+  c.beginPath(); c.arc(x + r * 0.1, y + r * 0.08, r * 0.46, 0, 7); c.fillStyle = '#0e0604'; c.fill();
+  c.beginPath(); c.arc(x - r * 0.28, y - r * 0.28, r * 0.28, 0, 7); c.fillStyle = '#ffffff'; c.fill();
+  c.beginPath(); c.arc(x + r * 0.35, y + r * 0.38, r * 0.12, 0, 7); c.fill();
+}
+function wen(c, cx, cy, rx, ry) {
+  // A smooth cap: four big bumps give a soft scalloped edge, filled with one gradient and no inner lines.
+  const m = Math.min(rx, ry), lobes = [[cx - rx * 0.5, cy + ry * 0.15, m * 0.62], [cx - rx * 0.15, cy - ry * 0.3, m * 0.68], [cx + rx * 0.35, cy - ry * 0.15, m * 0.64], [cx + rx * 0.45, cy + ry * 0.35, m * 0.55], [cx, cy + ry * 0.2, m * 0.7]];
+  lobes.forEach(([x, y, r]) => { c.beginPath(); c.arc(x, y, r + 0.9, 0, 7); c.fillStyle = OUT; c.fill(); });
+  const g = FLAT ? '#e64a3a' : rad(c, cx - rx * 0.35, cy - ry * 0.45, 0, cx, cy, rx * 1.1, [[0, '#ff9f86'], [0.4, '#ff7a5e'], [0.8, '#e64a3a'], [1, '#c8302a']]);
+  lobes.forEach(([x, y, r]) => { c.beginPath(); c.arc(x, y, r, 0, 7); c.fillStyle = g; c.fill(); });
+  if (FLAT) return; c.fillStyle = 'rgba(255,214,190,.85)'; c.beginPath(); c.ellipse(cx - rx * 0.3, cy - ry * 0.4, rx * 0.2, ry * 0.12, -0.4, 0, 7); c.fill();
+}
+// Irregular orange patches: each is a cluster of jittered circles, lit from the top-left, with loose speckles around it.
+function patches(c, list, seed, tone = ['#ee7016', '#f88a24', '#ffa640']) {
+  if (FLAT) return; const r = rng(seed);
+  list.forEach(([px, py, rx, ry]) => {
+    const parts = [];
+    for (let k = 0; k < 9; k++) { const a = r() * Math.PI * 2, d = Math.sqrt(r()) * 0.75; parts.push([px + Math.cos(a) * rx * d, py + Math.sin(a) * ry * d, Math.min(rx, ry) * (0.45 + r() * 0.4)]); }
+    parts.forEach(([x, y, pr]) => { c.beginPath(); c.arc(x, y, pr, 0, 7); c.fillStyle = tone[0]; c.fill(); });
+    parts.forEach(([x, y, pr]) => { c.beginPath(); c.arc(x - pr * .2, y - pr * .25, pr * .72, 0, 7); c.fillStyle = tone[1]; c.fill(); });
+    parts.slice(0, 4).forEach(([x, y, pr]) => { c.beginPath(); c.arc(x - pr * .35, y - pr * .4, pr * .35, 0, 7); c.fillStyle = tone[2]; c.fill(); });
+    for (let k = 0; k < 6; k++) { const a = r() * Math.PI * 2, d = 1 + r() * 0.5; c.beginPath(); c.arc(px + Math.cos(a) * rx * d, py + Math.sin(a) * ry * d, 0.6 + r() * 0.7, 0, 7); c.fillStyle = tone[1]; c.fill(); }
+  });
+}
+// Tail wag: squeeze the tail toward its base. WAG is 1 at rest, lower mid-stroke.
+let WAG = 1, TAILS = 1, NOWEN = false, FLAT = false; // FLAT paints solid fills with no patches, rays or scales, for fry and young; // TAILS shortens the tail and NOWEN hides the hood, for fry
+function tail(c, bx, by, f) { c.save(); c.translate(bx, by); c.scale(WAG * TAILS, (1 + (1 - WAG) * 0.25) * (0.6 + TAILS * 0.4)); c.translate(-bx, -by); f(); c.restore(); }
+function bodyShade(c, pts, cx, cy, r) {
+  shape(c, pts);
+  c.fillStyle = FLAT ? '#ee7016' : rad(c, cx, cy, 1, cx + 4, cy + 8, r, [[0, '#ffb24e'], [0.3, '#f98a26'], [0.65, '#ee7016'], [0.9, '#d9560e'], [1, '#b83e0a']]);
+  c.fill();
+}
+function scales(c, x0, y0, x1, y1, col) {
+  if (FLAT) return; c.strokeStyle = col; c.lineWidth = 0.7;
+  let row = 0;
+  for (let y = y0; y < y1; y += 4, row++) for (let x = x0 + (row % 2) * 2.5; x < x1; x += 5) { c.beginPath(); c.arc(x, y, 2, 0.25 * Math.PI, 0.75 * Math.PI); c.stroke(); }
+}
+
+// ---------- Ryukin ----------
+function ryukin(c) {
+  // long flowing double tail, upper lobe sweeping up, lower lobe trailing down
+  // big flowing double tail, about as large as the body
+  tail(c, 40, 44, () => fin(c, [40, 38, 32, 29, 19, 15, 4, 2, 1, 10, 4, 20, 11, 28, 6, 34, 7, 39, 15, 44, 6, 51, 3, 60, 1, 71, 15, 66, 30, 58, 40, 50], [40, 44], [3, 40], { rays: 16, spread: 2.5 }));
+  fin(c, [64, 11, 62, 4, 54, 0.5, 44, 1, 46, 6, 45, 12, 46, 16], [55, 11], [45, 2], { rays: 8, spread: 1 });
+  fin(c, [48, 57, 45, 60, 41, 64, 37, 66, 38, 70, 42, 70, 45, 67, 48, 64, 50, 61, 51, 58], [49, 58], [38, 69], { rays: 4, spread: 0.8, lw: 0.8 });
+  // hump near the middle, a long sloped forehead to a pointed snout, shallower belly
+  const body = [98, 44, 97, 37, 93, 33, 87, 31, 80, 29, 75, 20, 68, 13, 63, 9, 54, 9, 48, 14, 44, 20, 41, 30, 38, 38, 36, 41, 36, 47, 38, 50, 44, 60, 56, 68, 70, 67, 84, 66, 96, 54, 98, 44];
+  bodyShade(c, body, 64, 24, 42);
+  c.save(); shape(c, body); c.clip();
+  c.fillStyle = rad(c, 72, 64, 2, 72, 64, 16, [[0, '#ffffff'], [0.5, '#fff1de'], [0.8, 'rgba(255,220,170,.7)'], [1, 'rgba(255,200,140,0)']]); c.fillRect(40, 44, 60, 34);
+  c.fillStyle = rad(c, 90, 51, 1, 90, 51, 7, [[0, 'rgba(255,240,220,.95)'], [1, 'rgba(255,200,140,0)']]); c.fillRect(78, 40, 22, 22);
+  scales(c, 48, 26, 74, 54, 'rgba(255,196,112,.35)');
+  if (!FLAT) { c.fillStyle = 'rgba(255,214,150,.9)'; c.beginPath(); c.ellipse(64, 15, 9, 2.8, -0.3, 0, 7); c.fill(); }
+  c.strokeStyle = '#c4480a'; c.lineWidth = 1.2; c.beginPath(); c.moveTo(81, 31); c.quadraticCurveTo(76, 43, 81, 57); c.stroke();
+  c.restore();
+  shape(c, body); c.strokeStyle = OUT; c.lineWidth = 1.1; c.stroke();
+  eye(c, 90.5, 40, 5);
+  c.fillStyle = '#5a1608'; c.beginPath(); c.ellipse(97.4, 46.5, 1, 1.4, 0, 0, 7); c.fill();
+  fin(c, [64, 64, 61, 67, 58, 70, 54, 72, 55, 74.5, 59, 74.5, 62, 73, 65, 71, 66, 68, 67, 65], [65, 66], [56, 73], { rays: 4, spread: 0.8, lw: 0.8 });
+  fin(c, [72, 54, 68, 56, 64, 58, 60, 61, 60, 65, 62, 67, 65, 66, 68, 64, 71, 61, 74, 57], [72, 57], [61, 65], { rays: 5, spread: 0.9, lw: 0.8 });
+}
+
+// ---------- Oranda ----------
+function oranda(c) {
+  tail(c, 37, 46, () => fin(c, [37, 40, 26, 28, 13, 16, 1, 17, 6, 25, 8, 33, 14, 41, 6, 49, 3, 61, 2, 76, 14, 70, 27, 59, 37, 52], [37, 46], [3, 46], { rays: 14, spread: 2.2, stops: [[0, '#ee6e16'], [0.25, '#ffa640'], [0.5, '#ffe2bc'], [0.75, '#fff6e8'], [1, '#ffffff']] }));
+  fin(c, [62, 27, 60, 17, 53, 11, 43, 10, 46, 16, 44, 24, 43, 32], [54, 28], [44, 11], { rays: 7, spread: 0.9 });
+  fin(c, [46, 59, 43, 63, 39, 67, 35, 69, 36, 73, 40, 73, 43, 70, 46, 67, 48, 64, 48, 60], [47, 60], [36, 72], { rays: 4, spread: 0.8, lw: 0.8 });
+  const body = [92, 47, 91, 35, 80, 27, 64, 27, 50, 27, 40, 33, 36, 42, 34, 46, 34, 50, 36, 54, 44, 66, 58, 72, 72, 69, 84, 66, 92, 58, 92, 47];
+  bodyShade(c, body, 60, 36, 38);
+  c.save(); shape(c, body); c.clip();
+  c.fillStyle = rad(c, 85, 51, 1, 85, 51, 11, [[0, '#ffffff'], [0.6, '#fff1de'], [1, 'rgba(255,220,170,0)']]); c.fillRect(64, 30, 36, 40);
+  patches(c, [[54, 50, 6, 5], [64, 66, 9, 4], [44, 40, 3, 3]], 31, ['#f2e2cc', '#fff6e8', '#ffffff']);
+  scales(c, 44, 38, 64, 56, 'rgba(255,196,112,.35)');
+  c.strokeStyle = '#c4480a'; c.lineWidth = 1.1; c.beginPath(); c.moveTo(72, 34); c.quadraticCurveTo(68, 46, 72, 60); c.stroke();
+  c.restore();
+  shape(c, body); c.strokeStyle = OUT; c.lineWidth = 1.1; c.stroke();
+  if (!NOWEN) wen(c, 78, 30.5, 11.5, 8);
+  eye(c, 85, 43, 5.2);
+  c.fillStyle = '#5a1608'; c.beginPath(); c.ellipse(91.4, 51, 1.1, 1.6, 0, 0, 7); c.fill();
+  fin(c, [60, 67, 57, 70, 54, 73, 50, 76, 51, 79, 55, 79, 58, 78, 61, 76, 63, 72, 63, 68], [61, 68], [52, 78], { rays: 4, spread: 0.8, lw: 0.8 });
+  fin(c, [71, 60, 66, 62, 61, 65, 56, 69, 57, 73, 58, 76, 62, 76, 67, 73, 71, 70, 73, 65], [71, 64], [57, 73], { rays: 5, spread: 0.9, lw: 0.8 });
+}
+
+// ---------- Ranchu ----------
+function ranchu(c) {
+  tail(c, 31, 47, () => fin(c, [31, 42, 25, 36, 17, 30, 8, 29, 12, 35, 12, 41, 17, 46, 12, 50, 10, 56, 7, 63, 16, 62, 24, 57, 31, 53], [31, 47], [9, 46], { rays: 10, spread: 1.9 }));
+  const body = [92, 49, 91, 36, 80, 27, 62, 27, 45, 27, 30, 35, 29, 48, 28, 62, 42, 72, 60, 72, 80, 71, 92, 62, 92, 49];
+  shape(c, body);
+  c.fillStyle = rad(c, 58, 38, 2, 60, 46, 36, [[0, '#ffffff'], [0.45, '#fff6e8'], [0.8, '#f2e2cc'], [1, '#c8ab88']]); c.fill();
+  c.save(); shape(c, body); c.clip();
+  patches(c, [[48, 38, 11, 7], [40, 56, 6, 5], [62, 58, 8, 5], [33, 46, 3.5, 6]], 23);
+  scales(c, 38, 36, 66, 60, 'rgba(255,255,255,.3)');
+  c.fillStyle = 'rgba(160,120,80,.35)'; c.beginPath(); c.ellipse(58, 70, 26, 4, 0, 0, 7); c.fill();
+  c.strokeStyle = '#d8b894'; c.lineWidth = 1; c.beginPath(); c.moveTo(72, 35); c.quadraticCurveTo(68, 47, 72, 61); c.stroke();
+  c.restore();
+  shape(c, body); c.strokeStyle = OUT; c.lineWidth = 1.1; c.stroke();
+  if (!NOWEN) wen(c, 78, 31.5, 11.5, 8);
+  eye(c, 85, 44, 5.2);
+  c.fillStyle = '#5a1608'; c.beginPath(); c.ellipse(91.4, 52, 1.1, 1.6, 0, 0, 7); c.fill();
+  fin(c, [57, 70, 55, 73, 52, 75, 49, 77, 50, 79, 53, 79, 56, 78, 58, 76, 60, 74, 60, 71], [58, 72], [51, 78], { rays: 4, spread: 0.8, lw: 0.8 });
+  fin(c, [44, 66, 41, 69, 38, 71, 35, 73, 36, 76, 39, 76, 42, 74, 44, 72, 46, 70, 46, 67], [45, 67], [37, 75], { rays: 3, spread: 0.8, lw: 0.8 });
+  fin(c, [73, 62, 69, 64, 65, 67, 61, 70, 62, 74, 64, 76, 67, 75, 70, 73, 73, 70, 75, 66], [73, 65], [63, 74], { rays: 5, spread: 0.9, lw: 0.8 });
+}
+const FISH = { ryukin, oranda, ranchu };
+// Tanks: painted with vector shapes at k× and pixelated to a scene palette, like the fish.
+const hexRGB = (h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+const SP = ['#ffffff', '#eaf7fb', '#cdebf4', '#a9dcec', '#86cbe2', '#62b2d4', '#4794bc', '#33739a', '#24546f', '#1a3a4c',
+  '#e2f59a', '#b6e060', '#7fc443', '#4f9e35', '#2f7430', '#1d4c24',
+  '#fbf0dc', '#ecd6b0', '#d4b486', '#ad8a60', '#7c6044', '#c9d0d6', '#9aa6b2', '#6e7a88', '#4a5460', '#2e343c',
+  '#f4c4b8', '#e09a8c', '#d9776a', '#b8524a',
+  '#e0a868', '#c07c3e', '#94562a', '#6a3a1a', '#43230e', '#2a160a', '#fff4c4', '#ffe28a', '#f0b84a'].map(hexRGB);
+
+function pixG(draw, w, h, o = {}) {
+  const K = o.k || 6, pal = o.pal || SP, dith = o.dither ?? 6;
+  const big = document.createElement('canvas'); big.width = w * K; big.height = h * K;
+  const c = big.getContext('2d'); c.scale(K, K); c.lineJoin = 'round'; c.lineCap = 'round'; draw(c);
+  const d = c.getImageData(0, 0, w * K, h * K).data, px = new Array(w * h).fill(null);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    let r = 0, g = 0, b = 0, a = 0;
+    for (let j = 0; j < K; j++) for (let i = 0; i < K; i++) { const k = ((y * K + j) * w * K + x * K + i) * 4, al = d[k + 3]; r += d[k] * al; g += d[k + 1] * al; b += d[k + 2] * al; a += al; }
+    if (a / (K * K * 255) < 0.5) continue;
+    const t = (BAYER[(y % 4) * 4 + (x % 4)] / 16 - 0.5) * dith; r = r / a + t; g = g / a + t; b = b / a + t;
+    const reddish = r > 110 && g / r < 0.4; let best = 0, bd = 1e9;
+    pal.forEach((p, i) => { if (o.red && i >= 15 && i <= 20 && !reddish) return; const dd = 2 * (p[0] - r) ** 2 + 4 * (p[1] - g) ** 2 + 3 * (p[2] - b) ** 2; if (dd < bd) { bd = dd; best = i; } });
+    px[y * w + x] = pal[best];
+  }
+  if (o.out) {
+    const oc = hexRGB(o.out), q = px.slice();
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (!px[y * w + x]) {
+      const n = (xx, yy) => xx >= 0 && yy >= 0 && xx < w && yy < h && px[yy * w + xx];
+      if (n(x - 1, y) || n(x + 1, y) || n(x, y - 1) || n(x, y + 1)) q[y * w + x] = oc;
+    }
+    return pack(q, w, h, o.tone || nightScene);
+  }
+  return pack(px, w, h, o.tone || nightScene);
+}
+// Night mode: every palette colour maps to one dimmer, bluer colour, so the pixel art stays clean.
+// Lamp and lantern glow keep their warm colour.
+const GLOW = new Set(['255,244,196', '255,226,138', '240,184,74']);
+const nightScene = (p) => GLOW.has(p.join()) ? p : [p[0] * 0.2 + 12, p[1] * 0.27 + 22, p[2] * 0.38 + 38];
+const nightFish = (p) => [p[0] * 0.7 + 4, p[1] * 0.58 + 8, p[2] * 0.6 + 24];
+function pack(px, w, h, tone) { const cv = toCv(px, w, h); cv.night = toCv(px.map((p) => p && tone(p)), w, h); cv.px = px; return cv; }
+function toCv(px, w, h) {
+  const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+  const x = cv.getContext('2d'), id = x.createImageData(w, h);
+  px.forEach((p, k) => { if (p) { id.data[k * 4] = p[0]; id.data[k * 4 + 1] = p[1]; id.data[k * 4 + 2] = p[2]; id.data[k * 4 + 3] = 255; } });
+  x.putImageData(id, 0, 0); return cv;
+}
+let NIGHT = false;
+const pick = (cv) => (NIGHT ? cv.night : cv);
+
+// ---------- scenery helpers ----------
+const qpt = (a, b, cc, t) => [(1 - t) ** 2 * a[0] + 2 * (1 - t) * t * b[0] + t * t * cc[0], (1 - t) ** 2 * a[1] + 2 * (1 - t) * t * b[1] + t * t * cc[1]];
+function pebbles(c, x0, x1, top, bot, seed, n, cols) {
+  const r = rng(seed), list = [];
+  for (let i = 0; i < n; i++) { const x = x0 + r() * (x1 - x0), t = top(x); list.push([x, t + r() * Math.max(0, bot - t), 1.2 + r() * 1.7, cols[r() * cols.length | 0]]); }
+  list.sort((a, b) => a[1] - b[1]).forEach(([x, y, rr, col]) => {
+    c.beginPath(); c.ellipse(x, y, rr * 1.3, rr, 0, 0, 7); c.fillStyle = col; c.fill(); c.strokeStyle = 'rgba(90,64,44,.6)'; c.lineWidth = 0.5; c.stroke();
+    c.fillStyle = 'rgba(255,255,255,.75)'; c.beginPath(); c.arc(x - rr * 0.45, y - rr * 0.35, rr * 0.35, 0, 7); c.fill();
+  });
+}
+function blade(c, x, y, h, bend, w, sway, cols = ['#2f7430', '#b6e060', '#1d4c24']) {
+  const s = sway * h * 0.06, tip = [x + bend + s, y - h], mid = [x + bend * 0.3 + s * 0.4, y - h * 0.55];
+  c.beginPath(); c.moveTo(x - w, y); c.quadraticCurveTo(mid[0] - w * 0.6, mid[1], tip[0], tip[1]); c.quadraticCurveTo(mid[0] + w * 0.8, mid[1], x + w, y); c.closePath();
+  c.fillStyle = lin(c, x, y, tip[0], tip[1], [[0, cols[0]], [0.5, '#4f9e35'], [1, cols[1]]]); c.fill(); c.strokeStyle = cols[2]; c.lineWidth = 0.6; c.stroke();
+}
+function valis(c, x, y, n, hmin, hmax, sway, seed) {
+  const r = rng(seed);
+  for (let i = 0; i < n; i++) blade(c, x + (i - n / 2) * 2.4 + r() * 2, y, hmin + r() * (hmax - hmin), (r() - 0.5) * 14, 1.6 + r() * 0.6, sway * (0.7 + r() * 0.6));
+}
+function stem(c, x, y, h, sway, seed, warm) {
+  const r = rng(seed), a = [x, y], tip = [x + sway * h * 0.07 + (r() - 0.5) * 8, y - h], b = [x + (r() - 0.5) * 4, y - h * 0.5];
+  c.strokeStyle = warm ? '#94562a' : '#2f7430'; c.lineWidth = 1; c.beginPath(); c.moveTo(...a); c.quadraticCurveTo(...b, ...tip); c.stroke();
+  let sd = r() > 0.5 ? 1 : -1;
+  for (let t = 0.1; t <= 1.001; t += 0.055 + r() * 0.05) {
+    const [px, py] = qpt(a, b, tip, t), s = (3.8 - t * 1.6) * (0.75 + r() * 0.45), up = t > 0.62;
+    const col = warm ? (up ? '#e09a8c' : t > 0.35 ? '#d9776a' : '#b8524a') : (up ? '#b6e060' : t > 0.35 ? '#7fc443' : '#4f9e35');
+    sd = -sd; const ang = sd * -(0.35 + r() * 0.5) + sway * 0.12;
+    c.beginPath(); c.ellipse(px + sd * s * 0.75, py, s, s * 0.4, ang, 0, 7); c.fillStyle = col; c.fill(); c.strokeStyle = warm ? '#6a3a1a' : '#1d4c24'; c.lineWidth = 0.5; c.stroke();
+  }
+  c.beginPath(); c.ellipse(tip[0], tip[1] - 0.5, 1.4, 2.2, 0, 0, 7); c.fillStyle = warm ? '#f4c4b8' : '#e2f59a'; c.fill();
+}
+function bush(c, x, y, s, sway, seed) {
+  const r = rng(seed), leaves = [];
+  for (let i = 0; i < 7; i++) { const a = -Math.PI / 2 + (i / 6 - 0.5) * 2.4 + (r() - 0.5) * 0.25; leaves.push([a, s * (0.65 + r() * 0.45)]); }
+  leaves.sort((p, q) => Math.abs(q[0] + Math.PI / 2) - Math.abs(p[0] + Math.PI / 2)).forEach(([a, len]) => {
+    const ex = x + Math.cos(a) * len + sway * len * 0.08, ey = y + Math.sin(a) * len;
+    c.strokeStyle = '#2f7430'; c.lineWidth = 0.8; c.beginPath(); c.moveTo(x, y); c.lineTo(ex, ey); c.stroke();
+    c.save(); c.translate(ex, ey); c.rotate(a);
+    c.beginPath(); c.ellipse(0, 0, len * 0.42, len * 0.2, 0, 0, 7); c.fillStyle = lin(c, 0, -len * 0.2, 0, len * 0.2, [[0, '#7fc443'], [0.5, '#4f9e35'], [1, '#2f7430']]); c.fill();
+    c.strokeStyle = '#1d4c24'; c.lineWidth = 0.6; c.stroke(); c.strokeStyle = 'rgba(182,224,96,.8)'; c.lineWidth = 0.5; c.beginPath(); c.moveTo(-len * 0.38, 0); c.lineTo(len * 0.38, 0); c.stroke();
+    c.restore();
+  });
+}
+function moss(c, x0, x1, y, h, seed) {
+  const r = rng(seed);
+  for (let x = x0; x < x1; x += 1.6) { const hh = h * (0.5 + r() * 0.6); c.beginPath(); c.arc(x, y - hh * 0.5, hh * 0.55 + 0.8, 0, 7); c.fillStyle = r() > 0.5 ? '#7fc443' : '#4f9e35'; c.fill(); }
+  for (let x = x0 + 1; x < x1 - 1; x += 2.3) { c.beginPath(); c.arc(x, y - h * (0.6 + r() * 0.4), 0.9, 0, 7); c.fillStyle = '#b6e060'; c.fill(); }
+}
+function rock(c, x, y, rx, ry, seed) {
+  const r = rng(seed), pts = [];
+  for (let i = 0; i <= 8; i++) { const a = Math.PI + (i / 8) * Math.PI, k = 0.82 + r() * 0.26; pts.push([x + Math.cos(a) * rx * (i === 0 || i === 8 ? 1 : k), y + Math.sin(a) * ry * k]); }
+  c.beginPath(); c.moveTo(...pts[0]);
+  for (let i = 1; i < pts.length - 1; i++) { const m = [(pts[i][0] + pts[i + 1][0]) / 2, (pts[i][1] + pts[i + 1][1]) / 2]; c.quadraticCurveTo(...pts[i], ...m); }
+  c.lineTo(...pts[8]); c.closePath();
+  c.fillStyle = rad(c, x - rx * 0.35, y - ry * 0.7, 1, x, y - ry * 0.3, Math.max(rx, ry) * 1.2, [[0, '#c9d0d6'], [0.4, '#9aa6b2'], [0.8, '#6e7a88'], [1, '#4a5460']]); c.fill();
+  c.strokeStyle = '#2e343c'; c.lineWidth = 0.9; c.stroke();
+  c.strokeStyle = 'rgba(74,84,96,.9)'; c.lineWidth = 0.6; c.beginPath(); c.moveTo(x + rx * 0.1, y - ry * 0.75); c.lineTo(x + rx * 0.25, y - ry * 0.35); c.lineTo(x + rx * 0.15, y - ry * 0.05); c.stroke();
+  c.fillStyle = 'rgba(255,255,255,.55)'; c.beginPath(); c.ellipse(x - rx * 0.35, y - ry * 0.72, rx * 0.22, ry * 0.1, -0.3, 0, 7); c.fill();
+}
+function wood(c, path, w) {
+  [[w + 1.6, '#2a160a'], [w, '#6a3a1a'], [w * 0.55, '#94562a']].forEach(([lw, col]) => { c.strokeStyle = col; c.lineWidth = lw; c.beginPath(); c.moveTo(path[0], path[1]); for (let i = 2; i < path.length; i += 4) c.quadraticCurveTo(path[i], path[i + 1], path[i + 2], path[i + 3]); c.stroke(); });
+  c.save(); c.translate(-w * 0.18, -w * 0.25); c.strokeStyle = '#c07c3e'; c.lineWidth = w * 0.2; c.beginPath(); c.moveTo(path[0], path[1]); for (let i = 2; i < path.length; i += 4) c.quadraticCurveTo(path[i], path[i + 1], path[i + 2], path[i + 3]); c.stroke(); c.restore();
+}
+function waterFill(c, x0, y0, x1, y1) {
+  c.fillStyle = lin(c, 0, y0, 0, y1, [[0, '#86cbe2'], [0.4, '#62b2d4'], [1, '#4794bc']]); c.fillRect(x0, y0, x1 - x0, y1 - y0);
+  c.fillStyle = rad(c, (x0 + x1) / 2, y0, 2, (x0 + x1) / 2, y0, (x1 - x0) * 0.5, [[0, 'rgba(169,220,236,.45)'], [1, 'rgba(169,220,236,0)']]); c.fillRect(x0, y0, x1 - x0, y1 - y0);
+}
+function surface(c, x0, x1, y) {
+  c.fillStyle = '#cdebf4'; c.fillRect(x0, y, x1 - x0, 2.2); c.fillStyle = '#eaf7fb'; c.fillRect(x0, y, x1 - x0, 0.9);
+  c.fillStyle = 'rgba(234,247,251,.9)'; for (let x = x0 + 4; x < x1 - 6; x += 13) c.fillRect(x, y + 3.2, 5, 0.8);
+}
+function sandBed(c, x0, x1, top, y1, seed, light) {
+  c.beginPath(); c.moveTo(x0, y1); for (let x = x0; x <= x1; x += 2) c.lineTo(x, top(x)); c.lineTo(x1, y1); c.closePath();
+  c.fillStyle = lin(c, 0, top((x0 + x1) / 2), 0, y1, light ? [[0, '#fbf0dc'], [1, '#d4b486']] : [[0, '#ecd6b0'], [1, '#ad8a60']]); c.fill();
+  pebbles(c, x0 + 2, x1 - 2, top, y1 - 1, seed, Math.round((x1 - x0) * 0.9), light ? ['#fbf0dc', '#ecd6b0', '#d4b486', '#c9d0d6'] : ['#ecd6b0', '#d4b486', '#ad8a60', '#c9d0d6', '#9aa6b2', '#f4c4b8', '#e2f59a']);
+}
+function glare(c, x, y, h, w) { c.fillStyle = '#ffffff'; c.beginPath(); c.moveTo(x + w, y); c.lineTo(x + w * 2, y); c.lineTo(x + w, y + h); c.lineTo(x, y + h); c.closePath(); c.fill(); }
+function lantern(c, x, y) { // stone toro, base centre at (x, y)
+  const st = (px, py, pw, ph) => { c.fillStyle = lin(c, px, 0, px + pw, 0, [[0, '#c9d0d6'], [0.5, '#9aa6b2'], [1, '#6e7a88']]); c.fillRect(px, py, pw, ph); c.strokeStyle = '#2e343c'; c.lineWidth = 0.8; c.strokeRect(px, py, pw, ph); };
+  st(x - 8, y - 4, 16, 4); st(x - 2.5, y - 18, 5, 14); st(x - 6, y - 21, 12, 3);
+  c.fillStyle = '#6e7a88'; c.fillRect(x - 5, y - 29, 10, 8); c.strokeStyle = '#2e343c'; c.strokeRect(x - 5, y - 29, 10, 8);
+  c.fillStyle = '#ffe28a'; c.fillRect(x - 2.6, y - 27.5, 5.2, 5); c.fillStyle = '#fff4c4'; c.fillRect(x - 1.4, y - 26.5, 2.4, 2.6);
+  c.beginPath(); c.moveTo(x - 11, y - 28); c.quadraticCurveTo(x - 6, y - 30, x - 3, y - 35); c.lineTo(x + 3, y - 35); c.quadraticCurveTo(x + 6, y - 30, x + 11, y - 28); c.closePath();
+  c.fillStyle = lin(c, 0, y - 35, 0, y - 28, [[0, '#9aa6b2'], [1, '#4a5460']]); c.fill(); c.stroke();
+  c.beginPath(); c.arc(x, y - 37, 2.2, 0, 7); c.fillStyle = '#9aa6b2'; c.fill(); c.stroke();
+  c.fillStyle = '#7fc443'; [[x - 7, y - 4.5], [x + 5, y - 3.8], [x - 9, y - 28.5], [x + 2, y - 33]].forEach(([mx, my]) => { c.beginPath(); c.ellipse(mx, my, 2.4, 1.1, 0, 0, 7); c.fill(); });
+}
+function lily(c, x, y, r) {
+  c.beginPath(); c.ellipse(x, y, r, r * 0.3, 0, 0.25, Math.PI * 2 - 0.05); c.lineTo(x, y); c.closePath();
+  c.fillStyle = lin(c, 0, y - r * 0.3, 0, y + r * 0.3, [[0, '#b6e060'], [1, '#4f9e35']]); c.fill(); c.strokeStyle = '#1d4c24'; c.lineWidth = 0.7; c.stroke();
+  c.strokeStyle = 'rgba(47,116,48,.8)'; c.lineWidth = 0.5; c.beginPath(); c.moveTo(x, y + r * 0.3); c.lineTo(x, y + r * 0.3 + 6); c.stroke();
+}
+function woodBar(c, x0, y0, x1, y1) {
+  c.fillStyle = lin(c, 0, y0, 0, y1, [[0, '#c07c3e'], [0.35, '#94562a'], [1, '#6a3a1a']]); c.fillRect(x0, y0, x1 - x0, y1 - y0);
+  c.strokeStyle = 'rgba(67,35,14,.6)'; c.lineWidth = 0.5; for (let yy = y0 + 2; yy < y1 - 1; yy += 2.5) { c.beginPath(); c.moveTo(x0 + 3, yy); c.lineTo(x1 - 3, yy + 0.3); c.stroke(); }
+  c.fillStyle = '#e0a868'; c.fillRect(x0, y0, x1 - x0, 0.9);
+}
+
+// ---------- the four homes ----------
+function bowlPath(c, cx, cy, r, yt, yb) { const at = Math.asin((yt - cy) / r), ab = Math.asin((yb - cy) / r); c.beginPath(); c.arc(cx, cy, r, at, ab); c.arc(cx, cy, r, Math.PI - ab, Math.PI - at); c.closePath(); }
+const TANKS = [
+  { id: 'bowl', jp: '金魚鉢', en: 'Fishbowl', cap: 1, w: 140, h: 126, out: '#1a3a4c', surf: 40, fs: 0.6, swim: [20, 40, 120, 110], inside: (x, y) => (x - 70) ** 2 + (y - 68) ** 2 < 50 ** 2 && y > 42 && y < 107, fish: ['oranda'], bubbles: [[98, 110]],
+    back(c, sw) {
+      bowlPath(c, 70, 68, 56, 22, 120); c.fillStyle = rad(c, 54, 50, 4, 70, 68, 60, [[0, '#ffffff'], [0.6, '#eaf7fb'], [1, '#cdebf4']]); c.fill();
+      c.save(); bowlPath(c, 70, 68, 53, 36, 117); c.clip();
+      waterFill(c, 0, 40, 140, 126);
+      sandBed(c, 10, 130, (x) => 122 - 15 * Math.sqrt(Math.max(0, 1 - ((x - 70) / 50) ** 2)), 122, 5);
+      valis(c, 98, 113, 4, 22, 34, sw, 3); bush(c, 42, 114, 11, sw, 8);
+      bowlPath(c, 70, 68, 53, 36, 117); c.strokeStyle = 'rgba(71,148,188,.55)'; c.lineWidth = 3; c.stroke();
+      c.restore();
+      c.save(); bowlPath(c, 70, 68, 53, 36, 117); c.clip(); c.beginPath(); c.ellipse(70, 40, 45, 3.4, 0, 0, 7); c.fillStyle = '#cdebf4'; c.fill(); c.strokeStyle = '#86cbe2'; c.lineWidth = 0.8; c.stroke(); c.restore();
+      c.fillStyle = '#cdebf4'; c.fillRect(48, 117, 44, 3.5);
+      c.beginPath(); c.ellipse(70, 22, 34, 4.5, 0, 0, 7); c.strokeStyle = '#a9dcec'; c.lineWidth = 3.4; c.stroke(); c.strokeStyle = '#ffffff'; c.lineWidth = 1; c.beginPath(); c.ellipse(70, 21.2, 33.5, 3.8, 0, Math.PI * 1.05, Math.PI * 1.7); c.stroke();
+    },
+    front: [[0.65, (c) => { c.strokeStyle = '#fff'; c.lineCap = 'round'; c.lineWidth = 3.4; c.beginPath(); c.arc(70, 68, 47, 3.5, 4.15); c.stroke(); c.beginPath(); c.arc(70, 68, 47, 4.32, 4.42); c.stroke(); c.lineWidth = 2; c.beginPath(); c.arc(70, 68, 49, 0.25, 0.7); c.stroke(); }]] },
+
+  { id: 'small', jp: 'すいそう', en: 'Small tank', cap: 3, w: 190, h: 130, out: '#2e343c', surf: 26, fs: 0.47, swim: [10, 22, 180, 104], fish: ['ryukin', 'ranchu', 'oranda'], bubbles: [[166, 108]],
+    back(c, sw) {
+      c.fillStyle = '#eaf7fb'; c.fillRect(6, 14, 178, 108);
+      waterFill(c, 8, 26, 182, 120); surface(c, 8, 182, 26);
+      rock(c, 42, 110, 20, 15, 11); bush(c, 40, 97, 13, sw, 4);
+      stem(c, 124, 108, 40, sw, 9); stem(c, 130, 109, 32, sw, 10);
+      valis(c, 166, 108, 7, 46, 74, sw, 6);
+      rock(c, 168, 110, 6, 4, 2);
+      sandBed(c, 8, 182, (x) => 106 + 2.5 * Math.sin(x * 0.06), 120, 7);
+      c.fillStyle = 'rgba(234,247,251,.65)'; c.fillRect(6, 14, 3, 108); c.fillRect(181, 14, 3, 108);
+      [[4, 9, 186, 15], [4, 119, 186, 127]].forEach(([a, b, cc, d]) => { c.fillStyle = lin(c, 0, b, 0, d, [[0, '#6e7a88'], [0.3, '#4a5460'], [1, '#2e343c']]); c.fillRect(a, b, cc - a, d - b); c.fillStyle = '#9aa6b2'; c.fillRect(a, b, cc - a, 0.9); });
+    },
+    front: [[0.5, (c) => { glare(c, 10, 18, 26, 6); glare(c, 24, 18, 14, 3); c.fillStyle = '#fff'; c.fillRect(178, 30, 1.6, 50); }]] },
+
+  { id: 'planted', jp: 'みずくさ すいそう', en: 'Planted tank', cap: 5, w: 250, h: 152, out: '#2a160a', surf: 26, fs: 0.5, swim: [12, 24, 238, 124], fish: ['ryukin', 'oranda', 'ranchu', 'oranda', 'ryukin'], bubbles: [[60, 130], [228, 128]],
+    back(c, sw) {
+      c.fillStyle = '#eaf7fb'; c.fillRect(6, 16, 238, 122);
+      waterFill(c, 9, 26, 241, 136); surface(c, 9, 241, 26);
+      [[24, 120, 92, 1, 0], [36, 121, 80, 2, 1], [48, 122, 66, 3, 0], [200, 121, 86, 4, 1], [214, 120, 98, 5, 0], [228, 122, 76, 6, 0]].forEach(([x, y, h, s, warm]) => stem(c, x, y, h, sw, s, warm));
+      valis(c, 96, 124, 9, 60, 92, sw, 12);
+      wood(c, [118, 128, 108, 104, 80, 82, 104, 108, 104, 66, 120, 112, 152, 84], 4.2);
+      bush(c, 92, 116, 15, sw, 13); bush(c, 160, 90, 10, sw, 14);
+      rock(c, 156, 130, 22, 26, 21); rock(c, 184, 132, 13, 14, 22); rock(c, 132, 133, 8, 7, 23);
+      sandBed(c, 9, 241, (x) => 126 + 3 * Math.sin(x * 0.05), 136, 15, true);
+      moss(c, 12, 86, 128, 6, 31); moss(c, 196, 240, 128, 7, 32); moss(c, 140, 176, 131, 4, 33);
+      c.fillStyle = 'rgba(234,247,251,.65)'; c.fillRect(6, 16, 3, 122); c.fillRect(241, 16, 3, 122);
+      c.fillStyle = lin(c, 0, 3, 0, 14, [[0, '#4a5460'], [1, '#2e343c']]); c.fillRect(3, 3, 244, 11); c.fillStyle = '#6e7a88'; c.fillRect(3, 3, 244, 1);
+      c.fillStyle = '#fff4c4'; c.fillRect(14, 13, 222, 1.6);
+      woodBar(c, 3, 13.5, 247, 17); woodBar(c, 3, 136, 247, 148);
+    },
+    front: [[0.16, (c) => { c.fillStyle = '#fff4c4'; [[30, 18], [90, 26], [150, 18], [200, 22]].forEach(([x, w]) => { c.beginPath(); c.moveTo(x, 17); c.lineTo(x + w, 17); c.lineTo(x + w + 30, 136); c.lineTo(x + 30, 136); c.closePath(); c.fill(); }); }],
+      [0.5, (c) => { glare(c, 12, 20, 30, 7); glare(c, 28, 20, 16, 3); c.fillStyle = '#fff'; c.fillRect(236, 34, 1.6, 64); }]] },
+
+  { id: 'grand', jp: 'おおきい すいそう', en: 'Grand aquarium', cap: 8, w: 300, h: 212, out: '#2a160a', surf: 26, fs: 0.45, swim: [12, 26, 288, 142], fish: ['oranda', 'ryukin', 'ranchu', 'oranda', 'ryukin', 'ranchu', 'oranda', 'ryukin'], bubbles: [[34, 146], [272, 144]],
+    stand(c) {
+      woodBar(c, 6, 156, 294, 163);
+      c.fillStyle = lin(c, 0, 163, 0, 206, [[0, '#6a3a1a'], [1, '#43230e']]); c.fillRect(12, 163, 276, 43);
+      [[20, 146], [154, 280]].forEach(([a, b]) => {
+        c.fillStyle = lin(c, a, 0, b, 0, [[0, '#94562a'], [0.5, '#a8673a'], [1, '#94562a']]); c.fillRect(a, 168, b - a, 33);
+        c.strokeStyle = '#43230e'; c.lineWidth = 1; c.strokeRect(a, 168, b - a, 33); c.strokeStyle = '#c07c3e'; c.lineWidth = 0.7; c.strokeRect(a + 4, 172, b - a - 8, 25);
+        const hx = a < 100 ? b - 9 : a + 9; c.beginPath(); c.arc(hx, 184.5, 2, 0, 7); c.fillStyle = '#ffe28a'; c.fill(); c.strokeStyle = '#6a3a1a'; c.lineWidth = 0.6; c.stroke();
+      });
+      c.fillStyle = '#2a160a'; c.fillRect(14, 204, 8, 6); c.fillRect(278, 204, 8, 6);
+    },
+    back(c, sw) {
+      c.fillStyle = '#eaf7fb'; c.fillRect(6, 16, 288, 138);
+      waterFill(c, 9, 26, 291, 150); surface(c, 9, 291, 26);
+      [[20, 140, 104, 41, 0], [30, 141, 92, 42, 1], [42, 142, 80, 43, 0], [242, 141, 100, 44, 1], [256, 140, 112, 45, 0], [270, 141, 96, 46, 1], [282, 142, 82, 47, 0]].forEach(([x, y, h, s, warm]) => stem(c, x, y, h, sw, s, warm));
+      valis(c, 120, 144, 10, 64, 104, sw, 48); valis(c, 214, 144, 7, 56, 90, sw, 49);
+      wood(c, [150, 148, 166, 116, 196, 98, 168, 122, 150, 92, 180, 106, 214, 112], 4.6);
+      rock(c, 186, 148, 24, 28, 51); rock(c, 216, 150, 14, 15, 52); rock(c, 98, 150, 16, 16, 53); rock(c, 160, 151, 8, 6, 54);
+      lantern(c, 66, 148);
+      bush(c, 100, 134, 14, sw, 55); bush(c, 236, 138, 12, sw, 56);
+      sandBed(c, 9, 291, (x) => 142 + 3 * Math.sin(x * 0.045), 150, 57, true);
+      moss(c, 12, 50, 146, 6, 61); moss(c, 120, 160, 147, 5, 62); moss(c, 228, 290, 146, 7, 63);
+      lily(c, 70, 27, 9); lily(c, 88, 27.5, 6); lily(c, 210, 27, 8);
+      c.fillStyle = 'rgba(234,247,251,.65)'; c.fillRect(6, 16, 3, 138); c.fillRect(291, 16, 3, 138);
+      c.fillStyle = lin(c, 0, 2, 0, 14, [[0, '#94562a'], [0.4, '#6a3a1a'], [1, '#43230e']]); c.fillRect(2, 2, 296, 12); c.fillStyle = '#c07c3e'; c.fillRect(2, 2, 296, 1);
+      c.fillStyle = '#fff4c4'; c.fillRect(14, 13, 272, 1.6);
+      woodBar(c, 2, 13.5, 298, 17); woodBar(c, 2, 150, 298, 157);
+    },
+    front: [[0.16, (c) => { c.fillStyle = '#fff4c4'; [[30, 20], [96, 30], [170, 18], [226, 26]].forEach(([x, w]) => { c.beginPath(); c.moveTo(x, 17); c.lineTo(x + w, 17); c.lineTo(x + w + 34, 150); c.lineTo(x + 34, 150); c.closePath(); c.fill(); }); }],
+      [0.5, (c) => { glare(c, 12, 20, 34, 8); glare(c, 30, 20, 18, 3); c.fillStyle = '#fff'; c.fillRect(286, 36, 1.6, 74); }]] },
+];
+
+// ---------- fish sprites at tank size, 4 tail frames each ----------
+const SPR = {};
+function fishSet(fs) {
+  if (SPR[fs]) return SPR[fs];
+  const set = {}, w = Math.round(100 * fs), h = Math.round(80 * fs), k = Math.round(6 / fs);
+  ['ryukin', 'oranda', 'ranchu'].forEach((n) => {
+    set[n] = [1, 0.88, 0.76, 0.88].map((wg) => { WAG = wg; return pixG((c) => { c.scale(fs, fs); FISH[n](c); }, w, h, { pal: PALETTE, red: true, out: OUT, k, dither: 4, tone: nightFish }); });
+    // every pixel any frame could cover, facing either way: used to keep the whole fish inside the water
+    const pts = [];
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (set[n].some((cv) => cv.px[y * w + x] || cv.px[y * w + (w - 1 - x)])) pts.push([x, y]);
+    set[n].pts = pts;
+  });
+  WAG = 1; return (SPR[fs] = set);
+}
+
+// ---------- live tank ----------
+function liveTank(t, canvas) {
+  const backs = [-1, 0, 1].map((sw) => pixG((c) => t.back(c, sw), t.w, t.h, { out: t.out }));
+  const stand = t.stand ? pixG(t.stand, t.w, t.h, { out: '#2a160a' }) : null;
+  const fronts = t.front.map(([a, d]) => [a, pixG(d, t.w, t.h)]);
+  const spr = fishSet(t.fs), fw = Math.round(100 * t.fs), fh = Math.round(80 * t.fs);
+  const r = rng(t.w), x0 = t.swim[0], y0 = t.swim[1], x1 = t.swim[2] - fw, y1 = t.swim[3] - fh, n = t.fish.length;
+  // a spot is fine when the box allows it and, for round bowls, every fish pixel (with bob room) is in the water
+  const ok = (b, x, y) => x >= x0 && x <= x1 && y >= y0 && y <= y1 && (!t.inside || spr[b].pts.every(([px, py]) => t.inside(x + px, y + py - 2) && t.inside(x + px, y + py + 2)));
+  const fish = t.fish.map((b, i) => {
+    let x = x0 + ((i + 0.5) / n) * (x1 - x0), y = y0 + ((i * 0.618 + 0.2) % 1) * (y1 - y0);
+    if (!ok(b, x, y)) { let best = null, bd = 1e9; for (let yy = y0; yy <= y1; yy++) for (let xx = x0; xx <= x1; xx++) if (ok(b, xx, yy)) { const d = (xx - x) ** 2 + (yy - y) ** 2; if (d < bd) { bd = d; best = [xx, yy]; } } if (best) [x, y] = best; }
+    return { n: b, x, y, ty: y, d: i % 2 ? -1 : 1, v: 0.25 + r() * 0.3, p: r() * 10 };
+  });
+  const bub = [];
+  const off = document.createElement('canvas'); off.width = t.w; off.height = t.h; const o = off.getContext('2d');
+  canvas.width = t.w; canvas.height = t.h; const ctx = canvas.getContext('2d');
+  let tick = 0;
+  setInterval(() => {
+    tick++;
+    o.clearRect(0, 0, t.w, t.h);
+    if (stand) o.drawImage(pick(stand), 0, 0);
+    o.drawImage(pick(backs[[0, 1, 2, 1][Math.floor(tick / 7) % 4]]), 0, 0);
+    if (tick % 9 === 0) t.bubbles.forEach(([bx, by]) => { if (r() < 0.7) bub.push({ x: bx + (r() - 0.5) * 3, y: by, s: 1 + (r() * 2.4 | 0), ph: r() * 6 }); });
+    for (let i = bub.length - 1; i >= 0; i--) {
+      const b = bub[i]; b.y -= 0.45 + b.s * 0.12; if (b.y < t.surf + 2) { bub.splice(i, 1); continue; }
+      const bx = Math.round(b.x + Math.sin(b.y * 0.2 + b.ph)), by = Math.round(b.y);
+      o.fillStyle = NIGHT ? '#2f4a6e' : '#cdebf4'; if (b.s === 1) o.fillRect(bx, by, 1, 1); else { o.fillRect(bx - 1, by, b.s + 1, b.s - 1); o.fillRect(bx, by - 1, b.s - 1, b.s + 1); o.fillStyle = NIGHT ? '#4a6890' : '#fff'; o.fillRect(bx, by, 1, 1); }
+    }
+    fish.forEach((f) => {
+      if (r() < 0.004) f.d *= -1;
+      if (r() < 0.01) f.ty = y0 + r() * (y1 - y0);
+      // drift apart from a fish swimming right on top of this one
+      if (r() < 0.05 && fish.some((g) => g !== f && Math.abs(g.x - f.x) < fw * 0.7 && Math.abs(g.y - f.y) < fh * 0.5)) { f.ty = y0 + r() * (y1 - y0); if (r() < 0.5) f.d *= -1; }
+      if (r() < 0.006) f.v = r() < 0.25 ? 0.05 : 0.25 + r() * 0.4;
+      const nx = f.x + f.d * f.v; if (ok(f.n, nx, f.y)) f.x = nx; else f.d *= -1;
+      const ny = f.y + (f.ty - f.y) * 0.02; if (ok(f.n, f.x, ny)) f.y = ny; else f.ty = f.y;
+      const fx = Math.round(f.x), fy = Math.round(f.y + Math.sin(tick * 0.12 + f.p) * 1.2);
+      const s = pick(spr[f.n][Math.floor(tick / (f.v < 0.1 ? 5 : 2) + f.p) % 4]);
+      if (f.d > 0) o.drawImage(s, fx, fy); else { o.save(); o.translate(fx + fw, fy); o.scale(-1, 1); o.drawImage(s, 0, 0); o.restore(); }
+    });
+    fronts.forEach(([a, cv]) => { o.globalAlpha = NIGHT ? a * 0.35 : a; o.drawImage(pick(cv), 0, 0); }); o.globalAlpha = 1;
+    ctx.clearRect(0, 0, t.w, t.h); ctx.drawImage(off, 0, 0);
+  }, 90);
+}
+// Fish life demo: personalities, reactions, feeding, hunger, sleep, growth and speech.
+// ---------- growth-stage sprites ----------
+// Fry and young are painted flat, then mapped to two simple tones plus the outline:
+// fry are plain bronze with a pale belly and fin tips; young are a soft orange with peach, and a rose hood.
+const lum = (p) => (p[0] * 0.3 + p[1] * 0.59 + p[2] * 0.11) / 255;
+const tones = (dark, mid, light, hood) => (p) => { const l = lum(p); if (l < 0.22) return dark; if (hood && p[0] > 110 && p[1] / p[0] < 0.4) return hood; return l < 0.8 ? mid : light; };
+const fryTone = tones([74, 52, 24], [168, 134, 78], [226, 207, 160]);
+const youngTone = tones([58, 18, 6], [242, 146, 70], [255, 226, 192], [232, 104, 80]);
+const deadTone = (p) => { const l = p[0] * 0.3 + p[1] * 0.59 + p[2] * 0.11; return [l * 0.7 + 60, l * 0.7 + 62, l * 0.7 + 66]; };
+const STAGE = { adult: 0.5, young: 0.4, fry: 0.3 };
+const LOOK = {};
+function look(breed, stage, size) {
+  const key = breed + stage + (size || ''); if (LOOK[key]) return LOOK[key];
+  const fs = size || STAGE[stage], w = Math.round(100 * fs), h = Math.round(80 * fs);
+  NOWEN = stage === 'fry'; TAILS = stage === 'fry' ? 0.7 : 1; FLAT = stage !== 'adult';
+  const frames = [1, 0.88, 0.76, 0.88].map((wg) => {
+    WAG = wg;
+    let px = pixG((c) => { c.scale(fs, fs); FISH[breed](c); }, w, h, { pal: PALETTE, red: true, out: OUT, k: Math.round(6 / fs), dither: 4 }).px;
+    if (stage === 'fry') px = px.map((p) => p && fryTone(p));
+    if (stage === 'young') px = px.map((p) => p && youngTone(p));
+    return { day: toCv(px, w, h), night: toCv(px.map((p) => p && nightFish(p)), w, h), dead: toCv(px.map((p) => p && deadTone(p)), w, h), deadNight: toCv(px.map((p) => p && nightFish(deadTone(p))), w, h) };
+  });
+  WAG = 1; TAILS = 1; NOWEN = false; FLAT = false;
+  return (LOOK[key] = { frames, w, h });
+}
+
+// ---------- what they say (N5, taught words only in the real app) ----------
+const LINES = {
+  hello: ['こんにちは！', 'Hello!'], fine: ['げんき です。', "I'm doing well."], thanks: ['ありがとう！', 'Thank you!'], yum: ['おいしい！', 'Tasty!'],
+  yay: ['やった！', 'Yay!'], hungry: ['おなか が すきました。', "I'm hungry."], food: ['ごはん は？', 'Food?'], sleepy: ['ねむい です。', "I'm sleepy."],
+  night: ['おやすみなさい。', 'Good night.'], morning: ['おはよう！', 'Good morning!'], look: ['みて！', 'Look!'], scary: ['こわい…', 'Scary…'], play: ['あそびましょう！', "Let's play!"],
+};
+const IDLE = { Brave: ['look', 'fine'], Chatty: ['hello', 'fine', 'thanks', 'look'], Sleepy: ['sleepy'], Shy: ['hello'], Playful: ['play', 'look'], Hungry: ['food'] };
+const TALK = { Chatty: 0.004, Playful: 0.002, Brave: 0.0015, Hungry: 0.0015, Sleepy: 0.001, Shy: 0.0005 };
+const SPEED = { ryukin: 0.9, oranda: 0.6, ranchu: 0.32 };
+
+// ---------- the live tank ----------
+function lifeTank(t, canvas, bubbleLayer, cast) {
+  const backs = [-1, 0, 1].map((sw) => pixG((c) => t.back(c, sw), t.w, t.h, { out: t.out }));
+  const fronts = t.front.map(([a, d]) => [a, pixG(d, t.w, t.h)]);
+  const [X0, Y0, X1, Y1] = t.swim, SURF = t.surf;
+  const r = rng(7), off = document.createElement('canvas'); off.width = t.w; off.height = t.h; const o = off.getContext('2d');
+  canvas.width = t.w; canvas.height = t.h; const ctx = canvas.getContext('2d');
+  const S = { lights: true, hunger: 'fed', tick: 0, flakes: [], tap: null, ripple: null, bubbles: [], speech: [] };
+  const fish = cast.map((c, i) => {
+    const lk = look(c.breed, c.stage, c.fs);
+    const f = { ...c, lk, w: lk.w, h: lk.h, x: X0 + ((i + 0.5) / cast.length) * (X1 - X0 - lk.w), y: Y0 + 10 + ((i * 0.618) % 1) * (Y1 - Y0 - lk.h - 20), d: i % 2 ? -1 : 1, p: r() * 10, mode: 'swim', timer: 0, wig: 0, zs: [] };
+    f.tx = f.x; f.ty = f.y; return f;
+  });
+  const lim = (f) => [X0, Y0, X1 - f.w, Y1 - f.h];
+  const mouth = (f) => [f.d > 0 ? f.x + f.w * 0.95 : f.x + f.w * 0.05, f.y + f.h * 0.58];
+  const alive = () => S.hunger !== 'dead';
+
+  // speech bubbles are HTML so the Japanese stays crisp; tap one for English
+  // Keep talk rare: idle chatter waits ~20s after any bubble and never repeats a line within ~1 minute.
+  // Reactions (tap, lesson, eating) can come sooner but still never repeat the line just said.
+  const heard = {}; let lastSay = -999;
+  function say(f, key, event = true) {
+    if (!S.lights || !alive() || S.speech.length) return;
+    const since = S.tick - lastSay, ago = S.tick - (heard[key] ?? -9999);
+    if (event ? since < 25 || ago < 150 : since < 220 || ago < 650) return;
+    lastSay = S.tick; heard[key] = S.tick;
+    const [jp, en] = LINES[key], el = document.createElement('button'); el.className = 'bub'; el.textContent = jp;
+    const s = { f, jp, en, el, t: 40, en_: false };
+    el.onclick = (e) => { e.stopPropagation(); s.en_ = !s.en_; el.textContent = s.en_ ? en : jp; s.t = Math.max(s.t, 30); };
+    bubbleLayer.appendChild(el); S.speech.push(s);
+  }
+  function placeBubbles() {
+    S.speech = S.speech.filter((s) => { if (--s.t > 0 && S.lights && alive()) return true; s.el.remove(); return false; });
+    S.speech.forEach((s) => { const f = s.f, hx = f.d > 0 ? f.x + f.w * 0.8 : f.x + f.w * 0.2; s.el.style.left = (hx / t.w) * 100 + '%'; s.el.style.top = ((f.y + f.h * 0.05) / t.h) * 100 + '%'; });
+  }
+
+  // ---------- choosing where each fish wants to go ----------
+  function wander(f) {
+    const [a, b, c, d] = lim(f);
+    if (f.breed === 'ryukin') { f.tx = f.x < (a + c) / 2 ? c - r() * 20 : a + r() * 20; f.ty = b + r() * (d - b); }
+    else if (f.breed === 'ranchu') { f.tx = a + r() * (c - a); f.ty = b + (0.55 + r() * 0.45) * (d - b); }
+    else { f.tx = a + (0.15 + r() * 0.7) * (c - a); f.ty = b + (0.2 + r() * 0.6) * (d - b); }
+  }
+  function think(f) {
+    const [a, b, c, d] = lim(f);
+    if (!S.lights) { f.mode = 'sleep'; f.ty = d - 1; f.tx = f.x; return; }
+    if (S.flakes.some((k) => !k.gone)) {
+      const [mx, my] = mouth(f); let best = null, bd = 1e9;
+      S.flakes.forEach((k) => { if (k.gone) return; const dd = (k.x - mx) ** 2 + (k.y - my) ** 2 + (k.by && k.by !== f ? 4000 : 0); if (dd < bd) { bd = dd; best = k; } }); if (best) best.by = f;
+      if (best) { f.mode = 'food'; f.d = best.x > f.x + f.w / 2 ? 1 : -1; f.tx = best.x - (f.d > 0 ? f.w * 0.95 : f.w * 0.05); f.ty = best.y - f.h * 0.58; return; }
+    }
+    if (f.timer > 0) { f.timer--; return; }
+    if (S.hunger === 'one') { f.mode = 'beg'; f.ty = b + r() * 6; f.tx = f.x + (r() - 0.5) * 40; f.timer = 60; return; }
+    if (f.trait === 'Sleepy' && r() < 0.25) { f.mode = 'nap'; f.tx = f.x; f.ty = d - 1; f.timer = 90; return; }
+    if (f.trait === 'Shy' && r() < 0.3) { f.mode = 'hide'; f.tx = a + 8 + r() * 14; f.ty = b + (0.5 + r() * 0.4) * (d - b); f.timer = 70; return; }
+    if (f.trait === 'Playful' && r() < 0.4) { const g = fish[(r() * fish.length) | 0]; if (g !== f) { f.mode = 'chase'; f.chase = g; f.timer = 70; return; } }
+    f.mode = 'swim'; wander(f); f.timer = 25 + ((r() * 40) | 0);
+  }
+
+  // ---------- one step of life ----------
+  function step() {
+    S.tick++;
+    // flakes sink, wobble, and rest on the sand for a while
+    S.flakes.forEach((k) => { if (k.gone) return; if (k.y < Y1 - 1) { k.y += k.y < SURF + 16 ? 0.5 : 0.22; k.x += Math.sin(k.y * 0.25 + k.ph) * 0.15; } else if (++k.rest > 120) k.gone = true; });
+    S.flakes = S.flakes.filter((k) => !k.gone);
+    fish.forEach((f) => {
+      if (!alive()) { f.x += Math.sin(S.tick * 0.02 + f.p) * 0.05; return; }
+      // swim off somewhere new when stacked right on top of another fish
+      if (f.mode === 'swim' && r() < 0.06 && fish.some((g) => g !== f && Math.abs(g.x - f.x) < f.w * 0.6 && Math.abs(g.y - f.y) < f.h * 0.5)) { wander(f); f.timer = 30; }
+      if (f.mode === 'chase' && f.chase) { f.tx = f.chase.x - f.chase.d * 14; f.ty = f.chase.y + 2; }
+      const arrived = Math.hypot(f.tx - f.x, f.ty - f.y) < 1.5;
+      if (arrived || f.mode === 'swim' || f.mode === 'beg' || f.mode === 'chase') { if (arrived || f.timer <= 0) think(f); else if (f.mode !== 'food') f.timer--; }
+      if (S.flakes.length && S.lights) think(f); // keep chasing the nearest sinking flake
+      if (!S.lights && f.mode !== 'sleep') think(f);
+      if (f.mode === 'come' && S.tap) { f.tx = S.tap.x - f.w / 2; f.ty = S.tap.y - f.h / 2; }
+      let sp = SPEED[f.breed] * (f.stage === 'fry' ? 0.9 : 1);
+      if (S.hunger === 'one') sp *= 0.6;
+      if (f.mode === 'food') sp *= 1.5; if (f.mode === 'come') sp *= 1.4; if (f.mode === 'sleep' || f.mode === 'nap') sp = 0.3;
+      if (f.mode === 'hide' && f.trait === 'Shy' && S.tap) sp *= 1.6;
+      const [a, b, c, d] = lim(f); f.tx = Math.max(a, Math.min(c, f.tx)); f.ty = Math.max(b, Math.min(d, f.ty));
+      const dx = f.tx - f.x, dy = f.ty - f.y, dist = Math.hypot(dx, dy);
+      if (dist > 0.3) { const s = Math.min(sp, dist); f.x += (dx / dist) * s; f.y += (dy / dist) * s * 0.75; if (Math.abs(dx) > 2 && f.mode !== 'food') f.d = Math.sign(dx); }
+      f.moving = dist > 1;
+      // eat
+      if (f.mode === 'food') { const [mx, my] = mouth(f); S.flakes.forEach((k) => { if (!k.gone && Math.abs(k.x - mx) < 3 && Math.abs(k.y - my) < 3) { k.gone = true; f.wig = Math.max(f.wig, 6); if (r() < 0.35) say(f, 'yum'); } }); }
+      if (f.mode === 'come' && !f.moving && S.tap) f.d = S.tap.x > f.x + f.w / 2 ? 1 : -1;
+      // idle chatter
+      if (S.lights && r() < (TALK[f.trait] || 0.001)) say(f, S.hunger === 'one' ? (r() < 0.5 ? 'hungry' : 'food') : IDLE[f.trait][(r() * IDLE[f.trait].length) | 0], false);
+      if ((f.mode === 'sleep' || f.mode === 'nap') && S.tick % 22 === ((f.p * 3) | 0) % 22) f.zs.push({ x: f.d > 0 ? f.x + f.w * 0.75 : f.x + f.w * 0.25, y: f.y + 2, t: 0 });
+      f.zs.forEach((z) => { z.t++; z.y -= 0.25; z.x += 0.1; }); f.zs = f.zs.filter((z) => z.t < 40);
+      if (f.wig > 0) f.wig--;
+    });
+    if (S.tap && --S.tap.t <= 0) { S.tap = null; fish.forEach((f) => { if (f.mode === 'come') { f.mode = 'swim'; f.timer = 0; } }); }
+    // tank bubbles
+    if (S.tick % 9 === 0) t.bubbles.forEach(([bx, by]) => { if (r() < 0.7) S.bubbles.push({ x: bx + (r() - 0.5) * 3, y: by, s: 1 + ((r() * 2.4) | 0), ph: r() * 6 }); });
+    S.bubbles.forEach((q) => (q.y -= 0.45 + q.s * 0.12)); S.bubbles = S.bubbles.filter((q) => q.y > SURF + 2);
+  }
+
+  // ---------- draw ----------
+  function draw() {
+    o.clearRect(0, 0, t.w, t.h);
+    o.drawImage(pick(backs[S.lights ? [0, 1, 2, 1][Math.floor(S.tick / 7) % 4] : 1]), 0, 0);
+    const N = !S.lights;
+    S.bubbles.forEach((q) => { const bx = Math.round(q.x + Math.sin(q.y * 0.2 + q.ph)), by = Math.round(q.y); o.fillStyle = N ? '#2f4a6e' : '#cdebf4'; if (q.s === 1) o.fillRect(bx, by, 1, 1); else { o.fillRect(bx - 1, by, q.s + 1, q.s - 1); o.fillRect(bx, by - 1, q.s - 1, q.s + 1); o.fillStyle = N ? '#4a6890' : '#fff'; o.fillRect(bx, by, 1, 1); } });
+    S.flakes.forEach((k) => { o.fillStyle = N ? '#6a4a3a' : k.c; o.fillRect(Math.round(k.x), Math.round(k.y), 2, 1); });
+    fish.forEach((f) => {
+      const dead = !alive(), sleeping = f.mode === 'sleep' || f.mode === 'nap';
+      const fr = dead || sleeping ? 0 : Math.floor(S.tick / (f.moving ? 2 : 4) + f.p) % 4;
+      const set = f.lk.frames[fr], img = dead ? (N ? set.deadNight : set.dead) : N ? set.night : set.day;
+      const bob = dead ? Math.sin(S.tick * 0.05 + f.p) * 0.6 : Math.sin(S.tick * (sleeping ? 0.05 : 0.12) + f.p) * (sleeping ? 0.6 : 1.2);
+      let fx = Math.round(f.x + (f.wig > 0 ? (f.wig % 2 ? 1 : -1) : 0)), fy = Math.round((dead ? SURF - 3 : f.y) + bob);
+      o.save(); o.translate(fx + (f.d < 0 ? f.w : 0), fy + (dead ? f.h : 0)); o.scale(f.d < 0 ? -1 : 1, dead ? -1 : 1); o.drawImage(img, 0, 0); o.restore();
+      f.zs.forEach((z) => { const a = 1 - z.t / 40; if (a < 0.2) return; const zx = Math.round(z.x), zy = Math.round(z.y); o.fillStyle = N ? '#8fa6c8' : '#ffffff'; o.fillRect(zx, zy, 3, 1); o.fillRect(zx + 1, zy + 1, 1, 1); o.fillRect(zx, zy + 2, 3, 1); });
+    });
+    if (S.ripple) { const q = S.ripple, rr = q.t * 1.2; o.strokeStyle = N ? '#4a6890' : '#ffffff'; o.lineWidth = 1; o.globalAlpha = 1 - q.t / 8; o.beginPath(); o.arc(Math.round(q.x) + 0.5, Math.round(q.y) + 0.5, rr, 0, 7); o.stroke(); o.globalAlpha = 1; if (++q.t > 8) S.ripple = null; }
+    fronts.forEach(([a, cv]) => { o.globalAlpha = N ? a * 0.35 : a; o.drawImage(pick(cv), 0, 0); }); o.globalAlpha = 1;
+    ctx.clearRect(0, 0, t.w, t.h); ctx.drawImage(off, 0, 0);
+    placeBubbles();
+  }
+  setInterval(() => { step(); draw(); }, 90);
+
+  // ---------- what you can do ----------
+  canvas.addEventListener('click', (e) => {
+    if (!S.lights || !alive()) return;
+    const b = canvas.getBoundingClientRect(), x = ((e.clientX - b.left) / b.width) * t.w, y = ((e.clientY - b.top) / b.height) * t.h;
+    if (y < SURF || y > Y1) return;
+    S.tap = { x, y, t: 70 }; S.ripple = { x, y, t: 0 };
+    fish.forEach((f) => {
+      if (f.trait === 'Shy') { f.mode = 'hide'; f.tx = X0 + 6 + r() * 10; f.ty = f.y + 8; f.timer = 80; say(f, 'scary'); }
+      else if (f.trait === 'Sleepy' && f.mode === 'nap') { /* keeps napping */ }
+      else if (f.trait === 'Brave' || f.trait === 'Playful' || f.trait === 'Chatty' || r() < 0.5) { f.mode = 'come'; f.timer = 70; if (f.trait === 'Brave') say(f, 'look'); }
+    });
+  });
+  return {
+    lesson() {
+      if (!alive()) return; if (!S.lights) this.lights(true);
+      S.hunger = 'fed'; fish.forEach((f) => { f.wig = 14; f.timer = 0; });
+      const c = fish.find((f) => f.trait === 'Chatty') || fish[0]; say(c, 'yay');
+      for (let i = 0; i < 9; i++) S.flakes.push({ x: X0 + 30 + r() * (X1 - X0 - 60), y: SURF + 1 - i * 1.5, ph: r() * 6, rest: 0, c: r() < 0.5 ? '#d9776a' : '#f0b84a' });
+    },
+    lights(on) {
+      S.lights = on; NIGHT = !on; fish.forEach((f) => { f.timer = 0; f.mode = 'swim'; if (on) f.zs = []; });
+      if (on && alive()) { const f = fish.find((g) => g.trait === 'Chatty') || fish[0]; setTimeout(() => say(f, 'morning'), 300); }
+      if (!on) S.speech.forEach((s) => (s.t = 0));
+      return on;
+    },
+    hunger(h) {
+      S.hunger = h; S.flakes = []; fish.forEach((f) => { f.timer = 0; f.mode = 'swim'; f.zs = []; if (h !== 'dead') { const [a, b, c, d] = lim(f); f.y = Math.max(b, Math.min(d, f.y)); f.tx = f.x; f.ty = f.y; } });
+      if (h === 'one') { const f = fish.find((g) => g.trait === 'Chatty') || fish[0]; say(f, 'hungry'); }
+    },
+    // a new fry drops in at the surface and swims down
+    add(c) {
+      const lk = look(c.breed, c.stage, c.fs), f = { ...c, lk, w: lk.w, h: lk.h, x: (X0 + X1 - lk.w) / 2, y: Y0, d: r() < 0.5 ? 1 : -1, p: r() * 10, mode: 'swim', timer: 0, wig: 14, zs: [] };
+      f.tx = f.x + (r() - 0.5) * 40; f.ty = Y0 + (Y1 - Y0 - lk.h) * 0.5; fish.push(f);
+      setTimeout(() => say(f, 'hello'), 900); return f;
+    },
+    get lightsOn() { return S.lights; }, fish, S,
+  };
+}
+
+// ---------- Tank tab mock ----------
+const SIZE = { adult: 0.47, young: 0.38, fry: 0.28 }, CAP = 3;
+const BREED = { ryukin: 'Ryukin', oranda: 'Oranda', ranchu: 'Ranchu' }, AGE = { adult: 'Adult', young: 'Young', fry: 'Fry' };
+const CAST = [
+  { name: 'Kin', breed: 'ryukin', stage: 'adult', trait: 'Brave', days: 26, last: 'みて！' },
+  { name: 'Momo', breed: 'oranda', stage: 'young', trait: 'Chatty', days: 9, last: 'こんにちは！' },
+].map((c) => ({ ...c, fs: SIZE[c.stage] }));
+const SMALL = TANKS.find((t) => t.id === 'small');
+const life = lifeTank(SMALL, document.getElementById('tank'), document.getElementById('bubbles'), CAST);
+let hunger = 'fed';
+
+// portraits: the sprite's first frame, centred on a small canvas
+function portrait(cv, f, dead) {
+  const lk = look(f.breed, f.stage, f.fs), c = cv.getContext('2d'); c.clearRect(0, 0, cv.width, cv.height);
+  const img = dead ? lk.frames[0].dead : lk.frames[0].day, x = Math.round((cv.width - lk.w) / 2), y = Math.round((cv.height - lk.h) / 2);
+  if (dead) { c.save(); c.translate(0, cv.height); c.scale(1, -1); c.drawImage(img, x, y); c.restore(); } else c.drawImage(img, x, y);
+}
+
+// ---------- fish list ----------
+const grid = document.getElementById('fish');
+function drawFish() {
+  grid.innerHTML = '';
+  life.fish.forEach((f) => {
+    const b = document.createElement('button'); b.className = 'fishcard';
+    const cv = document.createElement('canvas'); cv.width = 50; cv.height = 40; portrait(cv, f, hunger === 'dead');
+    b.appendChild(cv); b.insertAdjacentHTML('beforeend', `<strong>${f.name}</strong><span>${hunger === 'dead' ? 'Died' : f.days ? f.trait : 'New'}</span>`);
+    b.onclick = () => openSheet(f); grid.appendChild(b);
+  });
+  if (life.fish.length < CAP && hunger !== 'dead') {
+    const s = document.createElement('button'); s.className = 'fishcard slot'; s.innerHTML = '<b>+</b><strong>New fry</strong>';
+    s.onclick = addFry; grid.appendChild(s);
+  }
+  document.getElementById('fishhead').textContent = `Fish · ${life.fish.length} of ${CAP}`;
+}
+const NAMES = ['Sora', 'Hana', 'Maru', 'Pochi', 'Mochi'], TRAITS = ['Hungry', 'Shy', 'Playful', 'Sleepy', 'Chatty', 'Brave'];
+function addFry() {
+  const breeds = Object.keys(BREED), r = Math.random;
+  life.add({ name: NAMES[life.fish.length % NAMES.length], breed: breeds[(r() * 3) | 0], stage: 'fry', fs: SIZE.fry, trait: TRAITS[(r() * TRAITS.length) | 0], days: 0, last: 'こんにちは！' });
+  drawFish();
+}
+
+// ---------- fish details sheet ----------
+const sheet = document.getElementById('sheet'), scrim = document.getElementById('scrim');
+function openSheet(f) {
+  portrait(document.getElementById('sheetcv'), f, hunger === 'dead');
+  document.getElementById('sName').textContent = f.name;
+  document.getElementById('sBreed').textContent = BREED[f.breed];
+  document.getElementById('sAge').textContent = f.days ? `${AGE[f.stage]} · ${f.days} days` : 'Fry · new';
+  document.getElementById('sTrait').textContent = f.trait;
+  document.getElementById('sSay').textContent = f.last;
+  sheet.hidden = scrim.hidden = false;
+}
+document.getElementById('sClose').onclick = scrim.onclick = () => (sheet.hidden = scrim.hidden = true);
+
+// ---------- status row ----------
+const st = document.getElementById('st'), cta = document.getElementById('cta'), light = document.getElementById('light');
+const STATES = { fed: ['ok', 'Fed today', null], one: ['warn', 'Hungry', 'Feed them'], dead: ['dead', 'Died', 'New fry'] };
+function setHunger(h) {
+  hunger = h; const [cls, label, btn] = STATES[h];
+  st.className = 'fh-st ' + cls; st.textContent = label; cta.hidden = !btn; cta.textContent = btn || ''; cta.className = h === 'dead' ? 'btn ghost' : 'btn';
+  light.hidden = h === 'dead';
+  document.querySelectorAll('.demo button').forEach((x) => x.classList.toggle('on', x.dataset.h === h));
+  drawFish();
+}
+document.querySelectorAll('.demo button').forEach((b) => (b.onclick = () => { life.hunger(b.dataset.h); setHunger(b.dataset.h); }));
+cta.onclick = () => { if (hunger === 'one') { life.lesson(); setHunger('fed'); } else { life.hunger('fed'); setHunger('fed'); } };
+light.onclick = () => { const on = life.lights(!life.lightsOn); light.classList.toggle('off', !on); light.setAttribute('aria-label', on ? 'Lights off' : 'Lights on'); };
+
+// ---------- homes ----------
+const LOCK = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></svg>';
+const HOMES = [['bowl', 'Unlocked', ''], ['small', 'Home now', 'now'], ['planted', 'Finish N5', 'locked'], ['grand', 'Finish Casual', 'locked']];
+const homes = document.getElementById('homes');
+HOMES.forEach(([id, status, cls]) => {
+  const t = TANKS.find((x) => x.id === id), d = document.createElement('div'); d.className = 'hcard ' + cls;
+  const cv = document.createElement('canvas'); cv.width = t.w; cv.height = t.h; const c = cv.getContext('2d');
+  if (t.stand) c.drawImage(pixG(t.stand, t.w, t.h, { out: '#2a160a' }), 0, 0);
+  c.drawImage(pixG((x) => t.back(x, 0), t.w, t.h, { out: t.out }), 0, 0);
+  const th = document.createElement('div'); th.className = 'thumb'; th.appendChild(cv); d.appendChild(th);
+  d.insertAdjacentHTML('beforeend', `<strong>${t.en}</strong><span>${cls === 'locked' ? LOCK : ''}${status}</span>`);
+  homes.appendChild(d);
+});
+
+// ---------- album ----------
+const album = document.getElementById('album');
+[{ name: 'Pochi', breed: 'ranchu', stage: 'adult', days: 41 }, { name: 'Taro', breed: 'oranda', stage: 'adult', days: 18 }, { name: 'Ume', breed: 'ryukin', stage: 'young', days: 6 }].forEach((f) => {
+  f.fs = SIZE[f.stage]; const d = document.createElement('div'); d.className = 'pol';
+  const cv = document.createElement('canvas'); cv.width = 50; cv.height = 40; portrait(cv, f); d.appendChild(cv);
+  d.insertAdjacentHTML('beforeend', `<b>${f.name}</b><span>${f.days} days</span>`); album.appendChild(d);
+});
+setHunger('fed');
+</script></body></html>
