@@ -257,13 +257,21 @@ function courseCard(next) {
 // day's new lessons are done or reviews come first, since the hero already says so.
 function casualHomeCard() {
   const units = trackData(data, 'casual').units;
-  if (!casualOpen(state, data) || !units.length) return '';
+  if (!units.length) return '';
+  if (!casualOpen(state, data)) {
+    // Two unit tests or fewer away: one quiet line, so the unlock is in sight.
+    const left = data.units.filter((u) => u.n <= CASUAL_GATE && !state.course.passed[u.id]).length;
+    if (!left || left > 2) return '';
+    return `<a class="casual-soonline small" href="#/course"><span class="jp">話</span><span class="grow">Casual unlocks in <b>${left === 1 ? '1 unit' : `${left} units`}</b></span></a>`;
+  }
   if (lessonsToday(state) >= NEW_LESSONS_PER_DAY || dueCount() > REVIEWS_FIRST_AT) return '';
   const next = nextUp(state, units);
   if (next?.type !== 'lesson' && next?.type !== 'test') return '';
   const label = next.type === 'lesson' ? next.lesson.title : `Unit ${unitNo(next.unit)} test`;
+  // Until the first Casual lesson is done, it's announced as new.
+  const fresh = !units.some((u) => u.lessons.some((l) => state.course.done[l.id]));
   return `<button class="card casual-next" id="casualgo">
-    <span class="grow"><span class="caps">Also today · Casual</span><strong>${label}</strong>
+    <span class="grow"><span class="caps">${fresh ? 'New · Casual' : 'Also today · Casual'}</span><strong>${label}</strong>
       <span class="small muted">${resumable(next) ? 'Resume where you left off' : next.unit.title}</span></span>
     <span class="chev">${icons.chevron}</span></button>`;
 }
@@ -2184,11 +2192,19 @@ function screenCourse() {
     return `<div class="rankgoal"><span class="jp">${at.jp}</span><span class="grow"><small>Rank goal</small><b>${at.en}</b>
       <span class="small muted">Unlocks at ${at.at} units passed · you have ${passed}</span></span></div>`;
   };
+  // Casual waits locked just after the unit that opens it, one pip per unit up to it, so the
+  // reward is in sight while you work through N5. Tapping it shows what's inside.
+  const casualGoal = (u) => {
+    if (casual || u.n !== CASUAL_GATE || casualOpen(state, data) || !data.casualUnits?.length) return '';
+    const gate = units.filter((x) => x.n <= CASUAL_GATE);
+    return `<button class="rankgoal casual-goal" id="casualpeek"><span class="jp">話</span><span class="grow"><small>Unlocks after Unit ${CASUAL_GATE}</small><b>Casual course</b>
+      <span class="cg-pips" aria-hidden="true">${gate.map((x) => `<i class="${state.course.passed[x.id] ? 'on' : ''}"></i>`).join('')}</span></span><span class="chev">${icons.chevron}</span></button>`;
+  };
   // Passed units fold into rows with their stars; the unit you're on and the next open as trails.
   const hereUnit = next?.unit;
   const body = shown.map((u) => {
     const asTrail = u === hereUnit || (hereUnit && units.indexOf(u) === units.indexOf(hereUnit) + 1);
-    return (asTrail ? trail(u) : `<section class="path">${node(u)}</section>`) + `<section class="path">${storyNode(u)}</section>` + rankGoal(u);
+    return (asTrail ? trail(u) : `<section class="path">${node(u)}</section>`) + `<section class="path">${storyNode(u)}</section>` + rankGoal(u) + casualGoal(u);
   }).join('');
   // Casual has no rank titles: its strip names the chapter you're in.
   const chapter = casual ? CASUAL_CHAPTERS.find((c) => c.n === (next?.unit?.chapter ?? units.at(-1).chapter)) : null;
@@ -2217,6 +2233,13 @@ function screenCourse() {
     ${soon.length ? casualSoon(soon, caughtUp) : ''}
     <p class="small muted center">★ passed · ★★ most of it remembered · ★★★ mastered</p>`;
   bindCourseSwitch();
+  // The locked Casual node opens Casual's own page: its chapters and how far off it is.
+  view.querySelector('#casualpeek')?.addEventListener('click', () => {
+    state.settings.track = 'casual';
+    save(state);
+    screenCourse();
+    window.scrollTo(0, 0);
+  });
   view.querySelector('#placeme')?.addEventListener('click', () => {
     const fold = view.querySelector('.fold-list');
     if (fold) fold.open = true;
@@ -2405,6 +2428,8 @@ function runUnitTest(unit) {
     persist: () => {},
     onResult: (result, exam, answers) => {
       const missed = exam.sections[0].questions.filter((q) => answers[q.id] !== q.a);
+      // Whether this pass is the one that opens Casual.
+      const casualBefore = casualOpen(state, data);
       // Stars first: an old 100% best counts as a perfect day, so it's read before this run raises it.
       const starsBefore = unitStars(state, unit);
       if (result.pass) recordTest(state, unit, result.share, dayKey());
@@ -2465,6 +2490,9 @@ function runUnitTest(unit) {
       const top = `<div class="starhero" role="img" aria-label="${stars} of 3 stars">${[1, 2, 3].map((i) =>
         `<i class="${i <= starsBefore ? 'on' : i <= stars ? 'on new' : ''}" style="--d:${i - starsBefore - 1}">★</i>`).join('')}</div>`;
       const goal = starGoal(unit);
+      // The pass that opened Casual says so, beside any story it unlocked.
+      const casualNew = !casualBefore && casualOpen(state, data);
+      const casualFirst = casualNew ? nextUp(state, trackData(data, 'casual').units) : null;
       return {
         top,
         title: gained && stars === 3 ? 'Unit mastered' : gained && stars === 2 ? 'Two stars' : 'Passed',
@@ -2474,11 +2502,13 @@ function runUnitTest(unit) {
           !go && trackOf(unit) === 'casual' ? 'You’re caught up. More Casual units are coming soon' : ''].filter(Boolean).join(' · '),
         badge: `${rose ? `<div class="rankup"><span class="jp">${rank.jp}</span><span><small>New rank</small><b>${rank.en}</b>${rank.next
           ? `<small>${toGo} more ${toGo === 1 ? 'unit' : 'units'} to ${rank.next.en}</small>` : ''}</span></div>` : ''}
-          ${stories.length ? `<p class="unlock">${icons.story}<span><small>${stories.length > 1 ? `${stories.length} stories unlocked` : 'Story unlocked'}</small><b>${stories.map((s) => s.title).join(' · ')}</b></span></p>` : ''}`,
+          ${stories.length ? `<p class="unlock">${icons.story}<span><small>${stories.length > 1 ? `${stories.length} stories unlocked` : 'Story unlocked'}</small><b>${stories.map((s) => s.title).join(' · ')}</b></span></p>` : ''}
+          ${casualNew ? `<p class="unlock casual-unlock"><span class="jp">話</span><span><small>Unlocked</small><b>Casual course</b></span></p>` : ''}`,
         actions: [
           ...(go?.lesson ? [{ label: go.label, run: go.go }, { label: `Start Unit ${unitNo(next.unit)} anyway`, run: go.lesson.go }]
             : go ? [{ label: next.type === 'lesson' ? `Start Unit ${unitNo(next.unit)}` : go.label, run: go.go }] : []),
           ...(story ? [{ label: stories.length > 1 ? `Read “${story.title}”` : 'Read the new story', run: () => { location.hash = `#/course/story/${story.unit}`; } }] : []),
+          ...(casualNew && casualFirst ? [{ label: 'Start Casual', run: () => { state.settings.track = 'casual'; save(state); startLesson(casualFirst.unit, casualFirst.lesson); } }] : []),
         ],
       };
     },
