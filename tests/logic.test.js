@@ -18,7 +18,7 @@ import { wordQuestion, kanaTiles, spellPuzzle, formPuzzle, sameMeaning, partsPuz
 import { checkLogin, hashPassword, userId } from '../js/lock.js';
 import { radioChannels } from '../js/radio.js';
 import { clipId, clipSsml, englishSaid } from '../js/clips.js';
-import { checkDeck, checkRecord, cardKind, ROTATION, swipeGrade } from '../js/check.js';
+import { checkDeck, checkRecord, choiceKind, swipeGrade, nextCheckMode, CHECK_MODES } from '../js/check.js';
 import { judgeStroke, resample } from '../js/strokes.js';
 import { makeWriteIndex, recognize, decodeStrokes, encodeStrokes } from '../js/handwrite.js';
 import { makeIndex, search, posName } from '../js/dict.js';
@@ -879,12 +879,19 @@ test('kanji check grades: knew, slow and forgot, and only a graded question earn
   assert.equal(stageOf(checkRecord(mastered, { grade: 'knew' }, now)), MASTERED, 'already Mastered stays so on a self-check');
 });
 
-test('kanji check cards: Strong and due gets a graded question, the rest rotate', () => {
+test('kanji check: one kind of card per check, never the same kind twice running', () => {
+  assert.deepEqual(Object.keys(CHECK_MODES), ['swipe', 'choice', 'build']);
+  for (const last of [...Object.keys(CHECK_MODES), undefined]) {
+    for (const r of [0, 0.4, 0.99]) {
+      const m = nextCheckMode(last, () => r);
+      assert.ok(m in CHECK_MODES && m !== last, `${last} -> ${m}`);
+    }
+  }
+  // Multiple choice: Strong and due is asked the reading in a word; the rest take turns.
   const now = Date.UTC(2026, 10, 19, 12);
-  assert.equal(cardKind({ ...newRecord(), reps: 4, interval: 10, due: now - 1 }, 0, now), 'read');
-  const kinds = [0, 1, 2, 3].map((reps) => cardKind({ ...newRecord(), reps, interval: 1, due: now + 864e5 }, 0, now));
-  assert.deepEqual(kinds, ROTATION);
-  assert.ok(ROTATION.includes('self') && ROTATION.includes('read') && ROTATION.includes('pick'));
+  assert.equal(choiceKind({ ...newRecord(), reps: 4, interval: 10, due: now - 1 }, 0, now), 'read');
+  const kinds = [0, 1, 2, 3].map((reps) => choiceKind({ ...newRecord(), reps, interval: 1, due: now + 864e5 }, 0, now));
+  assert.deepEqual(kinds, ['read', 'pick', 'read', 'pick']);
 });
 
 // Every line the app speaks, with its kanji turned into kana before the voice sees it.
@@ -1229,7 +1236,7 @@ test('kanji breakdowns: one name per part, a story for every built-up kanji', ()
   assert.deepEqual(rare, [], 'parts that may not display');
 });
 
-test('lessons show new parts once, just before the kanji built from them', () => {
+test('new parts are tagged once, on the card of the kanji built from them', () => {
   const merged = course();
   const unit = merged.units.find((u) => u.lessons.some((l) => (l.kanji || []).some((c) => {
     const k = merged.kanji.find((x) => x.k === c);
@@ -1237,22 +1244,19 @@ test('lessons show new parts once, just before the kanji built from them', () =>
   })));
   const lesson = unit.lessons.find((l) => (l.kanji || []).length);
   const steps = lessonSteps(unit, lesson, blank(), merged);
-  const shown = steps.filter((s) => s.type === 'parts').flatMap((s) => s.ref.map((p) => p.c));
+  assert.ok(!steps.some((s) => s.type === 'parts'), 'no separate New parts screen');
+  const shown = steps.filter((s) => s.fresh).flatMap((s) => s.fresh);
   assert.ok(shown.length, 'a first lesson with built-up kanji meets some parts');
   assert.equal(new Set(shown).size, shown.length, 'each part once');
-  for (const s of steps.filter((x) => x.type === 'learn' && x.kind === 'kanji')) {
-    const first = steps.indexOf(s);
-    for (const p of s.ref.parts) {
-      if (p.c === s.ref.k) continue;
-      const at = steps.findIndex((x) => x.type === 'parts' && x.ref.some((q) => q.c === p.c));
-      assert.ok(at === -1 || at < first, `${p.c} comes before ${s.ref.k}`);
-    }
+  for (const s of steps.filter((x) => x.fresh)) {
+    assert.equal(s.type, 'learn');
+    for (const c of s.fresh) assert.ok(s.ref.parts.some((p) => p.c === c), `${c} is a part of ${s.ref.k}`);
   }
   // Parts of kanji you've started are known.
   const state = blank();
   for (const k of merged.kanji) state.items[`k:${k.k}`] = newRecord();
   for (const k of lesson.kanji) delete state.items[`k:${k}`];
-  const later = lessonSteps(unit, lesson, state, merged).filter((s) => s.type === 'parts').flatMap((s) => s.ref.map((p) => p.c));
+  const later = lessonSteps(unit, lesson, state, merged).filter((s) => s.fresh).flatMap((s) => s.fresh);
   const others = new Set(merged.kanji.filter((k) => !lesson.kanji.includes(k.k)).flatMap((k) => [k.k, ...k.parts.map((p) => p.c)]));
   assert.ok(later.every((c) => !others.has(c)), 'a part you already know is not shown again');
 });

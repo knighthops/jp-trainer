@@ -1448,6 +1448,7 @@ a.btn{text-decoration:none}
 .casual-soon .caps{color:var(--act)}
 .soon-list .node{opacity:.75}
 .soon-pill{flex:none;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:999px;background:var(--act-soft);color:var(--act)}
+.newpart{margin-left:6px;font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:2px 6px;border-radius:999px;background:var(--act-soft);color:var(--act);vertical-align:2px}
 .form-target{text-align:center;margin:6px 0 0;color:var(--act);font-size:15px}
 .answer.spell .block.given{opacity:.55}
 p.from{font-size:22px;margin:4px 0 0}

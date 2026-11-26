@@ -115,9 +115,10 @@ const originTag = (k) => (k.origin
 
 // Your note, then each part with its name and picture, then the story, its origin and sound family.
 // edit: false where the note must not be changed, like a hint shown before you answer.
-export const partsHtml = (k, { edit = true } = {}) => noteSlot(k.k, edit) + k.parts.map((p) => `<div class="part">
+// fresh: parts met for the first time on this card, tagged New.
+export const partsHtml = (k, { edit = true, fresh = [] } = {}) => noteSlot(k.k, edit) + k.parts.map((p) => `<div class="part${fresh.includes(p.c) ? ' fresh' : ''}">
     <span class="pg">${p.c}</span>
-    <div><strong>${p.label}</strong><div class="small">${linkKanji(p.mn, k.k)}</div></div></div>`).join('')
+    <div><strong>${p.label}${fresh.includes(p.c) ? ' <span class="newpart">New part</span>' : ''}</strong><div class="small">${linkKanji(p.mn, k.k)}</div></div></div>`).join('')
   + (k.story ? `<p class="kstory">${linkKanji(k.story, k.k)}</p>` : '')
   + (k.origin || k.sound ? `<div class="kmeta">${originTag(k)}${k.sound ? `<span>${soundLine(k)}</span>` : ''}</div>` : '');
 

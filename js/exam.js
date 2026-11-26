@@ -61,7 +61,7 @@ const FITS_NOT = {
 const sentences = (t) => t.split(/ ?[。？！] ?/).map((x) => x.trim()).filter(Boolean);
 // Only the question itself is heard (今 何時 です か, not the すみません before it), and a
 // reply loses a question asked back at the end (… 田中 さん は 学生 です か).
-const replyPairs = (u) => (u.dialogue?.lines || []).flatMap((l, i, all) => {
+export const replyPairs = (u) => (u.dialogue?.lines || []).flatMap((l, i, all) => {
   const next = all[i + 1];
   if (!next || next.s === l.s) return [];
   const ask = sentences(l.t).at(-1);

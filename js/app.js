@@ -4,7 +4,7 @@ import { renderListen } from './listen.js';
 import { speak, speakLines, speakStep, cancel, sayBtn, setReadings, unlockSpeech, setMuted, setClips, NORMAL, SLOW } from './tts.js';
 import { setRecorded, unlockAudio, hasClips, playLines, stopLines } from './clips.js';
 import { radioChannels, startRadio } from './radio.js';
-import { startCheck, checkDeck, checkRecord, cardKind, CHECK_SIZE } from './check.js';
+import { startCheck, checkDeck, checkRecord, CHECK_SIZE, nextCheckMode, choiceKind } from './check.js';
 import {
   GRADES, GRADE_NAMES, GRADE_HELP, CLEARS, isStruggling, struggleOrder, newRecord, rate, label, STAGES, stageOf, STRONG, MASTERED, isDue,
 } from './srs.js';
@@ -22,7 +22,7 @@ import {
   CASUAL_FILES, CASUAL_GATE, CASUAL_CHAPTERS, casualOpen, trackData, trackOf, unitNo, isRefresher,
 } from './course.js';
 import { mockExam, unitTest, startExam, RETAKE_MIN, quickReplies } from './exam.js';
-import { wordQuestion, spellPuzzle, formPuzzle, renderWordQ, renderSpell, renderMatch, kanaOption, partsPuzzle, compoundPuzzle, renderPartsBuild, renderCompound } from './exercises.js';
+import { wordQuestion, spellPuzzle, formPuzzle, renderWordQ, renderSpell, renderMatch, kanaOption, partsPuzzle, compoundPuzzle, renderPartsBuild, renderCompound, buildable } from './exercises.js';
 import { icons } from './icons.js';
 import { romaji, toHiragana, toKana, judgeReading } from './romaji.js';
 import { matchReading } from './readings.js';
@@ -717,7 +717,8 @@ function renderStep() {
     finishDrill(clean);
   };
   if (step.type === 'learn') renderLearn(step);
-  else if (step.type === 'parts') renderParts(step);
+  // A lesson saved before the New parts screen was dropped: its parts are on the kanji cards now.
+  else if (step.type === 'parts') return skipStep();
   else if (step.type === 'card') renderCard(step);
   else if (step.type === 'quiz') renderQuiz(step);
   else if (step.type === 'wordq') {
@@ -988,14 +989,14 @@ function readingGroups(k) {
 }
 
 // Breakdown first: the parts are what make a kanji stick.
-function kanjiFacts(k) {
+function kanjiFacts(k, fresh = []) {
   const said = headReading(k);
   return `<div>
       <p class="mean">${k.mean.join(', ')}</p>
       ${said ? `<p class="head-read"><span class="jp">${said}</span> <span class="ro">${romaji(said)}</span></p>` : ''}
     </div>
     ${run?.browse ? levelTrack(k) : ''}
-    <div class="block-sec"><span class="caps">Breakdown</span>${partsHtml(k)}</div>
+    <div class="block-sec"><span class="caps">Breakdown</span>${partsHtml(k, { fresh })}</div>
     ${k.jlpt ? `<div class="block-sec sk-sec" data-strokes="${k.k}"></div>` : ''}
     <div class="block-sec">
       <div class="sechead"><span class="caps">Readings and the words that use them</span>
@@ -1014,7 +1015,7 @@ const wordFacts = (w) => `<div>
   </div>
   ${wordKanjiHtml(w.w, w.y)}`;
 
-const factsHtml = (step) => (step.kind === 'kanji' ? kanjiFacts(step.ref) : wordFacts(step.ref));
+const factsHtml = (step) => (step.kind === 'kanji' ? kanjiFacts(step.ref, step.fresh) : wordFacts(step.ref));
 
 // A small 新/習/強/極 chip for how well an item is known.
 const stageChip = (rec) => {
@@ -1050,19 +1051,6 @@ function showStrokes() {
       onTraced: (slips, memory) => { if (!slips) toast(memory ? 'Written from memory, clean!' : 'Clean trace!'); },
     });
   }).catch(() => {});
-}
-
-// New parts, met just before the kanji built from them. Once each: not reviewed on their own.
-function renderParts(step) {
-  const many = step.ref.length > 1;
-  const kanji = step.kanji.map((c) => `<span class="jp">${c}</span>`).join(' ');
-  view.innerHTML = `<div class="card study">
-      <div class="study-head"><span class="caps">New ${many ? 'parts' : 'part'}</span><span class="head-tags"><span class="tag">Parts</span></span></div>
-      <p class="small muted">Kanji are built from parts. Meet ${many ? 'these' : 'this one'} first: the next ${step.kanji.length > 1 ? 'kanji use' : 'kanji uses'} ${many ? 'them' : 'it'} (${kanji}).</p>
-      ${step.ref.map((p) => `<div class="part"><span class="pg">${p.c}</span><div><strong>${p.label}</strong><div class="small">${p.mn}</div></div></div>`).join('')}
-    </div>
-    <div class="dock"><button class="btn" id="next">Got it</button></div>`;
-  view.querySelector('#next').onclick = advance;
 }
 
 /* ---------- Typing the reading ---------- */
@@ -1784,11 +1772,11 @@ function openCheck(list = null) {
 const startedKanji = () => Object.keys(state.items).filter((id) => id.startsWith('k:'))
   .map((id) => kanjiOf(id.slice(2))).filter(Boolean);
 
-function defaultDeck() {
-  const started = startedKanji();
+function defaultDeck(only = () => true) {
+  const started = startedKanji().filter(only);
   const recs = Object.fromEntries(started.map((k) => [k.k, state.items[kanjiId(k)]]));
   const due = started.filter((k) => isDue(recs[k.k])).sort((a, b) => recs[a.k].due - recs[b.k].due);
-  return checkDeck({ struggling: strugglingKanji(), due, started, recs });
+  return checkDeck({ struggling: strugglingKanji().filter(only), due, started, recs });
 }
 
 // Set while a kanji from the check's finish screen is open: closing it shows that screen again.
@@ -1805,11 +1793,26 @@ function screenCheck() {
     screenCleanup = back();
     return;
   }
-  const deck = checkList?.length ? checkList : defaultDeck();
+  const chosen = checkList?.length ? checkList : null;
   checkList = null;
+  // One kind of card per check, picked at random, never the same kind twice running. A Build
+  // check takes only kanji with parts to build; with fewer than four of those, it's another kind.
+  const met = data.kanji.filter((x) => state.items[kanjiId(x)]);
+  const canBuild = (k) => buildable(k) && Boolean(partsPuzzle(k, met));
+  let mode = nextCheckMode(state.settings.checkMode);
+  let deck = chosen || defaultDeck();
+  if (mode === 'build') {
+    // A set you picked yourself is never trimmed: it's a Build check only if all of it builds.
+    const built = chosen ? (chosen.every(canBuild) ? chosen : []) : defaultDeck(canBuild);
+    if (built.length >= 4) deck = built;
+    else mode = nextCheckMode('build');
+  }
   if (!deck.length) { location.replace('#/kanji'); return; }
+  state.settings.checkMode = mode;
+  save(state);
   screenCleanup = startCheck({
-    view, setTop, deck: shuffled(deck), mastered: MASTERED,
+    view, setTop, deck: shuffled(deck), mastered: MASTERED, mode,
+    renderBuild: (root, puzzle, onDone) => renderPartsBuild(root, puzzle, { onDone }),
     readingOf: headOf,
     wordsOf: (k) => readingWords(k),
     stage: (k) => stageOf(state.items[kanjiId(k)]),
@@ -1818,10 +1821,17 @@ function screenCheck() {
       checkBack = back;
       startRun(list.map((k) => ({ type: 'learn', kind: 'kanji', id: kanjiId(k), ref: k })), 'To work on', { browse: true, start });
     },
-    kind: (k, n) => cardKind(state.items[kanjiId(k)], n),
+    // A choice card: the reading in a word or the kanji among look-alikes, taking turns.
+    kind: (k, n) => choiceKind(state.items[kanjiId(k)], n),
     // A question the app grades. Hard rule: the word and every wrong option are already taught.
     // Nothing suitable to ask: null, and the card is a self-check instead.
     question: (k, kind, avoid = new Set()) => {
+      // Build from parts: every tile is a part of a kanji you've started.
+      if (kind === 'build') {
+        if (!buildable(k)) return null;
+        const puzzle = partsPuzzle(k, data.kanji.filter((x) => state.items[kanjiId(x)]));
+        return puzzle ? { kind: 'build', puzzle } : null;
+      }
       const knows = knowsNow();
       const wordOf = (w) => (knows(w) && !avoid.has(w) ? wordEntry(w) : null);
       const pool = data.kanji.filter((x) => x === k || (knows(x.k) && state.items[kanjiId(x)]));
@@ -2575,7 +2585,7 @@ function screenExam() {
       <div class="row"><span class="grow small">Grammar and reading</span><span class="num small">40 min</span></div>
       <div class="row"><span class="grow small">Listening</span><span class="num small">30 min</span></div>
       <p class="small muted">Scored out of 180. To pass, the real test needs 80 overall, with at least 38 in vocabulary, grammar and reading and 19 in listening.</p>
-      <p class="small muted">These are original questions in the official format, not real exam papers. Audio uses your device's voice, and the score is an estimate.</p>
+      <p class="small muted">These are original questions in the official format, not real exam papers. Audio is recorded, so it plays with the phone on silent. The score is an estimate.</p>
     </section>
     ${open ? '' : '<p class="fb info">Pass the final unit to open the mock exam. You can test out of units to get there sooner.</p>'}
     ${resumable ? `<button class="btn" id="resume">Resume ${resumable.title}</button>` : ''}

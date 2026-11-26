@@ -9,7 +9,8 @@ plus the silent pauses between lines and the Japanese of every Listen phrase. Sa
 <code>tools/make-audio.ps1</code> to record whatever is missing into <code>audio/</code>.</p>
 <div id="out">Working…</div>
 <script type="module">
-import { UNIT_FILES, CASUAL_FILES, mergeCourse } from '../js/course.js';
+import { UNIT_FILES, CASUAL_FILES, EXAM_FILES, mergeCourse } from '../js/course.js';
+import { replyPairs } from '../js/exam.js';
 import { radioChannels } from '../js/radio.js';
 import { romaji } from '../js/romaji.js';
 import { VOICES, SILENCE, silenceId, englishSaid, clipId, clipSsml } from '../js/clips.js';
@@ -23,6 +24,7 @@ try {
     ...UNIT_FILES.map((f) => get(`course/${f}`).catch(() => [])),
   ]);
   const casualFiles = await Promise.all(CASUAL_FILES.map((f) => get(`course/${f}`).catch(() => [])));
+  const papers = await Promise.all(EXAM_FILES.map((f) => get(`course/${f}`).catch(() => null)));
   const data = mergeCourse({ kanji: [], vocab, sentences, particles: [], glossary, bank, papers: [] }, units, casualFiles);
   for (const [w, [y, m, ro]] of [...Object.entries(bank.lex), ...Object.entries(talk.lex), ...Object.entries(trip.lex)]) {
     if (!glossary[w]) glossary[w] = { y, m, ro: ro ?? romaji(y) };
@@ -51,11 +53,32 @@ try {
     const ja = clipId('ja', p.t);
     if (!lines.has(ja)) lines.set(ja, { id: ja, voice: VOICES.ja, ssml: clipSsml('ja', p.t, glossary), text: p.t });
   }
-  // Casual's chats, played on a tap in the lesson. Only the Japanese.
-  for (const l of (data.casualUnits || []).flatMap((u) => u.dialogue?.lines || [])) {
-    const ja = clipId('ja', l.t);
-    if (!lines.has(ja)) lines.set(ja, { id: ja, voice: VOICES.ja, ssml: clipSsml('ja', l.t, glossary), text: l.t });
+  // Everything a lesson, a listening run or a test can say aloud, in Japanese only: every
+  // conversation and reading line, every question's audio, and quick-response asks and replies.
+  // A numbered option (いち、reply) plays as the number's clip, then the reply's.
+  const addJa = (t) => {
+    if (!t) return;
+    const ja = clipId('ja', t);
+    if (!lines.has(ja)) lines.set(ja, { id: ja, voice: VOICES.ja, ssml: clipSsml('ja', t, glossary), text: t });
+  };
+  const addQuestion = (q) => {
+    for (const [, t] of q.play || []) addJa(t);
+    if (q.ao) for (const o of q.o || []) addJa(o);
+  };
+  for (const n of ['いち', 'に', 'さん', 'よん']) addJa(n);
+  for (const u of [...data.units, ...(data.casualUnits || [])]) {
+    for (const l of u.dialogue?.lines || []) addJa(l.t);
+    for (const q of u.dialogue?.check || []) addQuestion(q);
+    for (const l of u.reading?.lines || []) addJa(l.t);
+    for (const q of u.reading?.check || []) addQuestion(q);
+    for (const p of replyPairs(u)) { addJa(p.ask); addJa(p.reply); }
   }
+  // Mock exam listening: every question with audio, wherever it sits in the paper.
+  const walk = (x) => {
+    if (Array.isArray(x)) x.forEach(walk);
+    else if (x && typeof x === 'object') { if (Array.isArray(x.play)) addQuestion(x); Object.values(x).forEach(walk); }
+  };
+  walk(papers);
   for (const key of Object.keys(SILENCE)) {
     lines.set(silenceId(key), { id: silenceId(key), voice: VOICES.en, ssml: `<break time="${SILENCE[key]}ms"/>`, text: '' });
   }

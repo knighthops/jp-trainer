@@ -279,6 +279,8 @@ export const LESSON_NEW = 8;
 // New items are taught two at a time, each pair checked straight after, so you answer
 // something within the first few steps.
 const GROUP = 2;
+// Most build-the-kanji steps in one lesson part.
+const KPARTS_MAX = 3;
 
 // Function words the grammar cards explain themselves; they're not taught as vocabulary.
 const NOT_TAUGHT_EARLY = new Set(['では', 'じゃ', 'ここ', 'そこ', 'あそこ', 'どこ']);
@@ -536,7 +538,7 @@ export function lessonSteps(unit, lesson, state, data, resume = null) {
   const waiting = resume ? all.filter((s) => resume.fresh.includes(s.id)) : all.filter((s) => !state.items[s.id]);
   const learn = resume ? waiting : waiting.slice(0, LESSON_NEW);
   const more = resume ? Boolean(resume.part) : waiting.length > LESSON_NEW;
-  // Parts come before the kanji built from them. Met already: every part of a kanji you've
+  // A kanji's card tags the parts you meet on it for the first time. Met already: every part of a kanji you've
   // started, and those kanji themselves. The ones being taught now don't count, so a resumed
   // lesson rebuilds the same steps.
   const now = new Set(learn.map((s) => s.id));
@@ -546,22 +548,13 @@ export function lessonSteps(unit, lesson, state, data, resume = null) {
     met.add(k.k);
     for (const p of k.parts) met.add(p.c);
   }
-  const partsFor = (g) => {
-    const list = [];
-    const users = [];
-    for (const s of g) {
-      if (s.kind !== 'kanji') continue;
-      for (const p of s.ref.parts) {
-        if (p.c === s.ref.k || met.has(p.c)) continue;
-        met.add(p.c);
-        list.push(p);
-        if (!users.includes(s.ref.k)) users.push(s.ref.k);
-      }
-      met.add(s.ref.k);
-    }
-    return list.length
-      ? [{ type: 'parts', id: `parts:${g.map((s) => s.id).join(',')}`, ref: list, kanji: users }]
-      : [];
+  // (There used to be a separate New parts screen; parts now show where they're used.)
+  const freshParts = (s) => {
+    if (s.kind !== 'kanji') return [];
+    const list = s.ref.parts.filter((p) => p.c !== s.ref.k && !met.has(p.c)).map((p) => p.c);
+    list.forEach((c) => met.add(c));
+    met.add(s.ref.k);
+    return list;
   };
   // Checked, not self-rated: a kanji by its meaning, a word by its meaning.
   const check = (s) => (s.kind === 'kanji' ? { ...s, type: 'quiz', kind: 'mean', isNew: true } : { ...s, type: 'wordq', dir: 'en', isNew: true });
@@ -603,7 +596,7 @@ export function lessonSteps(unit, lesson, state, data, resume = null) {
   for (let i = 0; i < learn.length; i += GROUP) {
     const g = learn.slice(i, i + GROUP);
     // Checks run in reverse order, so they test memory rather than an echo of the order just seen.
-    groups.push(...partsFor(g), ...g.map((s) => ({ ...s, type: 'learn' })), ...[...g].reverse().map(check));
+    groups.push(...g.map((s) => { const fresh = freshParts(s); return { ...s, type: 'learn', ...(fresh.length ? { fresh } : {}) }; }), ...[...g].reverse().map(check));
     g.forEach((s) => taught.add(s.id));
     const k = spread.findIndex(ready);
     if (k >= 0) groups.push(spread.splice(k, 1)[0]);
@@ -626,8 +619,9 @@ export function lessonSteps(unit, lesson, state, data, resume = null) {
   // already know that uses a kanji from this lesson. Spare tiles are picked when it's shown,
   // from what you've been taught by then.
   const newKanji = learn.filter((s) => s.kind === 'kanji').map((s) => s.ref);
-  const build = newKanji.find(buildable);
-  if (build) extra.push({ type: 'kparts', key: `kparts:${build.k}`, ref: build });
+  // Building from parts trains the eye for kanji shapes, so every new kanji that has parts gets
+  // one, up to three a lesson part.
+  for (const build of newKanji.filter(buildable).slice(0, KPARTS_MAX)) extra.push({ type: 'kparts', key: `kparts:${build.k}`, ref: build });
   const known = data.vocab.filter((v) => state.items[`w:${v.w}`] && newKanji.some((k) => v.w.includes(k.k)));
   const word = [...newWords.filter((v) => v !== spell), ...newWords, ...known].find(compoundable);
   if (word) extra.push({ type: 'compound', key: `compound:${word.w}`, ref: word });

@@ -84,10 +84,22 @@ export function recordedClip(lang, text) {
 // play with iPhone's silent switch on; the device voice is silent then.
 // onLine(i) runs as each line starts, and onLine(-1) at the end.
 let playing = 0;
+// A numbered answer option (いち、それ は いい です ね) is said in any order, so the number and
+// the reply are recorded apart and played back to back.
+export const NUMBERED = /^(いち|に|さん|よん)、(.+)$/s;
+export function lineClips(text) {
+  const whole = recordedClip('ja', text);
+  if (whole) return [whole];
+  const m = NUMBERED.exec(text);
+  const parts = m ? [recordedClip('ja', m[1]), recordedClip('ja', m[2])] : [null];
+  return parts.every(Boolean) ? parts : null;
+}
 export function playLines(lines, { rate = 1, onLine, onend } = {}) {
   const p = clipPlayer();
-  const ids = lines.map((l) => recordedClip('ja', l.t));
-  if (!p || !ids.length || ids.some((id) => !id)) return false;
+  const each = lines.map((l) => lineClips(l.t));
+  if (!p || !each.length || each.some((c) => !c)) return false;
+  // One entry per clip, with the line it belongs to, so onLine still counts lines.
+  const ids = each.flatMap((c, i) => c.map((id, n) => ({ id, line: n === 0 ? i : null })));
   const run = ++playing;
   let k = 0;
   const finish = () => {
@@ -101,8 +113,8 @@ export function playLines(lines, { rate = 1, onLine, onend } = {}) {
   const step = () => {
     if (run !== playing) return;
     if (k >= ids.length) { finish(); return; }
-    onLine?.(k);
-    p.src = clipUrl(ids[k++]);
+    if (ids[k].line !== null) onLine?.(ids[k].line);
+    p.src = clipUrl(ids[k++].id);
     // Radio may have left its own speed as the default; loading resets to the default.
     p.defaultPlaybackRate = rate;
     p.playbackRate = rate;

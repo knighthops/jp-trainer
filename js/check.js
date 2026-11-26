@@ -1,12 +1,21 @@
-// Kanji check: one kanji at a time. Most cards are self-checks: recall its meaning and reading,
-// tap to reveal, then grade yourself three ways. Right: knew it. Down: slow, got there with effort
-// or only half. Left: forgot. Some cards are questions the app grades instead (the reading in a
-// word, or the kanji among look-alikes), and only those can make a kanji Mastered.
+// Kanji check: one kanji at a time, and one kind of card for the whole check, so the controls
+// never change mid-way. The kind is picked at random each time, never the same twice running:
+//   swipe: recall its meaning and reading, tap to reveal, then grade yourself. Right: knew it.
+//     Down: slow, got there with effort or only half. Left: forgot.
+//   choice: multiple choice the app grades (the reading in a word, or the kanji among look-alikes).
+//   build: tap the parts the kanji is made of.
+// Only the graded kinds (choice, build) can make a kanji Mastered.
 import { rate, isDue, isStruggling, dueAfter, stageOf, STAGES, STRONG } from './srs.js';
 import { romaji } from './romaji.js';
 import { icons } from './icons.js';
 
 export const CHECK_SIZE = 12;
+export const CHECK_MODES = { swipe: 'Swipe', choice: 'Multiple choice', build: 'Build' };
+// The next check's kind: any but the last one.
+export function nextCheckMode(last, rng = Math.random) {
+  const modes = Object.keys(CHECK_MODES).filter((m) => m !== last);
+  return modes[Math.floor(rng() * modes.length)];
+}
 // How far a card must travel before letting go counts as a swipe.
 const SWIPE_PX = 80;
 // Revealed within this long counts as instant recall, worth the bigger jump.
@@ -23,12 +32,11 @@ export function checkDeck({ struggling = [], due = [], started = [], size = CHEC
   return [...new Set([...struggling, ...due, ...rest])].slice(0, size);
 }
 
-// Which card a kanji gets. A Strong kanji that's due is one review from Mastered, so it gets a
-// question the app grades. Otherwise cards rotate with each review, so every side gets asked.
-export const ROTATION = ['self', 'read', 'self', 'pick'];
-export function cardKind(rec, i = 0, now = Date.now()) {
+// Which multiple-choice question a kanji gets. A Strong kanji that's due is one review from
+// Mastered, so it's asked the reading in a word. Otherwise the two take turns with each review.
+export function choiceKind(rec, i = 0, now = Date.now()) {
   if (rec && isDue(rec, now) && stageOf(rec) === STRONG) return 'read';
-  return ROTATION[((rec?.reps ?? 0) + i) % ROTATION.length];
+  return ((rec?.reps ?? 0) + i) % 2 ? 'pick' : 'read';
 }
 
 // What a card's result does to a kanji's review record.
@@ -83,13 +91,16 @@ function shuffle(list) {
   return a;
 }
 
-// ctx: { view, setTop, deck, readingOf(k), wordsOf(k) → [{ w, y, m }], stage(k) → 0..3,
-//        mastered (the stage number), kind(k, i) → 'self' | 'read' | 'pick',
-//        question(k, kind, avoid) → { kind, k, word?, options, answer } or null for a self-check;
+// ctx: { view, setTop, deck, mode (a CHECK_MODES key), readingOf(k), wordsOf(k) → [{ w, y, m }],
+//        stage(k) → 0..3, mastered (the stage number), kind(k, i) → 'read' | 'pick' for a choice card,
+//        question(k, kind, avoid) → { kind, k, word?, options, answer } (choice) or
+//          { kind: 'build', puzzle } (build), or null when there's nothing fair to ask;
+//        renderBuild(root, puzzle, onDone(clean));
 //          avoid holds the words already asked this round, so none is asked twice,
 //        grade(k, result) → undo token, undo(token), study(list, start, back), onExit }
 export function startCheck(ctx) {
   const { view, setTop } = ctx;
+  const mode = ctx.mode || 'swipe';
   let cleanup = () => {};
   // Set once the check is left, so nothing still on a timer draws over the next screen.
   let stopped = false;
@@ -108,19 +119,21 @@ export function startCheck(ctx) {
     let fast = false;
     const history = [];
     const stageBefore = new Map(cards.map((k) => [k, ctx.stage(k)]));
-    // The "Again" round is practice: plain self-checks, nothing recorded.
+    // The "Again" round is practice in the same kind of card: nothing recorded.
     const questions = new Map();
     const asked = new Set();
     const questionOf = (k, n) => {
-      if (!first) return null;
+      if (mode === 'swipe') return null;
       if (!questions.has(k)) {
-        const kind = ctx.kind(k, n);
-        const q = kind === 'self' ? null : ctx.question(k, kind, asked);
+        const kind = mode === 'build' ? 'build' : ctx.kind(k, n);
+        // A kanji with no parts to build (一, 人) is asked as a choice question instead.
+        let q = ctx.question(k, kind, asked);
+        if (!q && kind === 'build') q = ctx.question(k, ctx.kind(k, n), asked);
         if (q?.word) asked.add(q.word.w);
         // A kanji due a graded question that has none to ask (too little taught yet) can still
         // reach Mastered on its self-check, or it would be stuck short of it for good. Only when
         // nothing at all could be asked: not when this round's earlier questions used its word.
-        questions.set(k, { q, stand: kind !== 'self' && !q && !ctx.question(k, kind) });
+        questions.set(k, { q, stand: !q && !ctx.question(k, ctx.kind(k, n)) });
       }
       return questions.get(k);
     };
@@ -151,7 +164,7 @@ export function startCheck(ctx) {
 
     function header() {
       // Previous in the bottom bar is Undo: it brings back the last card and its review.
-      setTop('Kanji check', {
+      setTop(`Kanji check · ${CHECK_MODES[mode]}`, {
         close: true, onClose: ctx.onExit, onPrev: history.length ? undo : null,
         count: `${Math.min(at + 1, cards.length)} / ${cards.length}`, progress: (history.length / cards.length) * 100,
       });
@@ -175,6 +188,7 @@ export function startCheck(ctx) {
       header();
       const k = cards[i];
       const { q } = questionOf(k, i) || {};
+      if (q?.kind === 'build') { showBuild(k, q); return; }
       if (q) { showQuestion(k, q); return; }
       // The stage stays hidden until the reveal, so it can't hint at the answer.
       view.innerHTML = `
@@ -194,6 +208,15 @@ export function startCheck(ctx) {
           </div>
         </div>`;
       bind(k);
+    }
+
+    // Build the kanji from its parts, graded: a wrong tile counts as a miss.
+    function showBuild(k, q) {
+      ctx.renderBuild(view, q.puzzle, (clean) => {
+        if (stopped) return;
+        record(k, clean ? 'knew' : 'missed', true);
+        show();
+      });
     }
 
     // A question the app grades: the reading of a word, or the kanji among look-alikes.
