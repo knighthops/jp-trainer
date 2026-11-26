@@ -2598,7 +2598,7 @@ function runMock(paper, mode, resume = null) {
       state.exams.history.push({ id: paper.id, mode: m, at: Date.now(), total: r.total, language: r.language, listening: r.listening, pass: r.pass });
       save(state);
     },
-  }, mockExam(paper), { mode, resume });
+  }, mockExam(paper, resume ? (resume.seed || paper.id) : `${paper.id}-${Date.now()}`), { mode, resume });
 }
 
 function screenExam() {

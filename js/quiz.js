@@ -77,9 +77,21 @@ export function quizQuestion(k, kind, { pool, wordOf, rng = Math.random, n = 0, 
   return finish({ kind: 'mean', k, options }, rng);
 }
 
+// Where each kanji's right answer sat last time it was asked, so a revisit never puts it in the
+// same spot: a fixed spot gets learned instead of the kanji.
+const lastAt = new Map();
+
 // Shuffle the options and remember where the right one went (it starts first).
 function finish(q, rng) {
-  const order = shuffle(q.options.map((_, i) => i), rng);
+  let order = shuffle(q.options.map((_, i) => i), rng);
+  const was = lastAt.get(q.k.k);
+  if (order.length > 1 && order.indexOf(0) === was) {
+    // Swap the right answer with another spot, picked at random.
+    const to = (was + 1 + Math.floor(rng() * (order.length - 1))) % order.length;
+    order = [...order];
+    [order[was], order[to]] = [order[to], order[was]];
+  }
+  lastAt.set(q.k.k, order.indexOf(0));
   return { ...q, options: order.map((i) => q.options[i]), answer: order.indexOf(0) };
 }
 

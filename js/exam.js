@@ -96,10 +96,14 @@ export function quickReplies(heard, unit, rng = Math.random, max = 3) {
   }).slice(0, max);
 }
 
-export function mockExam(paper) {
-  const rng = seeded(paper.id);
+// seed: the option order. Each attempt gets a fresh one, saved with a paused exam so its
+// answers (kept by position) still line up on resume. An exam paused before seeds existed
+// used the paper's id.
+export function mockExam(paper, seed = paper.id) {
+  const rng = seeded(seed);
   return {
     key: paper.id,
+    seed,
     title: paper.title,
     scoring: 'jlpt',
     sections: paper.sections.map((s) => ({
@@ -348,7 +352,7 @@ export function startExam(ctx, exam, { mode = 'exam', resume = null } = {}) {
   // Unit tests check what you know, so they give no romaji or tap-to-translate either.
   const help = mode === 'practice';
   const once = mode === 'exam' && exam.scoring === 'jlpt';
-  const st = resume || { key: exam.key, mode, sec: 0, i: 0, answers: {}, plays: {}, endAt: null, started: false };
+  const st = resume || { key: exam.key, seed: exam.seed, mode, sec: 0, i: 0, answers: {}, plays: {}, endAt: null, started: false };
   let tick = null;
 
   const save = () => { if (exam.scoring === 'jlpt') ctx.persist(st); };

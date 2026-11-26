@@ -2028,3 +2028,26 @@ test('casual: a short Casual lesson counts half toward the day, a refresher noth
   assert.equal(lessonsToday({ days: { [dayKey(now)]: { lessons: 2 } } }, now), 2);
   assert.equal(lessonsToday({ days: { [dayKey(now)]: { lessons: 3, load: 1.5 } } }, now), 1.5);
 });
+
+test('multiple choice: a revisited kanji never has its answer in the same spot twice running', () => {
+  const merged = course();
+  const k = merged.kanji.find((x) => x.k === '学') || merged.kanji[0];
+  let last = null;
+  for (let n = 0; n < 40; n++) {
+    const q = quizQuestion(k, 'mean', { pool: merged.kanji, wordOf: () => null });
+    assert.equal(q.options[q.answer], k.mean[0]);
+    if (q.options.length > 1) assert.notEqual(q.answer, last, `try ${n}`);
+    last = q.answer;
+  }
+});
+
+test('mock exams: each attempt orders the options afresh; a resumed one keeps its order', () => {
+  const paper = course().papers[0];
+  if (!paper) return;
+  const order = (e) => e.sections.flatMap((s) => s.questions.map((q) => q.o.join('|'))).join('/');
+  const a = mockExam(paper, 'try-1');
+  assert.equal(a.seed, 'try-1');
+  assert.equal(order(a), order(mockExam(paper, 'try-1')), 'same seed, same order');
+  assert.notEqual(order(a), order(mockExam(paper, 'try-2')), 'a new attempt, a new order');
+  assert.equal(order(mockExam(paper)), order(mockExam(paper, paper.id)), 'an exam paused before seeds resumes as it was');
+});
