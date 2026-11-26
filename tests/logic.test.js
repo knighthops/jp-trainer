@@ -26,6 +26,7 @@ import { deckOf, emojiOf, homeCard } from '../js/cards.js';
 import {
   PARTS, tripId, partSteps, nextPart, readiness, daysUntil, tripReviewSteps, sceneLines, signRuby,
 } from '../js/trip.js';
+import { tankTick, tankOf, newFry, fishNow, homesOpen, settleHome, canAddFry, moveHome, taughtLines, LINES } from '../js/tank.js';
 
 const json = (f) => JSON.parse(readFileSync(new URL(`../data/${f}.json`, import.meta.url)));
 const data = {
@@ -2050,4 +2051,72 @@ test('mock exams: each attempt orders the options afresh; a resumed one keeps it
   assert.equal(order(a), order(mockExam(paper, 'try-1')), 'same seed, same order');
   assert.notEqual(order(a), order(mockExam(paper, 'try-2')), 'a new attempt, a new order');
   assert.equal(order(mockExam(paper)), order(mockExam(paper, paper.id)), 'an exam paused before seeds resumes as it was');
+});
+
+/* ---------- Goldfish tank ---------- */
+
+// A day's key, `n` days before NOW.
+const tankDay = (n) => dayKey(NOW - n * 864e5);
+const studied = (...ago) => Object.fromEntries(ago.map((n) => [tankDay(n), { newK: 0, newW: 0, reviews: 2, sentences: 0, particles: 0, shadow: 0, lessons: 0 }]));
+const tankState = (days, born = 0) => {
+  const s = { days, tank: null };
+  newFry(s, NOW - born * 864e5, () => 0);
+  return s;
+};
+
+test('tank: any study today feeds the fish; a missed day makes them hungry', () => {
+  assert.equal(tankTick({ days: {} }, NOW), 'empty');
+  assert.equal(tankTick(tankState(studied(0, 1), 3), NOW), 'fed');
+  assert.equal(tankTick(tankState(studied(1), 3), NOW), 'due', 'fed yesterday, not yet today');
+  assert.equal(tankTick(tankState(studied(2), 3), NOW), 'one', 'one whole day missed');
+  assert.equal(tankTick(tankState({}, 0), NOW), 'due', 'a fry is fed the day it arrives');
+});
+
+test('tank: two missed days and every fish dies, into the Album', () => {
+  const s = tankState(studied(3, 4, 5), 5);
+  assert.equal(tankTick(s, NOW), 'dead');
+  assert.equal(s.tank.died, tankDay(0));
+  assert.equal(s.tank.album.length, 1);
+  assert.equal(s.tank.album[0].days, 3);
+  assert.equal(tankTick(s, NOW), 'dead', 'stays dead');
+  assert.equal(s.tank.album.length, 1, 'counted once');
+  // Studying on the day they'd die doesn't bring them back.
+  const late = tankState({ ...studied(3), ...studied(0) }, 4);
+  assert.equal(tankTick(late, NOW), 'dead');
+  // A new fry clears the tank.
+  newFry(s, NOW, () => 0);
+  assert.equal(s.tank.died, null);
+  assert.equal(s.tank.fish.length, 1);
+  assert.equal(tankTick(s, NOW), 'due');
+});
+
+test('tank: fish grow by study days, and raising an adult opens the Small tank', () => {
+  const days = (n) => studied(...Array.from({ length: n }, (_, i) => i));
+  assert.equal(fishNow(tankState(days(4), 20), tankOf(tankState(days(4), 20)), NOW)[0].stage, 'fry');
+  const young = tankState(days(5), 20);
+  assert.equal(fishNow(young, young.tank, NOW)[0].stage, 'young');
+  const adult = tankState(days(14), 20);
+  assert.equal(fishNow(adult, adult.tank, NOW)[0].stage, 'adult');
+  assert.equal(homesOpen(young, {}, NOW).small, false);
+  const open = homesOpen(adult, {}, NOW);
+  assert.equal(open.small, true);
+  assert.equal(homesOpen(adult, { n5Done: true }, NOW).planted, true);
+  assert.ok(settleHome(adult, open), 'moves into the new home once');
+  assert.equal(adult.tank.home, 'small');
+  assert.ok(canAddFry(adult));
+  newFry(adult, NOW); newFry(adult, NOW);
+  assert.equal(canAddFry(adult), false, 'Small tank holds 3');
+  assert.equal(moveHome(adult, 'bowl', open), false, '3 fish don\'t fit the bowl');
+  assert.equal(new Set(adult.tank.fish.map((f) => f.name)).size, 3, 'names don\'t repeat');
+});
+
+test('tank: fish only say lines made of taught words', () => {
+  assert.deepEqual(taughtLines(() => false), {});
+  const known = new Set(['ご飯']);
+  assert.deepEqual(Object.keys(taughtLines((w) => known.has(w))).sort(), ['food', 'hungry']);
+  assert.equal(Object.keys(taughtLines(() => true)).length, Object.keys(LINES).length);
+  // Every word a line needs is taught in some course lesson.
+  const data = course();
+  const taught = new Set(data.units.flatMap((u) => u.lessons.flatMap((l) => l.words || [])));
+  for (const [key, [, , needs]] of Object.entries(LINES)) for (const w of needs) assert.ok(taught.has(w), `${key}: ${w} is never taught`);
 });

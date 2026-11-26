@@ -1,6 +1,6 @@
 # Goldfish tank — approved mocks
 
-Design mocks for the goldfish accountability feature. Not wired into the app yet.
+Design mocks for the goldfish accountability feature. Built into the app as `js/fish.js` (sprites and live tank), `js/tank.js` (rules) and `js/tankui.js` (Home card and Tank tab).
 Open any `.html` file directly in a browser; each one is self-contained.
 
 | File | What it shows |
@@ -25,4 +25,5 @@ Open any `.html` file directly in a browser; each one is self-contained.
 - Speech is rare, never repeats, uses only words already taught, and plays sound only when tapped.
 - Dojo's Particles practice and N5 mock exam move elsewhere; they are not removed.
 
-**Still open:** whether any study feeds the fish, or only full reviews.
+- Any study that logs a study day feeds the fish. The Small tank opens once a fish is raised to adult (14 study days); Planted = finish N5, Grand = finish Casual.
+- Particles and the N5 mock exam moved to a Practice section at the foot of Course.

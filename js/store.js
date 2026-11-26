@@ -17,6 +17,8 @@ const defaults = () => ({
   notes: {},
   // date: the day you fly, "YYYY-MM-DD", for the countdown.
   trip: { date: null },
+  // The goldfish tank (tank.js): fish, Album, home and the light switch.
+  tank: null,
   settings: { newPerDay: 4, hints: true, romaji: 'tap', roles: true, radioEnglish: true, radioSlow: false, radioText: true },
 });
 
@@ -57,6 +59,7 @@ export function parseBackup(text) {
       talk: { ...base.talk, ...(isObject(raw.talk) ? raw.talk : {}) },
       notes: cleanNotes(raw.notes),
       trip: { ...base.trip, ...(isObject(raw.trip) ? raw.trip : {}) },
+      tank: isObject(raw.tank) && Array.isArray(raw.tank.fish) ? raw.tank : null,
       settings: { ...base.settings, ...(isObject(raw.settings) ? raw.settings : {}) },
     },
   };
@@ -120,6 +123,9 @@ export function streakWithRest(state, now = Date.now(), restPerWeek = 2) {
 }
 
 const active = (d) => Boolean(d) && d.newK + d.newW + d.reviews + d.sentences + d.particles + (d.shadow || 0) + (d.lessons || 0) + (d.tests || 0) > 0;
+
+// Whether any study was logged on a day ("YYYY-MM-DD"). This is what feeds the fish.
+export const studiedOn = (state, key) => active(state.days[key]);
 
 export const daysStudied = (state) => Object.values(state.days).filter(active).length;
 

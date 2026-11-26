@@ -29,6 +29,7 @@ import { matchReading } from './readings.js';
 import { currentUser, logOut } from './lock.js';
 import { makeIndex, search, posName, BROWSE, N5 as DICT_N5, KANA_ONLY } from './dict.js';
 import { deckOf, emojiOf, homeCard } from './cards.js';
+import { fishHomeHtml, mountFishHome, screenTank as tankScreen } from './tankui.js';
 import {
   PARTS, COMING, readiness, tripReadiness, partStatus, partSteps, nextPart, daysUntil, signHtml,
   renderSign, renderSayLearn, renderSayRecall, renderHear, renderPlay,
@@ -44,7 +45,7 @@ let run = null;
 let stepCleanup = null;
 let settingsNotice = '';
 
-const TABS = [['today', 'Home'], ['course', 'Course'], ['kanji', 'Kanji'], ['trip', 'Trip'], ['dojo', 'Dojo']];
+const TABS = [['today', 'Home'], ['course', 'Course'], ['kanji', 'Kanji'], ['trip', 'Trip'], ['tank', 'Tank']];
 // Trip and Listen share one tab: scenes to practise, and radio to listen to hands-free.
 const tripSeg = (on) => `<nav class="seg" aria-label="Trip"><a href="#/trip" class="${on === 'trip' ? 'on' : ''}">Scenes</a><a href="#/listen" class="${on === 'listen' ? 'on' : ''}">Listen</a></nav>`;
 // Leaving a screen stops whatever it was doing (Radio playback, a kanji check).
@@ -284,33 +285,44 @@ function dayLoadLine() {
   return `<p class="dayload small"><span>New lessons <b class="num">${shown} / ${NEW_LESSONS_PER_DAY}</b></span><span aria-hidden="true">·</span><span>${due ? `Reviews <b class="num">${due}</b> left` : 'No reviews due'}</span></p>`;
 }
 
-// Today's XP ring, this week's days, and the streak. Up to two days off a week count as rest.
+// Today's XP ring with the day's load under it. The goldfish card below it keeps you coming back.
 function goalHome(now = Date.now()) {
   const xp = xpToday(state, now);
-  const s = streakWithRest(state, now);
   const share = Math.min(1, xp / DAILY_GOAL);
-  // Days before you first studied are blank, not rest days.
-  const first = Object.keys(state.days).filter((d) => activity(state.days[d]) > 0).sort()[0];
-  const days = Array.from({ length: 7 }, (_, i) => {
-    const t = now - (6 - i) * DAY_MS;
-    const on = activity(state.days[dayKey(t)]) > 0;
-    const before = !first || dayKey(t) < first;
-    const wd = '日月火水木金土'[new Date(t).getDay()];
-    const cls = on ? 'on' : i === 6 ? 'now' : before ? 'pre' : 'rest';
-    return `<span class="wd ${cls}"><i>${cls === 'rest' ? '休' : ''}</i><small class="jp">${wd}</small></span>`;
-  }).join('');
   return `<section class="card goalhome">
     <div class="gh-top">
       <div class="ringbox small">${ringSvg(0)}<span class="ringtext"><b>${xp}</b><small>XP</small></span></div>
       <div class="grow"><span class="caps">Daily goal · ${DAILY_GOAL} XP</span>
         <strong>${share >= 1 ? 'Done for today' : `${DAILY_GOAL - xp} XP to go`}</strong>
-        <span class="small muted">${s ? `${s} ${s === 1 ? 'day' : 'days'} running` : 'Study today to start a run'} · rest days don't break it</span></div>
+        ${dayLoadLine()}</div>
     </div>
-    ${dayLoadLine()}
-    <div class="weekrow">${days}</div>
     <span hidden data-fill="${share}"></span>
   </section>`;
 }
+
+// What the fish screens need from the app.
+function tankCtx() {
+  const casualUnits = data.casualUnits || [];
+  const passed = (u) => Boolean(state.course.passed[u.id]);
+  return {
+    state, save, view, setTop, icons,
+    // Fish say a word only once the course has taught it (a word the course never teaches never counts).
+    knows: (w) => firstLessonIndex(data).has(w) && isTaught(w, state, data, Infinity),
+    goals: {
+      n5Done: data.units.length > 0 && data.units.every(passed),
+      casualDone: casualUnits.length > 0 && casualUnits.every(passed)
+        && Math.max(...casualUnits.map((u) => u.chapter || 0)) >= CASUAL_CHAPTERS.length,
+    },
+    // Feeding is studying: the same next step Home offers.
+    study: () => {
+      const go = nextAction(nextUp(state, data.units));
+      if (go) go.go();
+      else location.hash = '#/course';
+    },
+  };
+}
+
+const screenTank = () => tankScreen(tankCtx());
 
 // How many N5 kanji sit at each memory stage: not started, Learning, Strong, Mastered.
 function kanjiStages() {
@@ -372,6 +384,7 @@ function screenToday() {
     ${courseCard(next)}
     ${casualHomeCard()}
     ${goalHome()}
+    ${fishHomeHtml()}
     ${kanjiHomeCard()}
     <div id="readcard"></div>
     ${tripCard()}
@@ -390,6 +403,7 @@ function screenToday() {
   });
   view.querySelector('#weak')?.addEventListener('click', () => openCheck());
   drawReadCard(view.querySelector('#readcard'));
+  mountFishHome(view.querySelector('#fishhome'), tankCtx());
   fillRings();
 }
 
@@ -398,9 +412,9 @@ let homeShown = null;
 function drawReadCard(root, fresh = false) {
   if (fresh || !homeShown) homeShown = homeCard(data.units, state.course.done, Math.random, homeShown?.t || homeShown?.w);
   const card = homeShown;
-  if (!card) { root.innerHTML = `<a class="card cardslink" href="#/dojo/cards"><span class="grow"><strong>Flashcards</strong><span class="small">Words and sentences to read, by unit or all of N5</span></span><span class="chev">${icons.chevron}</span></a>`; return; }
+  if (!card) { root.innerHTML = `<a class="card cardslink" href="#/cards"><span class="grow"><strong>Flashcards</strong><span class="small">Words and sentences to read, by unit or all of N5</span></span><span class="chev">${icons.chevron}</span></a>`; return; }
   root.innerHTML = `<section class="card fcard home-read gloss-zone">
-    <div class="kod-head"><span class="caps">Try reading this</span><a class="small kh-cards" href="#/dojo/cards">Unit ${unitNo(card.unit)} · All cards</a></div>
+    <div class="kod-head"><span class="caps">Try reading this</span><a class="small kh-cards" href="#/cards">Unit ${unitNo(card.unit)} · All cards</a></div>
     ${flashFront(card)}
     <div class="fnav">
       <button class="btn ghost" id="rdsay" aria-label="Listen">${icons.speaker}</button>
@@ -1984,15 +1998,13 @@ function screenScene(id) {
   };
 }
 
-function screenDojo() {
-  setTop('Dojo');
-  const action = (id, icon, name, sub, off = false) => `<button class="action" id="${id}" ${off ? 'disabled' : ''}><span class="icbox">${icon}</span>
-    <span class="grow"><strong>${name}</strong><span class="small">${sub}</span></span><span class="chev">${icons.chevron}</span></button>`;
-  view.innerHTML = `
-    ${action('part', icons.practice, 'Particles', 'Guides and unlimited practice, focused on what you miss')}
-    ${action('exam', icons.exam, 'JLPT N5 mock exam', 'Only if you plan to sit the exam')}`;
-  view.querySelector('#part').onclick = () => { location.hash = '#/dojo/particles'; };
-  view.querySelector('#exam').onclick = () => { location.hash = '#/dojo/exam'; };
+// Practice at the foot of Course (they lived in Dojo before the Tank tab took its place).
+function coursePractice() {
+  const row = (href, icon, name) => `<a class="action" href="${href}"><span class="icbox">${icon}</span>
+    <span class="grow"><strong>${name}</strong></span><span class="chev">${icons.chevron}</span></a>`;
+  return `<div class="caps sect"><span>Practice</span></div>
+    ${row('#/course/particles', icons.practice, 'Particles')}
+    ${row('#/course/exam', icons.exam, 'JLPT N5 mock exam')}`;
 }
 
 const backTo = (hash) => ({ close: true, back: true, onClose: () => { location.hash = hash; } });
@@ -2024,7 +2036,7 @@ const PAIRS = [['は', 'が'], ['に', 'で'], ['を', 'が'], ['と', 'も'], [
 
 // One screen for particles: practise them all, two side by side, or one with its guide first.
 function screenParticleChoice() {
-  setTop('Particles', backTo('#/dojo'));
+  setTop('Particles', backTo('#/course'));
   const { cards, sets } = data.particles;
   const usable = PAIRS.filter((pair) => data.bank.frames.some((f) => pair.includes(f.a) && f.w[pair.find((p) => p !== f.a)]));
   const seen = Object.values(state.practice.part).reduce((n, s) => n + s.seen, 0);
@@ -2100,7 +2112,7 @@ function screenCourse() {
   const casual = courseTrack() === 'casual';
   const units = trackData(data, courseTrack()).units;
   if (casual && (!casualOpen(state, data) || !units.length)) {
-    view.innerHTML = `${courseSwitch()}${casualIntro()}`;
+    view.innerHTML = `${courseSwitch()}${casualIntro()}${coursePractice()}`;
     view.onclick = null;
     bindCourseSwitch();
     return;
@@ -2231,7 +2243,8 @@ function screenCourse() {
       <span class="small muted">Know some already? Open one to test out</span></span><span class="chev">${icons.chevron}</span></summary>
       ${units.slice(shown.length).map(node).join('')}</details>` : ''}
     ${soon.length ? casualSoon(soon, caughtUp) : ''}
-    <p class="small muted center">★ passed · ★★ most of it remembered · ★★★ mastered</p>`;
+    <p class="small muted center">★ passed · ★★ most of it remembered · ★★★ mastered</p>
+    ${coursePractice()}`;
   bindCourseSwitch();
   // The locked Casual node opens Casual's own page: its chapters and how far off it is.
   view.querySelector('#casualpeek')?.addEventListener('click', () => {
@@ -2344,7 +2357,7 @@ function nextAction(next, { skipReviews = false } = {}) {
     if (due.length) return { label: `Review ${due.length} → Unit ${unitNo(u)} test`, go: () => startRun(due, 'Reviews', { useSrs: true, then: { label: `the Unit ${unitNo(u)} test`, go: test } }) };
     return { label: `Take the Unit ${unitNo(u)} test`, go: test };
   }
-  // After the last unit the course is done; the mock exam waits in Dojo for anyone who wants it.
+  // After the last unit the course is done; the mock exam waits under Course's Practice for anyone who wants it.
   return null;
 }
 
@@ -2602,7 +2615,7 @@ function runMock(paper, mode, resume = null) {
 }
 
 function screenExam() {
-  setTop('Mock exam', backTo('#/dojo'));
+  setTop('Mock exam', backTo('#/course'));
   const open = examUnlocked(state, data.units);
   const current = state.exams.current;
   const resumable = current && data.papers.find((p) => p.id === current.key);
@@ -2765,7 +2778,7 @@ function playCard(card) {
 }
 
 function screenCards() {
-  setTop('Flashcards', backTo('#/dojo'));
+  setTop('Flashcards', backTo('#/today'));
   const pref = (state.practice.cards ||= { kind: 'w' });
   const units = data.units;
   const done = state.course.done;
@@ -2791,15 +2804,15 @@ function screenCards() {
     save(state);
     screenCards();
   };
-  view.querySelectorAll('[data-deck]').forEach((b) => { b.onclick = () => { location.hash = `#/dojo/cards/${b.dataset.deck}`; }; });
+  view.querySelectorAll('[data-deck]').forEach((b) => { b.onclick = () => { location.hash = `#/cards/${b.dataset.deck}`; }; });
 }
 
 function screenDeck(id) {
   const base = deckOf(id, data.units, state.course.done);
-  if (!base.length) { location.replace('#/dojo/cards'); return; }
+  if (!base.length) { location.replace('#/cards'); return; }
   const [scope] = id.split('-');
   const unit = data.units.find((u) => u.id === scope);
-  setTop(unit ? `Unit ${unitNo(unit)} cards` : scope === 'all' ? 'All of N5' : 'What you\'ve learned', backTo('#/dojo/cards'));
+  setTop(unit ? `Unit ${unitNo(unit)} cards` : scope === 'all' ? 'All of N5' : 'What you\'ve learned', backTo('#/cards'));
   let deck = base;
   let i = 0;
   let open = false;
@@ -3324,12 +3337,12 @@ const SCREENS = {
   trip: screenTrip,
   course: screenCourse,
   listen: screenListen,
-  dojo: screenDojo,
-  'dojo/exam': screenExam,
-  'dojo/particles': screenParticleChoice,
+  tank: screenTank,
+  'course/exam': screenExam,
+  'course/particles': screenParticleChoice,
   kanji: screenKanji,
   'kanji/check': screenCheck,
-  'dojo/cards': screenCards,
+  cards: screenCards,
   'course/syllabus': screenSyllabus,
   dict: screenDict,
   settings: screenSettings,
@@ -3343,12 +3356,13 @@ const PARAM_SCREENS = [
   [/^listen\/radio\/([\w-]+)$/, (id) => screenRadio(id)],
   // The run takes over at once; when it ends, you land on Listen, not back in the run.
   [/^listen\/hear\/(u\d+|mix)$/, (id) => { location.replace('#/listen'); screenListen(); startListening(id); }],
-  [/^dojo\/cards\/(\w+-[ws])$/, (id) => screenDeck(id)],
+  [/^cards\/(\w+-[ws])$/, (id) => screenDeck(id)],
 ];
 
 // Old addresses: from before the tabs were reshuffled, and screens folded into others.
+// Dojo became the Tank tab: its Particles and mock exam live in Course, Flashcards on their own.
 const MOVED = [[/^practice(\/|$)/, 'dojo$1'], [/^(listen\/)?talk(\/[\w-]+)?$/, 'listen'], [/^dojo\/kanji$/, 'kanji'], [/^dojo\/rush$/, 'kanji/check'],
-  [/^course\/exam$/, 'dojo/exam'], [/^dojo\/sentences$/, 'dojo'], [/^listen\/radio\/(starred|talk-[\w-]+)$/, 'listen']];
+  [/^dojo\/(exam|particles)$/, 'course/$1'], [/^dojo\/cards(\/|$)/, 'cards$1'], [/^dojo(\/sentences)?$/, 'tank'], [/^listen\/radio\/(starred|talk-[\w-]+)$/, 'listen']];
 
 function route() {
   if (!data) return;

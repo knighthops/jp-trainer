@@ -1659,3 +1659,75 @@ html:has(.ck),body:has(.ck){overflow-x:clip}
   .ck-quiz.missed{padding-top:36px}
   .ck-quiz.missed .ck-qk{font-size:36px;margin-top:2px}
 }
+
+/* ---- Goldfish: Home card and Tank tab (from docs/goldfish mocks) ---- */
+.gh-top .dayload{font-size:13px;color:var(--mute);margin-top:3px;gap:5px}
+.gh-top .dayload b{color:var(--ink2)}
+.fishhome{gap:0;padding:14px 18px 16px}
+/* The bowl at 5/3 scale: exactly 5 device px per game pixel on a 3x iPhone, empty sky above the rim trimmed. */
+.fh-tank{position:relative;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.fh-tank.bowl{width:calc(140px * 5 / 3);max-width:100%;margin:-14px auto -10px}
+.fh-tank.wide{width:100%;margin:0 0 12px}
+.fh-tank canvas,.tk-wrap canvas{display:block;width:100%;height:100%;image-rendering:pixelated}
+.fh-bubbles{position:absolute;inset:0;pointer-events:none}
+.fbub{position:absolute;transform:translate(-50%,-100%);pointer-events:auto;background:#fff;color:#2a2622;border:2px solid #2a1c14;border-radius:9px;padding:2px 7px;font:600 11.5px/1.3 -apple-system,system-ui,sans-serif;white-space:nowrap;cursor:pointer;z-index:2}
+.fbub::after{content:"";position:absolute;left:50%;bottom:-6px;margin-left:-4px;border:4px solid transparent;border-top-color:#2a1c14;border-bottom:0}
+.tk-wrap .fbub{font-size:12.5px;padding:3px 8px}
+.fh-info{display:flex;align-items:center;gap:10px;min-width:0;position:relative;z-index:1}
+.fh-info strong{font-size:19px;letter-spacing:-.01em;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fh-st{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;padding:4px 10px;border-radius:999px;white-space:nowrap}
+.fh-st::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.fh-st.ok{color:var(--good);background:var(--good-soft)}
+.fh-st.due{color:var(--ink2);background:var(--raised)}
+.fh-st.warn{color:var(--gold);background:color-mix(in srgb,var(--gold) 13%,transparent)}
+.fh-st.dead{color:var(--bad);background:var(--bad-soft)}
+.fh-info .btn{width:auto;min-height:44px;padding:0 16px;font-size:15px;margin-left:auto;flex:none}
+
+.tankcard{padding:12px}
+.tankpin{position:sticky;top:calc(var(--head) + env(safe-area-inset-top));z-index:4;background:var(--page);margin:-16px calc(-1 * var(--gut)) 0;padding:12px var(--gut) 10px;box-shadow:0 8px 10px -8px rgba(0,0,0,.5)}
+.tk-wrap{position:relative}
+.tk-wrap.bowl{width:calc(140px * 5 / 3);max-width:100%;margin:-10px auto -8px}
+.tk-wrap canvas{cursor:pointer}
+.tk-row{display:flex;align-items:center;gap:10px;margin-top:12px;padding:0 4px 2px}
+.tk-row .grow{flex:1}
+.tk-row .fh-st{padding:5px 11px}
+.tk-row .btn{width:auto;min-height:44px;padding:0 18px;font-size:15px}
+.iconbtn{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;background:var(--card);color:var(--ink2);box-shadow:inset 0 0 0 1px var(--line);border:0;cursor:pointer;flex:none}
+.iconbtn svg.ic{width:21px;height:21px}
+.iconbtn.off{background:var(--raised);color:var(--mute)}
+.tk-sec{display:block;margin:10px 4px -2px}
+.fishgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.fishgrid>*{width:100%;min-width:0;margin:0}
+.fishcard{background:var(--card);border:1px solid var(--line2);border-radius:14px;padding:10px 6px 12px;display:flex;flex-direction:column;align-items:center;gap:2px;color:inherit;font:inherit;cursor:pointer}
+.fishcard canvas{width:80px;height:64px;image-rendering:pixelated;margin-bottom:4px;flex:none}
+.fishcard strong{font-size:15px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fishcard span{font-size:12.5px;color:var(--mute)}
+.fishcard.newfry{border:1.5px dashed var(--line);background:none;justify-content:center;color:var(--ink2);min-height:120px;gap:4px}
+.fishcard.newfry b{font-size:26px;font-weight:400;line-height:1;color:var(--mute)}
+.homegrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.hcard{background:var(--card);border:1px solid var(--line2);border-radius:14px;padding:10px 10px 12px;display:flex;flex-direction:column;gap:3px;color:inherit;font:inherit;text-align:left}
+button.hcard{cursor:pointer}
+.hcard .thumb{height:78px;display:grid;place-items:center;margin-bottom:6px}
+.hcard canvas{max-width:100%;max-height:78px;image-rendering:pixelated}
+.hcard strong{font-size:14.5px}
+.hcard span{font-size:12.5px;color:var(--mute);display:flex;align-items:center;gap:5px}
+.hcard.now{box-shadow:inset 0 0 0 1.5px var(--act)}
+.hcard.now span{color:var(--act);font-weight:700}
+.hcard.locked canvas{filter:grayscale(1) brightness(.55)}
+.hcard.locked strong{color:var(--ink2)}
+.hcard span svg{width:13px;height:13px}
+.albumrow{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.pol{background:#f6f1e7;color:#2a2622;border:0;border-radius:6px;padding:6px 6px 9px;display:flex;flex-direction:column;gap:2px;transform:rotate(-1.5deg);box-shadow:0 3px 8px rgba(0,0,0,.35);font:inherit;text-align:left;cursor:pointer}
+.pol:nth-child(2n){transform:rotate(1.2deg)}
+.pol canvas{width:100%;aspect-ratio:5/4;image-rendering:pixelated;background:#a9dcec;border-radius:2px}
+.pol b{font-size:13px}.pol span{font-size:11.5px;color:#7a726a}
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:40}
+.fishsheet{position:fixed;left:0;right:0;bottom:0;z-index:41;background:var(--card);border-radius:20px 20px 0 0;padding:10px 20px calc(20px + env(safe-area-inset-bottom));box-shadow:0 -10px 30px rgba(0,0,0,.4);max-width:520px;margin:0 auto}
+.fishsheet .grab{width:38px;height:5px;border-radius:3px;background:var(--line);margin:0 auto 12px}
+.fishsheet .fs-big{display:grid;place-items:center;background:var(--paper);border-radius:14px;height:150px}
+.fishsheet .fs-big canvas{width:200px;height:160px;image-rendering:pixelated}
+.fishsheet h2{margin:14px 0 2px;font-size:22px}
+.fishsheet dl{display:grid;grid-template-columns:auto 1fr;gap:9px 16px;margin:14px 0 18px;font-size:15px}
+.fishsheet dt{color:var(--mute)}
+.fishsheet dd{margin:0;text-align:right}
+.fs-say{background:none;border:0;padding:0;color:inherit;font:inherit;font-size:16px;white-space:nowrap;cursor:pointer;text-decoration:underline dotted var(--line);text-underline-offset:4px}
