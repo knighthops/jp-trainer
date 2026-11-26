@@ -25,5 +25,5 @@ Open any `.html` file directly in a browser; each one is self-contained.
 - Speech is rare, never repeats, uses only words already taught, and plays sound only when tapped.
 - Dojo's Particles practice and N5 mock exam move elsewhere; they are not removed.
 
-- Any study that logs a study day feeds the fish. The Small tank opens once a fish is raised to adult (14 study days); Planted = finish N5, Grand = finish Casual.
+- Any study that logs a study day feeds the fish. Homes open by finished lessons (N5 and Casual both count): Small tank 5, Planted tank 15, Grand aquarium 30.
 - Particles and the N5 mock exam moved to a Practice section at the foot of Course.

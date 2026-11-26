@@ -1,5 +1,5 @@
 // The goldfish on screen: the fish card on Home and the Tank tab.
-// ctx: { state, save, view, setTop, icons, knows(word), goals: { n5Done, casualDone }, study() }
+// ctx: { state, save, view, setTop, icons, knows(word), goals: { lessons }, study() }
 import { dayKey } from './store.js';
 import {
   HOMES, tankOf, tankTick, fishNow, homesOpen, settleHome, homeOf, canAddFry, newFry, moveHome, canMove, taughtLines,
@@ -16,7 +16,7 @@ const STATUS = {
 const AGE = { adult: 'Adult', young: 'Young', fry: 'Fry' };
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 // The portrait size a stage is drawn at, the same as in the Small tank.
-const PORTRAIT = { adult: 0.47, young: 0.38, fry: 0.28 };
+const PORTRAIT = { adult: 0.47, young: 0.38, fry: 0.2 };
 
 // Brings the tank up to today and opens any home just earned. Saves if anything changed.
 function update(ctx, now = Date.now()) {

@@ -303,15 +303,13 @@ function goalHome(now = Date.now()) {
 // What the fish screens need from the app.
 function tankCtx() {
   const casualUnits = data.casualUnits || [];
-  const passed = (u) => Boolean(state.course.passed[u.id]);
   return {
     state, save, view, setTop, icons,
     // Fish say a word only once the course has taught it (a word the course never teaches never counts).
     knows: (w) => firstLessonIndex(data).has(w) && isTaught(w, state, data, Infinity),
+    // Bigger homes open by finished lessons, N5 and Casual alike.
     goals: {
-      n5Done: data.units.length > 0 && data.units.every(passed),
-      casualDone: casualUnits.length > 0 && casualUnits.every(passed)
-        && Math.max(...casualUnits.map((u) => u.chapter || 0)) >= CASUAL_CHAPTERS.length,
+      lessons: [...data.units, ...casualUnits].reduce((n, u) => n + u.lessons.filter((l) => state.course.done[l.id]).length, 0),
     },
     // Feeding is studying: the same next step Home offers.
     study: () => {

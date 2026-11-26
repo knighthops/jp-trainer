@@ -431,7 +431,7 @@ const SPEED = { ryukin: 0.9, oranda: 0.6, ranchu: 0.32 };
 export const BREEDS = { ryukin: 'Ryukin', oranda: 'Oranda', ranchu: 'Ranchu' };
 export const TRAITS = ['Hungry', 'Shy', 'Playful', 'Sleepy', 'Chatty', 'Brave'];
 // Fish are drawn smaller in bigger homes, and smaller again while young.
-const GROW = { adult: 1, young: 0.8, fry: 0.6 };
+const GROW = { adult: 1, young: 0.8, fry: 0.4 };
 export const fishSize = (t, stage) => +(t.fs * GROW[stage]).toFixed(3);
 
 // The bowl's water is round: this box keeps every fish fully inside it.

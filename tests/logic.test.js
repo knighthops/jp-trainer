@@ -2090,17 +2090,20 @@ test('tank: two missed days and every fish dies, into the Album', () => {
   assert.equal(tankTick(s, NOW), 'due');
 });
 
-test('tank: fish grow by study days, and raising an adult opens the Small tank', () => {
+test('tank: fish grow by study days, and finished lessons open bigger homes', () => {
   const days = (n) => studied(...Array.from({ length: n }, (_, i) => i));
   assert.equal(fishNow(tankState(days(4), 20), tankOf(tankState(days(4), 20)), NOW)[0].stage, 'fry');
   const young = tankState(days(5), 20);
   assert.equal(fishNow(young, young.tank, NOW)[0].stage, 'young');
   const adult = tankState(days(14), 20);
   assert.equal(fishNow(adult, adult.tank, NOW)[0].stage, 'adult');
-  assert.equal(homesOpen(young, {}, NOW).small, false);
-  const open = homesOpen(adult, {}, NOW);
+  assert.equal(homesOpen(adult, { lessons: 4 }).small, false);
+  const open = homesOpen(adult, { lessons: 5 });
   assert.equal(open.small, true);
-  assert.equal(homesOpen(adult, { n5Done: true }, NOW).planted, true);
+  assert.equal(open.planted, false);
+  assert.equal(homesOpen(adult, { lessons: 15 }).planted, true);
+  assert.equal(homesOpen(adult, { lessons: 29 }).grand, false);
+  assert.equal(homesOpen(adult, { lessons: 30 }).grand, true);
   assert.ok(settleHome(adult, open), 'moves into the new home once');
   assert.equal(adult.tank.home, 'small');
   assert.ok(canAddFry(adult));

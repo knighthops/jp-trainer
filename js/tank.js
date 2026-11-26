@@ -5,9 +5,9 @@ import { dayKey, studiedOn } from './store.js';
 const DAY_MS = 864e5;
 export const HOMES = [
   { id: 'bowl', en: 'Fishbowl', cap: 1, goal: '' },
-  { id: 'small', en: 'Small tank', cap: 3, goal: 'Raise an adult' },
-  { id: 'planted', en: 'Planted tank', cap: 5, goal: 'Finish N5' },
-  { id: 'grand', en: 'Grand aquarium', cap: 8, goal: 'Finish Casual' },
+  { id: 'small', en: 'Small tank', cap: 3, lessons: 5, goal: 'Finish 5 lessons' },
+  { id: 'planted', en: 'Planted tank', cap: 5, lessons: 15, goal: 'Finish 15 lessons' },
+  { id: 'grand', en: 'Grand aquarium', cap: 8, lessons: 30, goal: 'Finish 30 lessons' },
 ];
 // Study days a fish needs to grow: fry, then young from day 5, adult from day 14.
 export const YOUNG_AT = 5;
@@ -80,13 +80,12 @@ export function tankTick(state, now = Date.now()) {
   return 'dead';
 }
 
-// Which homes are open, from the goals: an adult raised, N5 finished, Casual finished.
-export function homesOpen(state, { n5Done = false, casualDone = false } = {}, now = Date.now()) {
+// Which homes are open: each needs a number of finished lessons (N5 and Casual both count).
+export function homesOpen(state, { lessons = 0 } = {}) {
   const tank = tankOf(state);
-  const raised = tank.album.some((f) => f.stage === 'adult') || fishNow(state, tank, now).some((f) => f.stage === 'adult');
   // A home once opened stays open.
   const was = (id) => tank.opened.includes(id);
-  return { bowl: true, small: raised || was('small'), planted: n5Done || was('planted'), grand: casualDone || was('grand') };
+  return Object.fromEntries(HOMES.map((h) => [h.id, !h.lessons || lessons >= h.lessons || was(h.id)]));
 }
 
 // A home that has just opened becomes the fish's home once, if they all fit.
