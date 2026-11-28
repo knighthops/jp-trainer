@@ -1731,3 +1731,7 @@ button.hcard{cursor:pointer}
 .fishsheet dt{color:var(--mute)}
 .fishsheet dd{margin:0;text-align:right}
 .fs-say{background:none;border:0;padding:0;color:inherit;font:inherit;font-size:16px;white-space:nowrap;cursor:pointer;text-decoration:underline dotted var(--line);text-underline-offset:4px}
+/* A right pick that was a guess or slow: Forgot and Shaky beside each other, quieter than Continue. */
+.sh-regrade{display:flex;gap:10px}
+.sh-regrade button{flex:1;min-height:44px;border-radius:14px;font:inherit;font-size:15px;font-weight:650;color:var(--ink2);background:var(--paper);box-shadow:inset 0 0 0 1px var(--line2)}
+.sh-regrade [data-regrade="again"]{color:var(--bad)}

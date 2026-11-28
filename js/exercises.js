@@ -112,7 +112,8 @@ export const spellable = (v) => KANJI.test(v.w) && v.w !== v.y && kanaTiles(v.y)
 
 const optRow = (options, cls) => options.map((o, n) => `<button class="opt ${cls}" data-n="${n}">${o}</button>`).join('');
 
-export function renderWordQ(root, q, { tag, review = false, onDone }) {
+// regrade: a right pick also offers Forgot and Shaky; onDone gets the grade picked, or null.
+export function renderWordQ(root, q, { tag, review = false, regrade = false, onDone }) {
   const v = q.word;
   // Word → meaning leads with kana, unless the word is itself kana: then its kana would give it away.
   const kana = q.dir === 'en' && q.items && v.w !== v.y;
@@ -155,7 +156,8 @@ export function renderWordQ(root, q, { tag, review = false, onDone }) {
       glyph: KANJI.test(v.w) && v.w.length <= 2 ? v.w : '',
       title: `<span class="jp">${v.w}</span> ${v.w !== v.y ? `<span class="jp muted">${v.y}</span>` : ''}`,
       lines: [`<span class="small muted">${romaji(v.y)} · ${v.m}</span> ${sayBtn(v.y)}`],
-    }, () => onDone(clean));
+      regrade: regrade && !review,
+    }, (grade) => onDone(clean, grade));
   };
   opts.onclick = (e) => {
     const b = e.target.closest('[data-n]');

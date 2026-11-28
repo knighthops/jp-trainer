@@ -29,6 +29,26 @@ export function buildAsCheck(q) {
   return { id: q.id, q: q.q, ask: 'Which order fills the gap?', w: q.w, o: [answer, ...others] };
 }
 
+// How many items the review block can actually bring back. Lesson drills (s: and p: of course
+// lessons) and Trip lines are scheduled too, but are reviewed through their grammar point or in
+// Trip, so counting them here made a backlog that reviews could never clear.
+export function dueReviewCount(state, data, now = Date.now()) {
+  const { items } = state;
+  const lessons = [...(data.units || []), ...(data.casualUnits || [])].flatMap((u) => u.lessons);
+  const saved = state.talk?.saved || {};
+  const ids = new Set([
+    ...data.kanji.map(kanjiId),
+    ...data.vocab.map(wordId),
+    ...lessons.map(grammarId),
+    ...data.sentences.filter((x) => !x.lesson).map(sentenceId),
+    ...data.particles.sets.flatMap((set) => set.items.map(particleId)),
+  ]);
+  const due = [...ids].filter((id) => isDue(items[id], now)).length;
+  // A newly starred phrase is due at once.
+  const talk = (data.talkPhrases || []).filter((x) => saved[x.id] && (!items[talkId(x)] || isDue(items[talkId(x)], now))).length;
+  return due + talk + Object.keys(state.course?.missed || {}).length;
+}
+
 // A short block of what's due, sized for a pocket of time: cards first, then grammar,
 // a few drills, starred phrases and missed test questions. Run it again for more.
 export function reviewSteps(state, data, now = Date.now(), { cards = 15, grammar = 5, drills = 3, rng = Math.random } = {}) {

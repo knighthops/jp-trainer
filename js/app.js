@@ -8,7 +8,7 @@ import { startCheck, checkDeck, checkRecord, CHECK_SIZE, nextCheckMode, choiceKi
 import {
   GRADES, GRADE_NAMES, GRADE_HELP, CLEARS, isStruggling, struggleOrder, newRecord, rate, label, STAGES, stageOf, STRONG, MASTERED, isDue,
 } from './srs.js';
-import { reviewSteps, kanjiId, buildAsCheck } from './session.js';
+import { reviewSteps, dueReviewCount, kanjiId, buildAsCheck } from './session.js';
 import { quizQuestion, drillKanji, readWords } from './quiz.js';
 import { loadStrokes, mountStrokes } from './strokes.js';
 import {
@@ -718,15 +718,17 @@ function renderStep() {
   };
   // Lesson exercises. Checks of new items are scheduled like any answer; a miss comes back
   // once, a few steps on, as practice. Spelling, listening and matching are practice only.
-  const finishExercise = (clean, { srs = true } = {}) => {
+  // grade: Forgot or Shaky tapped on a right answer's sheet. Forgot counts as a miss.
+  const finishExercise = (clean, { srs = true, grade = null } = {}) => {
     if (clean === null) { advance(); return; } // "Can't listen now": skipped, not counted.
+    if (grade === 'again') clean = false;
     if (!step.done) {
       step.done = true;
       run.drills++;
       if (clean) run.clean++;
       bumpCombo(clean);
       tally(step, clean);
-      if (srs && !step.again) record(step.id, clean ? 'good' : 'again');
+      if (srs && !step.again) record(step.id, clean ? grade || 'good' : 'again');
       if (!clean) requeue(step);
     }
     advance();
@@ -754,7 +756,8 @@ function renderStep() {
       if (step.q.options.length < 2) return skipStep();
     }
     const tag = step.dir === 'hear' ? 'Listen' : step.dir === 'jp' ? 'Meaning → word' : 'Word → meaning';
-    renderWordQ(view, step.q, { tag, review, onDone: (clean) => finishExercise(clean, { srs: step.dir !== 'hear' }) });
+    const srs = step.dir !== 'hear';
+    renderWordQ(view, step.q, { tag, review, regrade: srs && run.useSrs && !step.again, onDone: (clean, grade) => finishExercise(clean, { srs, grade }) });
   } else if (step.type === 'spell') {
     step.q ||= spellPuzzle(step.ref);
     renderSpell(view, step.q, { review, onDone: (clean) => finishExercise(clean, { srs: false }) });
@@ -1304,6 +1307,8 @@ function renderQuiz(step) {
       if (right && !step.hinted) run.clean++;
       bumpCombo(right && !step.hinted);
       tally(step, right && !step.hinted);
+      // Saved now as Knew it; Forgot or Shaky on the sheet replaces that from the record before.
+      step.before = state.items[step.id];
       if (!step.again) record(step.id, !right ? 'again' : step.hinted ? 'hard' : 'good');
       if (!right) requeue(step);
     }
@@ -1318,10 +1323,26 @@ function renderQuiz(step) {
       : q.kind === 'pick' ? `<span class="jp">${q.k.k}</span>` : q.k.mean[0];
     const clean = right && !step.hinted;
     const streak = clean && !review ? run?.combo || 0 : 0;
+    // Only on the first answer: a look back at a done step changes nothing.
+    const regrade = clean && !review && run.useSrs && !step.again;
     showSheet(view, {
       right: clean, review,
-      html: answerSheet(q.k, q.word, right, right ? (step.hinted ? 'Right, with a hint' : 'Correct') : 'Not quite', { picked: picks, answer, streak }),
-    }, advance);
+      html: answerSheet(q.k, q.word, right, right ? (step.hinted ? 'Right, with a hint' : 'Correct') : 'Not quite', { picked: picks, answer, streak, regrade }),
+    }, (grade) => {
+      if (regrade && grade) {
+        state.items[step.id] = rate(step.before || newRecord(), grade);
+        save(state);
+        // Forgot after a right pick: it was a guess, so it counts as a miss.
+        if (grade === 'again') {
+          run.clean--;
+          run.combo = 0;
+          const key = step.key || step.id;
+          if (!run.misses.has(key)) run.misses.set(key, step);
+          requeue(step);
+        }
+      }
+      advance();
+    });
   };
   opts.onclick = (e) => {
     const b = e.target.closest('[data-n]');
@@ -1354,9 +1375,6 @@ const rubyFor = (w) => {
 // The marked button for such a word, or null when it needs no mark.
 // A word you already know keeps its kana but loses the underline, so 友達 isn't flagged for good.
 const casualWord = (w) => (!rubyFor(w) ? null : `<button class="word${state.items[`w:${w}`] ? '' : ' untaught'}" data-word="${w}">${rubyFor(w)}</button>`);
-// Free text (lesson notes, the polite line): marked words get their kana, Japanese runs word by word.
-const casualRuby = (text) => (!inCasual() ? String(text) : String(text).replace(/[ぁ-ヿ一-龯々ー]+/g,
-  (run) => rubyFor(run) || tokenize(run, data.glossary).map((w) => rubyFor(w) || w).join('')));
 const wordLine = (text) => glued(splitWords(text), (w) => {
   if (!data.glossary[w]) return `<span>${w}</span>`;
   return casualWord(w) || `<button class="word" data-word="${w}">${w}</button>`;
@@ -1376,6 +1394,30 @@ function bindCasualMarks(zone) {
   });
 }
 
+// Lesson notes: each Japanese word with kanji is one button, read whole (郵便局, not 郵 便 局).
+// Tapping it opens its kana, romaji and meaning just under the paragraph. A kanji run the
+// glossary doesn't know falls back to its single kanji.
+function linkNoteWords(text) {
+  return String(text).replace(/[ぁ-ヿ一-龯々ー]+/g, (jp) => tokenize(jp, data.glossary).map((w) => {
+    if (!KANJI_RE.test(w)) return w;
+    if (!data.glossary[w]) return linkKanji(w);
+    return `<button class="kref jp" data-wpeek="${w}" aria-label="What is ${w}?">${rubyFor(w) || w}</button>`;
+  }).join(''));
+}
+function wordPeekHtml(w) {
+  const g = data.glossary[w];
+  return `<div class="kpeek wpeek" data-peek="${w}"><span class="kp-g jp">${w}</span><div>
+    <strong class="jp">${g.y}</strong> <span class="kp-r">${g.ro || romaji(g.y)}</span>${sayBtn(g.y)}
+    <div class="small">${g.m}</div></div></div>`;
+}
+function toggleWordPeek(btn) {
+  const host = btn.closest('.kpeek-host');
+  const open = host.nextElementSibling?.classList.contains('kpeek') ? host.nextElementSibling : null;
+  const same = open?.dataset.peek === btn.dataset.wpeek;
+  open?.remove();
+  if (!same) host.insertAdjacentHTML('afterend', wordPeekHtml(btn.dataset.wpeek));
+}
+
 function renderLesson(step) {
   const l = step.ref;
   const met = step.refresh;
@@ -1384,7 +1426,7 @@ function renderLesson(step) {
       ${met ? `<p class="refresher small">Refresher: you met this in ${trackOf(met.unit) === 'casual' ? 'Casual' : 'N5'} unit ${unitNo(met.unit)}. A few quick ones, then on.</p>` : ''}
       <h3>${l.title}</h3>
       ${l.pattern ? `<div class="pattern jp">${l.pattern}</div>` : ''}
-      ${l.note.map((p) => `<p class="kpeek-host">${linkKanji(casualRuby(p))}</p>`).join('')}
+      ${l.note.map((p) => `<p class="kpeek-host">${linkNoteWords(p)}</p>`).join('')}
       <div class="block-sec"><span class="caps">Examples</span>${l.examples.map((e) => `<div class="example">
         <div class="stem jp">${wordLine(e.t)}</div>
         <p class="romaji">${lineRomaji(e.t)} ${sayBtn(e.t)}</p>
@@ -2301,7 +2343,7 @@ const resumable = (next) => next?.type === 'lesson' && state.course[resumeKey(ne
 // The units of the course a unit belongs to.
 const unitsOf = (unit) => trackData(data, trackOf(unit)).units;
 // Everything due for review, across both courses.
-const dueCount = (now = Date.now()) => Object.values(state.items).filter((r) => isDue(r, now)).length;
+const dueCount = (now = Date.now()) => dueReviewCount(state, data, now);
 // Drills from lessons you've finished, in either course, newest lessons first.
 function learnedPractice() {
   const done = [...data.units, ...(data.casualUnits || [])].flatMap((u) => u.lessons.filter((l) => state.course.done[l.id]))
@@ -3449,6 +3491,8 @@ async function init() {
     noteClick(e);
     const kref = e.target.closest('[data-kref]');
     if (kref) togglePeek(kref);
+    const wpeek = e.target.closest('[data-wpeek]');
+    if (wpeek) toggleWordPeek(wpeek);
     // Romaji set to "Tap to show": a tap on a hidden line reveals it.
     const ro = e.target.closest('.romaji');
     if (ro && document.body.dataset.romaji === 'tap' && !e.target.closest('[data-say]')) ro.classList.add('shown');

@@ -8,7 +8,7 @@ import { quizQuestion, similarKanji, drillKanji, kindFor, readWords, possibleKan
 import { romaji, toHiragana, toKana, judgeReading } from '../js/romaji.js';
 import { speechText } from '../js/tts.js';
 import { matchReading, splitRun } from '../js/readings.js';
-import { reviewSteps, kanjiId, talkId, buildAsCheck } from '../js/session.js';
+import { reviewSteps, dueReviewCount, kanjiId, talkId, buildAsCheck } from '../js/session.js';
 import {
   UNIT_FILES, mergeCourse, nextUp, isUnlocked, examUnlocked, lessonSteps, LEVELS, levelUnlocked, toBlocks, autoAlts, words, particleItem,
   courseSteps, rankOf, LESSON_NEW, wordsNeededEarly, unitStars, recordTest, unitItems, grammarId, passUnit, lessonStars, isTaught, choiceShown, lessonParts, tokenWords, textTaught, strayTaught, drillWords,
@@ -219,6 +219,20 @@ test('reviews take what is due, oldest first, in a short block', () => {
   assert.ok(steps.filter((s) => s.type === 'kparts').length <= 1);
   assert.equal(steps[0].id, kanjiId(merged.kanji[29]));
   assert.ok(!steps.some((s) => s.id === kanjiId(merged.kanji[40])));
+});
+
+test('the due count holds only what reviews can bring back', () => {
+  const merged = course();
+  const state = blank();
+  const old = { ...newRecord(), due: NOW - DAY, reps: 2, interval: 3 };
+  state.items[kanjiId(merged.kanji[0])] = old;
+  // A lesson's own drills and Trip lines are reviewed elsewhere, so they never pile up here.
+  const lessonDrill = merged.sentences.find((s) => s.lesson);
+  state.items[`s:${lessonDrill.id}`] = old;
+  state.items[`p:${merged.courseChoices[0].id}`] = old;
+  state.items['x:trip-line'] = old;
+  assert.equal(dueReviewCount(state, merged, NOW), 1);
+  assert.equal(reviewSteps(state, merged, NOW).filter((s) => s.id).length, 1);
 });
 
 test('missed unit-test questions come back in reviews', () => {

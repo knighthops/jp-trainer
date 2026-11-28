@@ -215,7 +215,9 @@ export function compareHtml(picked, answer) {
 // The sheet that slides up after every answer, whatever the exercise: right or wrong, a
 // headline, then what was asked with its reading and meaning, and one Continue.
 // A wrong answer adds the comparison (picked, answer); a run of right answers adds a streak chip.
-export function feedbackSheet({ right, headline, glyph = '', title = '', lines = [], picked = null, answer = '', streak = 0 }) {
+// regrade: a right pick on a scheduled item also offers Forgot and Shaky, since a choice can be
+// guessed. Tapping one moves on like Continue, with that grade.
+export function feedbackSheet({ right, headline, glyph = '', title = '', lines = [], picked = null, answer = '', streak = 0, regrade = false }) {
   const body = glyph || title || lines.length
     ? `<div class="sh-body">${glyph ? `<span class="sh-k jp">${glyph}</span>` : ''}
       <span class="grow">${title ? `<strong>${title}</strong>` : ''}${lines.filter(Boolean).map((l) => `<span class="sh-line">${l}</span>`).join('')}</span></div>`
@@ -223,7 +225,8 @@ export function feedbackSheet({ right, headline, glyph = '', title = '', lines =
   const chip = right && streak >= 3 ? `<span class="sh-streak" aria-label="${streak} right in a row">${streak} in a row</span>` : '';
   return `<div class="sheet ${right ? 'good' : 'bad'}" role="status">
     <div class="sh-head"><span class="sh-badge" aria-hidden="true">${right ? MARK_SVG.good : MARK_SVG.bad}</span><b>${headline}</b>${chip}</div>
-    ${right ? '' : compareHtml(picked, answer)}${body}<button class="btn" id="cont">Continue</button></div>`;
+    ${right ? '' : compareHtml(picked, answer)}${body}${right && regrade
+    ? '<div class="sh-regrade"><button type="button" data-regrade="again">Forgot</button><button type="button" data-regrade="hard">Shaky</button></div>' : ''}<button class="btn" id="cont">Continue</button></div>`;
 }
 
 // How many right in a row this answer makes, for the sheet's streak chip. The app says (0 when
@@ -245,13 +248,16 @@ export function showSheet(root, opts, onContinue) {
   root.insertAdjacentHTML('beforeend', opts.html || feedbackSheet({ ...opts, streak }));
   document.body.classList.add('has-sheet');
   const cont = root.querySelector('#cont');
-  cont.onclick = () => {
+  // grade: null from Continue, or 'again' / 'hard' from the sheet's Forgot and Shaky.
+  const go = (grade) => {
     if (!cont.isConnected || cont.dataset.gone) return;
     cont.dataset.gone = '1';
     quietUntil = Date.now() + LATE_MS;
     document.body.classList.remove('has-sheet');
-    onContinue();
+    onContinue(grade);
   };
+  cont.onclick = () => go(null);
+  root.querySelectorAll('[data-regrade]').forEach((b) => { b.onclick = () => go(b.dataset.regrade); });
 }
 
 // Headline for a finished item: right first time, or got there after a wrong tap.
