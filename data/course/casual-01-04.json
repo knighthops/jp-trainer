@@ -1,6 +1,6 @@
 [
 {"id":"c01","n":1,"chapter":1,"title":"Casual て: what you're doing","goal":"Make the て form and say what you're doing right now, casually",
-"lex":{"うん":["うん","yeah (casual はい)"],"まだ":["まだ","still; not yet"],
+"lex":{"遊んで":["あそんで","hang out, play (te-form)"],"うん":["うん","yeah (casual はい)"],"まだ":["まだ","still; not yet"],
 "食べて":["たべて","eat (て form)"],"読んで":["よんで","read (て form)"],"乗って":["のって","get on (て form)"],"見て":["みて","look, watch (て form)"],"会って":["あって","meet (て form)"],
 "行きます":["いきます","go"],"寝ます":["ねます","go to bed"],"帰ります":["かえります","go home"],"話します":["はなします","talk"],
 "してる":["してる","doing (casual している)"],"見てる":["みてる","watching (casual 見ている)"],"話してる":["はなしてる","talking (casual 話している)"],"聞いてる":["きいてる","listening (casual 聞いている)"],"読んでる":["よんでる","reading (casual 読んでいる)"],"食べてる":["たべてる","eating (casual 食べている)"],
